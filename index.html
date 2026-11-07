@@ -274,8 +274,8 @@ header.top .iconbtn:hover{color:#fff;border-bottom-color:#fff}
 
 /* sidhuvud med bild */
 header.top{background:
-  linear-gradient(180deg,rgba(8,9,9,.6) 0%,rgba(8,9,9,.1) 40%,rgba(8,9,9,0) 70%,rgba(8,9,9,.35) 100%),
-  url("header.jpg") center 64%/cover no-repeat,#0c0d0d;
+  linear-gradient(180deg,rgba(8,9,9,.78) 0%,rgba(8,9,9,.4) 38%,rgba(8,9,9,.15) 70%,rgba(8,9,9,.45) 100%),
+  url("header.jpg") center 55%/cover no-repeat,#0c0d0d;
   min-height:clamp(228px,34vh,336px);padding-top:26px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
 header.top{align-items:flex-start;padding-left:max(22px,calc(50vw - 418px));padding-right:max(22px,calc(50vw - 418px));text-align:left}
 header.top .brand{flex-direction:row;gap:16px}
@@ -285,7 +285,7 @@ header.top h1{text-shadow:0 1px 14px rgba(0,0,0,.6)}
 @media(max-width:620px){
   header.top{background:
     linear-gradient(180deg,rgba(8,9,9,.6) 0%,rgba(8,9,9,.2) 55%,rgba(8,9,9,.5) 100%),
-    url("header-sm.jpg") 62% 70%/cover no-repeat,#0c0d0d;
+    url("header-sm.jpg") 55% 55%/cover no-repeat,#0c0d0d;
     min-height:140px;padding-top:16px;display:block}
   header.top > .row{top:24px;transform:none}
   .search select{max-width:34%}
@@ -320,6 +320,8 @@ html,body{overflow-x:hidden;max-width:100%}
 .fback:hover{background:rgba(21,25,26,.9)}
 .hero .back{left:max(66px,calc(50vw - 418px))}
 @media(max-width:620px){.hero .back{display:none}}
+header.top .meta,header.top .iconbtn{color:#e6e1d8;text-shadow:0 1px 8px rgba(0,0,0,.7)}
+@media(max-width:620px){header.top h1{font-size:13px;letter-spacing:.24em}}
 </style>
 </head>
 <body>
