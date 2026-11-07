@@ -191,12 +191,18 @@ header.top .meta{font-size:13px}
   .panel h2{font-size:24px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.brand{display:inline-flex;flex-direction:column;align-items:center;gap:10px;border:0;color:inherit}
+.logo{width:64px;height:64px;display:block}
+.login-logo{width:84px;height:84px;margin:0 auto 14px}
+@media(max-width:620px){.brand{flex-direction:row;gap:12px}.brand .logo{width:42px;height:42px}header.top .meta{display:none}header.top h1{font-size:28px}}
+.search input{min-width:0}.search select{flex:none;max-width:40%}
 </style>
 </head>
 <body>
 <div id="loginView" class="login-wrap hidden">
   <div class="login">
-    <h1>Sivander's Recept</h1>
+    <img src="logo.svg" alt="" class="logo login-logo"><h1>Sivander's Recept</h1>
     <p class="sub">Nicklas och Ann-Sofies kök</p>
     <form id="loginForm">
       <label>E-post</label><input type="email" id="loginEmail" autocomplete="username" required>
