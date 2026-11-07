@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>:root{
   --bg:#ffffff; --surface:#faf9f7; --ink:#1c1a1b; --muted:#77706b; --line:#e6e2dc;
   --accent:#5c1a24; --accent-soft:#f3e9ea; --brass:#9c7a3c; --brass-soft:#f4efe4;
@@ -358,18 +358,19 @@ header.top{padding-top:66px}
   header.top .brand .logo{width:clamp(104px,12.5vw,150px);height:clamp(104px,12.5vw,150px);margin:-20px 0;filter:drop-shadow(0 4px 18px rgba(0,0,0,.55))}
   header.top h1{font-size:clamp(30px,4.6vw,54px);white-space:nowrap;padding-left:30px;border-left:1px solid rgba(226,196,138,.55);line-height:1;padding-top:10px;padding-bottom:10px}
 }
-/* logga och rubrik 150 % */
+/* logga och rubrik: stor logga, fet rubrik */
+header.top h1{font-weight:600}
 @media(min-width:621px){
-  header.top{padding:56px 24px 40px;min-height:clamp(300px,40vh,420px);justify-content:center}
+  header.top{padding:56px 24px 40px;justify-content:center}
   header.top .brand{gap:12px}
-  header.top .brand .logo{width:clamp(200px,30vw,450px);height:clamp(200px,30vw,450px);margin:-40px 0}
-  header.top h1{font-size:clamp(30px,calc((70vw - 110px) / 12.2),81px);padding-left:40px;padding-top:14px;padding-bottom:14px}
+  header.top .brand .logo{width:min(50vw,78vh,900px);height:min(50vw,78vh,900px);min-width:260px;min-height:260px;margin:-50px 0}
+  header.top h1{white-space:normal;font-size:clamp(34px,calc((46vw - 120px) / 6.4),120px);line-height:1.08;padding-left:40px;padding-top:18px;padding-bottom:18px;text-align:left}
 }
 @media(max-width:620px){
-  header.top .brand{flex-direction:column;gap:8px;align-items:center}
-  header.top .brand .logo{width:144px;height:144px;margin:-8px 0 -4px}
-  header.top h1{font-size:clamp(22px,7.6vw,34px);letter-spacing:.06em;margin-right:-.06em;white-space:nowrap}
-  header.top{padding-top:46px}
+  header.top .brand{flex-direction:row;gap:8px;align-items:center;justify-content:center}
+  header.top .brand .logo{width:24vw;height:24vw;max-width:130px;max-height:130px;margin:-10px 0}
+  header.top h1{font-size:clamp(15px,calc((76vw - 56px) / 12),30px);letter-spacing:.05em;margin-right:-.05em;white-space:nowrap}
+  header.top{padding-top:50px}
 }
 </style>
 </head>
