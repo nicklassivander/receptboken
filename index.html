@@ -338,6 +338,18 @@ header.top .brand .logo{width:64px;height:64px}
   header.top .brand .logo{width:38px;height:38px}
   header.top > .row{top:12px}
 }
+
+/* ikonen till vänster om rubriken */
+header.top .brand{flex-direction:row;align-items:center;gap:18px}
+header.top h1{font-size:54px;letter-spacing:.13em;margin-right:-.13em}
+header.top .brand .logo{width:80px;height:80px;flex:none}
+header.top{padding-top:66px}
+@media(max-width:620px){
+  header.top .brand{flex-direction:row;gap:10px;justify-content:center}
+  header.top h1{font-size:23px;letter-spacing:.07em;margin-right:-.07em}
+  header.top .brand .logo{width:40px;height:40px}
+  header.top{padding-top:44px}
+}
 </style>
 </head>
 <body>
