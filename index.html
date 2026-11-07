@@ -290,6 +290,12 @@ header.top h1{text-shadow:0 1px 14px rgba(0,0,0,.6)}
   header.top > .row{top:24px;transform:none}
   .search select{max-width:34%}
 }
+
+/* inget får bli bredare än skärmen (långa ord som "Västerbottensostkrustader") */
+html,body{overflow-x:hidden;max-width:100%}
+@supports (overflow:clip){html,body{overflow-x:clip}}
+.card,.grid > *,.rmain{min-width:0}
+.card h3,.rmain h3,.dtitle,.ai-a,.prewrap,.ings li span{overflow-wrap:anywhere;hyphens:auto;-webkit-hyphens:auto}
 </style>
 </head>
 <body>
