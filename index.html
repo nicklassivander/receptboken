@@ -49,11 +49,11 @@ header.top .meta{font-size:13px}
 .btn:disabled{opacity:.45;cursor:default}
 
 /* search and filters */
-.search{display:flex;gap:10px;margin-bottom:16px}
-.search input{flex:1;border:0;border-bottom:1px solid var(--line);background:transparent;padding:10px 2px;outline:none;font-size:16px}
-.search input::placeholder{color:#a8a19b;font-style:italic;font-family:var(--serif);font-size:18px}
-.search input:focus{border-bottom-color:var(--ink)}
-.search select{border:0;border-bottom:1px solid var(--line);background:transparent;padding:0 4px;color:var(--muted);font-size:14px}
+.search{display:flex;gap:10px;margin-bottom:18px;align-items:stretch}
+.search input{flex:1;border:1px solid #cfc8bf;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%231c1a1b' stroke-width='1.4'%3E%3Ccircle cx='7.5' cy='7.5' r='5.5'/%3E%3Cpath d='M11.6 11.6 16.5 16.5'/%3E%3C/svg%3E") no-repeat 16px center;border-radius:2px;padding:14px 16px 14px 46px;outline:none;font-size:16px;font-weight:400}
+.search input::placeholder{color:#6f6863;font-style:italic;font-family:var(--serif);font-size:19px}
+.search input:focus{border-color:var(--ink);box-shadow:0 0 0 3px var(--brass-soft)}
+.search select{border:1px solid #cfc8bf;border-radius:2px;background:#fff;padding:0 12px;color:var(--ink);font-size:14px}
 .chips{display:flex;gap:6px 18px;overflow-x:auto;padding:2px 0 22px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{border:0;background:none;padding:2px 0;font-size:14px;color:var(--muted);white-space:nowrap;border-bottom:1px solid transparent}
