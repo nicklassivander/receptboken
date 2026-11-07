@@ -4,6 +4,8 @@ const sample = true, sampleImages = true;   // AI finns alltid i webbversionen
 let recipes = [], loaded = false, loadNote = "", storageOk = true;
 let view = { name: "list" };              // list | detail | edit
 let filter = { q: "", tag: null, fav: false, sort: "new" };
+let layout = "grid";
+try { layout = localStorage.getItem("layout") === "list" ? "list" : "grid"; } catch {}
 let draft = null;                          // recipe being edited
 let menuOpen = false;
 let detailState = { mode: "mine", servings: null, done: {} };
@@ -223,7 +225,7 @@ function renderList(){
   } else if (!list.length) {
     body = `<div class="empty"><p>Inga recept matchar.</p><button class="btn ghost small" data-a="clear">Rensa filter</button></div>`;
   } else {
-    body = `<div class="grid">${list.map(r => `
+    body = layout === "list" ? listRows(list) : `<div class="grid">${list.map(r => `
       <div class="card" data-a="open" data-id="${esc(r.id)}">
         <div class="thumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '<svg class="plate" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="32" cy="32" r="15" fill="none" stroke="currentColor" stroke-width=".6"/><path d="M6 14v14M3 14v8a3 3 0 006 0v-8M6 28v24M58 14c-4 2-4 14 0 16v22" fill="none" stroke="currentColor" stroke-width="1"/></svg>'}${r.favorite ? `<span class="fav" aria-label="Favorit">♥</span>` : ""}</div>
         <div class="body">
@@ -252,6 +254,12 @@ function renderList(){
         <option value="rating">Betyg</option>
         <option value="name">A–Ö</option>
       </select>
+    </div>
+    <div class="filterbar">
+      <div class="seg layout-seg" role="group" aria-label="Visa som">
+        <button class="${layout === "grid" ? "on" : ""}" data-a="layout" data-l="grid" aria-pressed="${layout === "grid"}">Bilder</button>
+        <button class="${layout === "list" ? "on" : ""}" data-a="layout" data-l="list" aria-pressed="${layout === "list"}">Lista</button>
+      </div>
     </div>
     <div class="chips">
       <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">Favoriter</button>
@@ -676,6 +684,7 @@ document.addEventListener("click", async e => {
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
     case "home": view = { name: "list" }; render(); break;
     case "fav": filter.fav = !filter.fav; render(); break;
+    case "layout": layout = el.dataset.l; try { localStorage.setItem("layout", layout); } catch {} render(); break;
     case "tag": filter.tag = filter.tag === el.dataset.t ? null : el.dataset.t; render(); break;
     case "clear": filter = { ...filter, q: "", tag: null, fav: false }; render(); break;
     case "mode": detailState.mode = el.dataset.m; detailState.servings = null; detailState.done = {}; render(); break;
@@ -906,4 +915,20 @@ async function importFile(file, btn){
   btn.disabled = false; btn.textContent = "Importera recept från fil";
   toast(`${ok} recept importerade`);
   render();
+}
+
+// Kompakt lista: liten bild, namn, källa och tid på en rad.
+function listRows(list){
+  return `<ul class="rlist">${list.map(r => `
+    <li class="rrow" data-a="open" data-id="${esc(r.id)}">
+      <div class="rthumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : ""}</div>
+      <div class="rmain">
+        <h3>${esc(r.title || "Namnlöst recept")}${r.favorite ? ` <span class="rfav" aria-label="Favorit">♥</span>` : ""}</h3>
+        <div class="rmeta">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}${(r.tags || []).slice(0, 3).map(t => `<span>${esc(t)}</span>`).join("")}</div>
+      </div>
+      <div class="rside">
+        ${r.rating ? `<span class="rstars">${"★".repeat(r.rating)}</span>` : ""}
+        ${r.time ? `<span>${esc(r.time)}</span>` : ""}
+      </div>
+    </li>`).join("")}</ul>`;
 }
