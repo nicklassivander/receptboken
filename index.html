@@ -350,6 +350,14 @@ header.top{padding-top:66px}
   header.top .brand .logo{width:40px;height:40px}
   header.top{padding-top:44px}
 }
+
+/* stor logga bredvid rubriken (dator) */
+@media(min-width:621px){
+  header.top{padding-top:44px}
+  header.top .brand{gap:8px}
+  header.top .brand .logo{width:clamp(104px,12.5vw,150px);height:clamp(104px,12.5vw,150px);margin:-20px 0;filter:drop-shadow(0 4px 18px rgba(0,0,0,.55))}
+  header.top h1{font-size:clamp(30px,4.6vw,54px);white-space:nowrap;padding-left:30px;border-left:1px solid rgba(226,196,138,.55);line-height:1;padding-top:10px;padding-bottom:10px}
+}
 </style>
 </head>
 <body>
