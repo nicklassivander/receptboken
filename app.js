@@ -216,22 +216,22 @@ function renderList(){
       <h2>Din receptbok är tom</h2>
       <p>${can("contributor") ? "Klistra in ett recept du hittat på nätet eller Instagram, eller skriv ditt eget." : "Här kommer recepten att synas."}</p>
       <div class="row" style="justify-content:center;${can("contributor") ? "" : "display:none"}">
-        ${sample && sampleImages ? `<button class="btn accent" data-a="pickimport">📷 Foto / skärmdump</button>` : ""}
-        ${sample ? `<button class="btn ${sampleImages ? "ghost" : "accent"}" data-a="import">✨ Klistra in text</button>` : ""}
-        <button class="btn ${sample ? "ghost" : "accent"}" data-a="new">✏️ Skriv eget</button>
+        ${sample && sampleImages ? `<button class="btn accent" data-a="pickimport">Foto eller skärmdump</button>` : ""}
+        ${sample ? `<button class="btn ${sampleImages ? "ghost" : "accent"}" data-a="import">Klistra in text</button>` : ""}
+        <button class="btn ${sample ? "ghost" : "accent"}" data-a="new">Skriv eget</button>
       </div></div>`;
   } else if (!list.length) {
     body = `<div class="empty"><p>Inga recept matchar.</p><button class="btn ghost small" data-a="clear">Rensa filter</button></div>`;
   } else {
     body = `<div class="grid">${list.map(r => `
       <div class="card" data-a="open" data-id="${esc(r.id)}">
-        <div class="thumb">${r.photo ? `<img src="${esc(r.photo)}" alt="">` : "🍽️"}${r.favorite ? `<span class="fav">❤️</span>` : ""}</div>
+        <div class="thumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '<svg class="plate" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="32" cy="32" r="15" fill="none" stroke="currentColor" stroke-width=".6"/><path d="M6 14v14M3 14v8a3 3 0 006 0v-8M6 28v24M58 14c-4 2-4 14 0 16v22" fill="none" stroke="currentColor" stroke-width="1"/></svg>'}${r.favorite ? `<span class="fav" aria-label="Favorit">♥</span>` : ""}</div>
         <div class="body">
           <h3>${esc(r.title || "Namnlöst recept")}</h3>
           <div class="meta">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}</div>
           <div class="meta" style="margin-top:6px">
             ${r.rating ? `<span>${"★".repeat(r.rating)}</span>` : ""}
-            ${r.time ? `<span>⏱ ${esc(r.time)}</span>` : ""}
+            ${r.time ? `<span>${esc(r.time)}</span>` : ""}
             ${r.timesCooked ? `<span>Lagad ${r.timesCooked}×</span>` : ""}
           </div>
         </div>
@@ -239,8 +239,8 @@ function renderList(){
   }
 
   $app.innerHTML = `
-    <header class="top"><h1>Recept<span>boken</span></h1>
-      <span class="row"><span class="meta">${recipes.length ? recipes.length + " recept" : ""}</span><button class="iconbtn" data-a="settings" aria-label="Inställningar">⚙️</button></span></header>
+    <header class="top"><h1>Receptboken</h1>
+      <span class="row"><span class="meta">${recipes.length ? recipes.length + " recept" : ""}</span><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto</button></span></header>
     ${loadNote ? `<div class="notice">${esc(loadNote)}</div>` : ""}
     ${recipes.length ? `
     <div class="search">
@@ -254,15 +254,15 @@ function renderList(){
       </select>
     </div>
     <div class="chips">
-      <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">❤️ Favoriter</button>
+      <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">Favoriter</button>
       ${tagList.map(t => `<button class="chip ${filter.tag === t ? "on" : ""}" data-a="tag" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
     </div>` : ""}
     ${body}
     ${storageOk && loaded && can("contributor") ? `<button class="fab" data-a="menu" aria-label="Lägg till">${menuOpen ? "×" : "+"}</button>` : ""}
     ${menuOpen ? `<div class="menu">
-      ${sample && sampleImages ? `<button data-a="pickimport">📷 Foto eller skärmdump<small>Fota en kokbok eller välj skärmdumpar</small></button>` : ""}
-      ${sample ? `<button data-a="import">✨ Klistra in text<small>Från en receptsida eller Instagram</small></button>` : ""}
-      <button data-a="new">✏️ Skriv eget recept<small>Fyll i själv från början</small></button>
+      ${sample && sampleImages ? `<button data-a="pickimport">Foto eller skärmdump<small>Fota en kokbok eller välj skärmdumpar</small></button>` : ""}
+      ${sample ? `<button data-a="import">Klistra in text<small>Från en receptsida eller Instagram</small></button>` : ""}
+      <button data-a="new">Skriv eget recept<small>Fyll i själv från början</small></button>
     </div>` : ""}
   `;
   const q = document.getElementById("q");
@@ -286,24 +286,24 @@ function renderDetail(){
   const steps = src.steps || [];
 
   $app.innerHTML = `
-    <button class="back" data-a="home">← Alla recept</button>
+    <button class="back" data-a="home">Alla recept</button>
     ${r.photo ? `<div class="hero"><img src="${esc(r.photo)}" alt=""></div>` : ""}
-    <div class="row">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}
+    <div class="row" style="justify-content:center">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}
       ${(r.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join("")}</div>
     <h1 class="dtitle">${esc(r.title || "Namnlöst recept")}</h1>
-    <div class="row" style="justify-content:space-between">
+    <div class="row" style="justify-content:center;gap:18px">
       <div class="stars" ${can("contributor") ? "" : 'style="pointer-events:none"'}>${[1,2,3,4,5].map(n => `<button class="${(r.rating || 0) >= n ? "on" : ""}" data-a="rate" data-n="${n}" aria-label="${n} stjärnor">★</button>`).join("")}</div>
-      <button class="iconbtn" data-a="togglefav" aria-label="Favorit" ${can("contributor") ? "" : "disabled"}>${r.favorite ? "❤️" : "🤍"}</button>
+      <button class="iconbtn" data-a="togglefav" aria-label="Favorit" style="font-size:20px;color:var(--accent)" ${can("contributor") ? "" : "disabled"}>${r.favorite ? "♥" : "♡"}</button>
     </div>
     <div class="meta" style="margin-top:6px">
-      ${r.time ? `<span>⏱ ${esc(r.time)}</span>` : ""}
-      ${r.timesCooked ? `<span>Lagad ${r.timesCooked}× · senast ${fmtDate(r.lastCooked)}</span>` : `<span>Inte lagad än</span>`}
-      ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan ↗</a></span>` : ""}
+      ${r.time ? `<span>${esc(r.time)}</span>` : ""}
+      ${r.timesCooked ? `<span>Lagad ${r.timesCooked} gånger, senast ${fmtDate(r.lastCooked)}</span>` : `<span>Inte lagad än</span>`}
+      ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
     </div>
 
     ${(!ings.length || !steps.length || (r.tags || []).includes("att komplettera")) && can("contributor") ? `<div class="panel changes"><h2>Receptet är inte komplett</h2>
       <p style="margin:0 0 12px">Ta skärmdumpar av receptet i videon eller på sidan och lägg till dem här, så fyller Claude i det som saknas.</p>
-      <button class="btn accent" data-a="pickcomplete">📷 Komplettera med skärmdumpar</button></div>` : ""}
+      <button class="btn accent" data-a="pickcomplete">Komplettera med skärmdumpar</button></div>` : ""}
 
     ${r.myChanges ? `<div class="panel changes"><h2>Mina ändringar</h2><div class="prewrap">${esc(r.myChanges)}</div></div>` : ""}
 
@@ -328,21 +328,21 @@ function renderDetail(){
     ${r.notes ? `<div class="panel"><h2>Anteckningar</h2><div class="prewrap">${esc(r.notes)}</div></div>` : ""}
 
     ${can("contributor") ? `<div class="panel ai">
-      <h2>✨ Fråga Claude</h2>
+      <h2>Fråga sommelieren och kocken</h2>
       <div class="chips">
-        <button class="chip" data-a="ai" data-q="wine">🍷 Vilket vin passar?</button>
-        <button class="chip" data-a="ai" data-q="subs">🔄 Alternativ till ingredienser</button>
-        <button class="chip" data-a="ai" data-q="similar">📖 Liknande recept</button>
-        <button class="chip" data-a="ai" data-q="vary">💡 Andra varianter</button>
-        <button class="chip" data-a="ai" data-q="sides">🥗 Vad serverar jag till?</button>
+        <button class="chip" data-a="ai" data-q="wine">Vilket vin passar?</button>
+        <button class="chip" data-a="ai" data-q="subs">Alternativ till ingredienser</button>
+        <button class="chip" data-a="ai" data-q="similar">Liknande recept</button>
+        <button class="chip" data-a="ai" data-q="vary">Andra varianter</button>
+        <button class="chip" data-a="ai" data-q="sides">Vad serverar jag till?</button>
       </div>
       <form class="ai-ask" id="ai-form"><input id="ai-input" placeholder="t.ex. Jag har ingen crème fraiche – vad tar jag?" autocomplete="off"><button class="btn small" type="submit">Fråga</button></form>
       <div id="ai-out">${aiOutHtml(r.id)}</div>
     </div>` : ""}
 
     <div class="actions">
-      ${can("contributor") ? `<button class="btn accent" data-a="cooked">🍳 Jag lagade den idag</button>
-      <button class="btn ghost" data-a="pickdish">📷 ${r.photo ? "Byt bild" : "Lägg till bild"}</button>
+      ${can("contributor") ? `<button class="btn accent" data-a="cooked">Lagad idag</button>
+      <button class="btn ghost" data-a="pickdish">${r.photo ? "Byt bild" : "Lägg till bild"}</button>
       <button class="btn ghost" data-a="edit">Redigera</button>` : ""}
       <button class="btn ghost" data-a="copy">Kopiera</button>
       ${can("editor") ? `<button class="btn danger" data-a="del">Radera</button>` : ""}
@@ -475,8 +475,8 @@ function aiOutHtml(id){
     const links = !it.busy && it.a ? recipes.filter(x => x.id !== id && x.title && it.a.toLowerCase().includes(x.title.toLowerCase())) : [];
     return `<div class="ai-q">${esc(it.q)}</div>
       <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : it.a ? aiMd(it.a) : `<span class="meta">Claude tänker …</span>`}</div>
-      ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">📖 ${esc(x.title)}</button>`).join("")}</div>` : ""}
-      ${!it.busy && it.a ? `<div class="ai-tools"><button class="btn ghost small" data-a="aisave" data-i="${i}">📝 Spara i anteckningar</button></div>` : ""}`;
+      ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
+      ${!it.busy && it.a ? `<div class="ai-tools"><button class="btn ghost small" data-a="aisave" data-i="${i}">Spara i anteckningar</button></div>` : ""}`;
   }).reverse().join("");
 }
 function aiRefresh(id){ const el = document.getElementById("ai-out"); if (el && view.id === id) el.innerHTML = aiOutHtml(id); }
@@ -572,7 +572,7 @@ function renderImport(){
       ${s.error ? `<div class="err">${esc(s.error)}</div>` : ""}
       <div class="row" style="justify-content:flex-end;margin-top:18px">
         <button class="btn ghost" data-a="closeimport">Avbryt</button>
-        <button class="btn accent" data-a="runimport" ${s.busy ? "disabled" : ""}>${s.busy ? `<span class="spinner"></span> Läser receptet …` : "✨ Läs in"}</button>
+        <button class="btn accent" data-a="runimport" ${s.busy ? "disabled" : ""}>${s.busy ? `<span class="spinner"></span> Läser receptet …` : "Läs in receptet"}</button>
       </div>
     </div>
   </div>`;
@@ -686,7 +686,7 @@ document.addEventListener("click", async e => {
     case "togglefav": await patch(cur.id, { favorite: !cur.favorite }); break;
     case "cooked":
       await patch(cur.id, { timesCooked: (cur.timesCooked || 0) + 1, lastCooked: today() });
-      toast("Snyggt! Noterat att du lagade den idag."); break;
+      toast("Noterat: lagad idag"); break;
     case "copy":
       try { await navigator.clipboard.writeText(recipeText(cur)); toast("Receptet kopierat"); } catch { toast("Kunde inte kopiera"); }
       break;
@@ -734,10 +734,10 @@ function openSettings(){
   openSheet(`<h2>Inställningar</h2>
     <p class="sub">Inloggad som ${esc(me || "")} · ${esc(ROLE_LABEL[role] || "Ingen behörighet")}</p>
     <div class="actions" style="flex-direction:column">
-      ${can("admin") ? `<button class="btn ghost" id="usersBtn">👥 Hantera användare</button>
-      <button class="btn ghost" id="importBtn">⬆️ Importera recept från fil</button>
+      ${can("admin") ? `<button class="btn ghost" id="usersBtn">Hantera användare</button>
+      <button class="btn ghost" id="importBtn">Importera recept från fil</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>` : ""}
-      <button class="btn ghost" id="pwBtn">🔑 Byt lösenord</button>
+      <button class="btn ghost" id="pwBtn">Byt lösenord</button>
       <button class="btn ghost" id="logoutBtn">Logga ut</button>
       <button class="btn" id="closeSheetBtn">Stäng</button>
     </div>`);
@@ -899,7 +899,7 @@ async function importFile(file, btn){
     if (!r.id || !/^[\w.:-]{1,80}$/.test(r.id)) delete r.id;
     if (await saveRecipe(r)) ok++;
   }
-  btn.disabled = false; btn.textContent = "⬆️ Importera recept från fil";
+  btn.disabled = false; btn.textContent = "Importera recept från fil";
   toast(`${ok} recept importerade`);
   render();
 }
