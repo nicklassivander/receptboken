@@ -361,11 +361,12 @@ header.top{padding-top:66px}
 /* logga och rubrik: stor logga, fet rubrik */
 header.top h1{font-weight:600}
 @media(min-width:621px){
-  header.top{padding:56px 24px 40px;justify-content:center}
+  header.top{padding:40px 24px 28px;min-height:0;justify-content:center}
   header.top .brand{gap:12px}
-  header.top .brand .logo{width:min(50vw,78vh,900px);height:min(50vw,78vh,900px);min-width:260px;min-height:260px;margin:-50px 0}
-  header.top h1{white-space:normal;font-size:clamp(34px,calc((46vw - 120px) / 6.4),120px);line-height:1.08;padding-left:40px;padding-top:18px;padding-bottom:18px;text-align:left}
+  header.top .brand .logo{width:clamp(170px,22vw,320px);height:clamp(170px,22vw,320px);margin:-36px 0}
+  header.top h1{white-space:nowrap;font-size:clamp(28px,calc((78vw - 170px) / 12.4),62px);line-height:1;padding-left:34px;padding-top:12px;padding-bottom:12px}
 }
+
 @media(max-width:620px){
   header.top .brand{flex-direction:row;gap:8px;align-items:center;justify-content:center}
   header.top .brand .logo{width:24vw;height:24vw;max-width:130px;max-height:130px;margin:-10px 0}
