@@ -177,7 +177,43 @@ async function blobToB64(blob){
 }
 
 // ---------- render ----------
+// Webbläsarens historik följer appens vyer, så bakåt-knappen och svepet
+// går tillbaka i appen i stället för att lämna sidan.
+let navFromPop = false, inAppSteps = 0;
+const viewKey = v => v.name + ":" + (v.id || "");
+function viewHash(v){
+  if (v.name === "detail") return "#r=" + v.id;
+  if (v.name === "edit") return v.id ? "#e=" + v.id : "#ny";
+  return " ";
+}
+function syncHistory(){
+  if (navFromPop) { navFromPop = false; return; }
+  const cur = history.state && history.state.v;
+  const v = { name: view.name, id: view.id || null };
+  if (!cur) { history.replaceState({ v }, "", viewHash(v).trim() || location.pathname); return; }
+  if (viewKey(cur) === viewKey(v)) return;
+  // Efter att ha sparat ett recept: ersätt redigeringsläget i historiken
+  if (cur.name === "edit" && v.name === "detail") { history.replaceState({ v }, "", viewHash(v)); return; }
+  history.pushState({ v }, "", viewHash(v).trim() || location.pathname);
+  inAppSteps++;
+}
+window.addEventListener("popstate", e => {
+  const v = (e.state && e.state.v) || { name: "list" };
+  closeSheet && closeSheet();
+  if (v.name === "edit" && !draft) { view = v.id ? { name: "detail", id: v.id } : { name: "list" }; }
+  else view = v.id ? { name: v.name, id: v.id } : { name: v.name };
+  if (view.name !== "edit") draft = null;
+  menuOpen = false;
+  inAppSteps = Math.max(0, inAppSteps - 1);
+  navFromPop = true;
+  render(); window.scrollTo(0, 0);
+});
+function goBack(){
+  if (inAppSteps > 0) history.back();
+  else { view = { name: "list" }; draft = null; render(); window.scrollTo(0, 0); }
+}
 function render(){
+  syncHistory();
   if (view.name === "detail") return renderDetail();
   if (view.name === "edit") return renderEdit();
   renderList();
@@ -297,6 +333,7 @@ function renderDetail(){
     <div class="hero ${r.photo ? "" : "noimg"}">
       ${r.photo ? `<img src="${esc(r.photo)}" alt="">` : ""}
       <button class="back" data-a="home">Alla recept</button>
+      <button class="fback" data-a="home" aria-label="Tillbaka till alla recept"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
       <div class="hero-cap">
         <div class="row">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}
           ${(r.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join("")}</div>
@@ -692,7 +729,7 @@ document.addEventListener("click", async e => {
     case "open":
       detailState = { mode: "mine", servings: null, done: {} };
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
-    case "home": view = { name: "list" }; render(); break;
+    case "home": e.preventDefault(); if (view.name === "list") break; goBack(); break;
     case "fav": filter.fav = !filter.fav; render(); break;
     case "layout": layout = el.dataset.l; try { localStorage.setItem("layout", layout); } catch {} render(); break;
     case "tag": filter.tag = filter.tag === el.dataset.t ? null : el.dataset.t; render(); break;
@@ -733,13 +770,18 @@ document.addEventListener("click", async e => {
     case "edit": draft = JSON.parse(JSON.stringify(cur)); view = { name: "edit", id: cur.id }; render(); window.scrollTo(0, 0); break;
     case "rmphoto": readForm(); draft.photo = null; renderEdit(); break;
     case "cancel":
-      view = draft && draft.id ? { name: "detail", id: draft.id } : { name: "list" }; draft = null; render(); break;
+      draft = null; goBack(); break;
     case "save": {
       readForm();
       if (!draft.title) { toast("Ge receptet ett namn"); document.querySelector('[name=title]').focus(); return; }
       const btn = document.getElementById("savebtn"); btn.disabled = true; btn.textContent = "Sparar …";
       const id = await saveRecipe(draft);
-      if (id) { toast("Receptet sparat"); detailState = { mode: "mine", servings: null, done: {} }; draft = null; view = { name: "detail", id }; render(); window.scrollTo(0, 0); }
+      if (id) {
+        toast("Receptet sparat"); detailState = { mode: "mine", servings: null, done: {} };
+        const wasExisting = !!draft.id; draft = null;
+        if (wasExisting && inAppSteps > 0) { goBack(); }
+        else { view = { name: "detail", id }; render(); window.scrollTo(0, 0); }
+      }
       else { btn.disabled = false; btn.textContent = "Spara recept"; }
       break;
     }
