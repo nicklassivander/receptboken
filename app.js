@@ -286,11 +286,15 @@ function renderDetail(){
   const steps = src.steps || [];
 
   $app.innerHTML = `
-    <button class="back" data-a="home">Alla recept</button>
-    ${r.photo ? `<div class="hero"><img src="${esc(r.photo)}" alt=""></div>` : ""}
-    <div class="row" style="justify-content:center">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}
-      ${(r.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join("")}</div>
-    <h1 class="dtitle">${esc(r.title || "Namnlöst recept")}</h1>
+    <div class="hero ${r.photo ? "" : "noimg"}">
+      ${r.photo ? `<img src="${esc(r.photo)}" alt="">` : ""}
+      <button class="back" data-a="home">Alla recept</button>
+      <div class="hero-cap">
+        <div class="row">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}
+          ${(r.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join("")}</div>
+        <h1 class="dtitle">${esc(r.title || "Namnlöst recept")}</h1>
+      </div>
+    </div>
     <div class="row" style="justify-content:center;gap:18px">
       <div class="stars" ${can("contributor") ? "" : 'style="pointer-events:none"'}>${[1,2,3,4,5].map(n => `<button class="${(r.rating || 0) >= n ? "on" : ""}" data-a="rate" data-n="${n}" aria-label="${n} stjärnor">★</button>`).join("")}</div>
       <button class="iconbtn" data-a="togglefav" aria-label="Favorit" style="font-size:20px;color:var(--accent)" ${can("contributor") ? "" : "disabled"}>${r.favorite ? "♥" : "♡"}</button>

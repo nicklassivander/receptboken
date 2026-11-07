@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#15191a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Sivander's Recept">
 <title>Sivander's Recept</title>
@@ -197,6 +197,66 @@ header.top .meta{font-size:13px}
 .login-logo{width:84px;height:84px;margin:0 auto 14px}
 @media(max-width:620px){.brand{flex-direction:row;gap:12px}.brand .logo{width:42px;height:42px}header.top .meta{display:none}header.top h1{font-size:28px}}
 .search input{min-width:0}.search select{flex:none;max-width:40%}
+/* Aira-inspirerat: mörk inledning, sten och kalk i stället för vitt */
+:root{--bg:#e8e6e1;--surface:#f2f1ee;--paper:#f7f6f3;--ink:#161818;--muted:#6b6a66;--line:#d4d1ca;--night:#15191a}
+html,body{background:var(--bg)}
+.wrap{padding-top:0}
+header.top{margin:0 calc(50% - 50vw) 34px;padding:46px 22px 40px;border:0;text-align:center;color:#ece9e2;
+  background:
+    repeating-radial-gradient(ellipse at 30% 120%, rgba(255,255,255,.035) 0 1px, transparent 1px 9px),
+    radial-gradient(ellipse at 50% 0%, #2a3132 0%, var(--night) 70%)}
+header.top::after{display:none}
+header.top h1{font-family:var(--sans);font-weight:300;font-size:22px;letter-spacing:.42em;text-transform:uppercase;margin-right:-.42em}
+.brand{color:#ece9e2}
+header.top > .row{right:max(22px,calc(50vw - 418px));top:22px;transform:none}
+header.top .meta,header.top .iconbtn{color:#b9b4ab}
+header.top .iconbtn:hover{color:#fff;border-bottom-color:#fff}
+.logo{width:72px;height:72px}
+.search input,.search select{background-color:var(--paper);border-color:var(--line)}
+.thumb{background:#dcd9d3}
+.card .body{padding-top:14px}
+.card h3{font-size:23px}
+.empty{background:var(--surface);border:0}
+.btn,.btn.accent{background:var(--ink);border-color:var(--ink)}
+.btn:hover,.btn.accent:hover{background:#000}
+.btn.ghost{border-color:var(--ink)}
+.btn.danger{border-color:var(--line)}
+.btn.danger.armed{background:var(--accent);border-color:var(--accent)}
+.fab{background:var(--ink);box-shadow:0 10px 26px rgba(0,0,0,.28)}
+.menu{background:var(--paper)}
+.menu button:hover{background:var(--surface)}
+.modal{background:var(--paper)}
+.toast{background:var(--ink)}
+/* receptsidan: rubriken ligger på bilden */
+.hero{position:relative;margin:0 calc(50% - 50vw) 0;max-height:none;height:min(72vh,640px);background:var(--night);overflow:hidden}
+.hero img{width:100%;height:100%;max-height:none;object-fit:cover;opacity:.92}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,12,12,.45) 0%,rgba(10,12,12,0) 28%,rgba(10,12,12,0) 45%,rgba(10,12,12,.78) 100%);pointer-events:none}
+.hero.noimg{height:auto;padding:90px 0 40px;background:radial-gradient(ellipse at 50% 0%,#2a3132 0%,var(--night) 70%)}
+.hero.noimg::after{display:none}
+.hero .back{position:absolute;top:18px;left:max(22px,calc(50vw - 418px));z-index:2;color:#e6e2da;margin:0}
+.hero .back:hover{color:#fff}
+.hero-cap{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:0 22px 40px;text-align:center;color:#f4f1ea}
+.hero.noimg .hero-cap{position:static}
+.hero-cap .row{justify-content:center}
+.hero-cap .badge,.hero-cap .badge.ig,.hero-cap .badge.web,.hero-cap .badge.own{color:#d8d3ca}
+.hero-cap .badge.mod{color:#d9bd84}
+.hero-cap .dtitle{color:#fff;margin:10px auto 0;max-width:18ch;text-shadow:0 2px 20px rgba(0,0,0,.35)}
+.hero + .row{margin-top:24px}
+.panel{border-top-color:var(--line)}
+.panel.changes{background:var(--paper)}
+.ings li{border-bottom-color:#dcd8d0}
+.actions{border-top-color:var(--line)}
+.login-wrap{background:radial-gradient(ellipse at 50% 0%,#2a3132 0%,var(--night) 75%)}
+.login{background:var(--paper);border-top:0}
+.login h1{font-family:var(--sans);font-weight:300;font-size:20px;letter-spacing:.38em;text-transform:uppercase;margin-right:-.38em}
+@media(max-width:620px){
+  header.top{padding:22px 18px 22px;text-align:left}
+  header.top h1{font-size:15px;letter-spacing:.3em}
+  header.top > .row{top:50%;transform:translateY(-50%);right:18px}
+  .hero{height:62vh}
+  .hero .back{left:18px}
+  .hero-cap{padding-bottom:28px}
+}
 </style>
 </head>
 <body>
