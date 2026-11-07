@@ -339,6 +339,15 @@ function renderDetail(){
 
     ${r.notes ? `<div class="panel"><h2>Anteckningar</h2><div class="prewrap">${esc(r.notes)}</div></div>` : ""}
 
+    ${historyHtml(r)}
+
+    ${can("contributor") ? `<div class="panel">
+      <h2>Ändra receptet</h2>
+      <p class="meta" style="justify-content:flex-start;margin:-6px 0 12px">Skriv vad du vill ändra, lägga till eller ta bort. Du granskar ändringen innan den sparas.</p>
+      <form class="ai-ask" id="edit-form"><input id="edit-input" placeholder="t.ex. Byt grädde mot crème fraiche och ta bort koriandern" autocomplete="off"><button class="btn small" type="submit" id="edit-btn">Ändra</button></form>
+      <div class="err" id="edit-err"></div>
+    </div>` : ""}
+
     ${can("contributor") ? `<div class="panel ai">
       <h2>Fråga sommelieren och kocken</h2>
       <div class="chips">
@@ -354,6 +363,7 @@ function renderDetail(){
 
     <div class="actions">
       ${can("contributor") ? `<button class="btn accent" data-a="cooked">Lagad idag</button>
+      <button class="btn ghost" data-a="histadd">Ny tillagning</button>
       <button class="btn ghost" data-a="pickdish">${r.photo ? "Byt bild" : "Lägg till bild"}</button>
       <button class="btn ghost" data-a="edit">Redigera</button>` : ""}
       <button class="btn ghost" data-a="copy">Kopiera</button>
@@ -697,6 +707,19 @@ document.addEventListener("click", async e => {
       const n = +el.dataset.n; await patch(cur.id, { rating: cur.rating === n ? 0 : n }); break;
     }
     case "togglefav": await patch(cur.id, { favorite: !cur.favorite }); break;
+    case "histadd": openHistory(cur); break;
+    case "histedit": openHistory(cur, el.dataset.h); break;
+    case "histdel":
+      if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Säker? Tryck igen"; break; }
+      await patch(cur.id, { history: histOf(cur).filter(x => x.id !== el.dataset.h) }); toast("Tillagningen är borttagen"); break;
+    case "histuse": {
+      const e = histOf(cur).find(x => x.id === el.dataset.h); if (!e || !e.snapshot) break;
+      draft = JSON.parse(JSON.stringify(cur));
+      if (!draft.original) draft.original = { servings: cur.servings || null, ingredients: cur.ingredients || [], steps: cur.steps || [] };
+      draft.ingredients = e.snapshot.ingredients || []; draft.steps = e.snapshot.steps || [];
+      if (e.snapshot.servings) draft.servings = e.snapshot.servings;
+      view = { name: "edit", id: cur.id }; render(); window.scrollTo(0, 0); toast("Granska och spara"); break;
+    }
     case "cooked":
       await patch(cur.id, { timesCooked: (cur.timesCooked || 0) + 1, lastCooked: today() });
       toast("Noterat: lagad idag"); break;
@@ -931,4 +954,115 @@ function listRows(list){
         ${r.time ? `<span>${esc(r.time)}</span>` : ""}
       </div>
     </li>`).join("")}</ul>`;
+}
+
+// ---------- Ändra receptet med AI ----------
+async function aiEditRecipe(r, instruction){
+  const btn = $id("edit-btn"), err = $id("edit-err");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Ändrar …'; err.textContent = "";
+  const current = { title: r.title, servings: r.servings || null, time: r.time || "", ingredients: r.ingredients || [], steps: r.steps || [] };
+  const prompt = `Du redigerar ett matrecept åt en svensk hemmakock. Gör exakt de ändringar som efterfrågas och behåll allt annat oförändrat, ordagrant.
+Justera mängder, steg och tid när ändringen kräver det (t.ex. om en ingrediens byts ut eller tas bort ska stegen följa med).
+Svara ENDAST med JSON:
+{"title": string, "servings": number eller null, "time": string, "ingredients": [string], "steps": [string], "summary": string}
+- ingredients: en per rad, mängd först. Rubriker som börjar med "# " får finnas.
+- steps: ett steg per element, utan numrering.
+- summary: en kort mening på svenska om vad du ändrade, t.ex. "Bytte grädde mot crème fraiche och tog bort koriander."
+
+NUVARANDE RECEPT:
+${JSON.stringify(current)}
+
+ÖNSKAD ÄNDRING:
+${instruction}`;
+  try {
+    const out = parseJson(await ai(prompt, { mode: "json" }));
+    if (!Array.isArray(out.ingredients) || !Array.isArray(out.steps)) throw { code: "invalid_json" };
+    draft = JSON.parse(JSON.stringify(r));
+    if (!draft.original) draft.original = { servings: r.servings || null, ingredients: r.ingredients || [], steps: r.steps || [] };
+    if (out.title) draft.title = String(out.title).trim();
+    draft.servings = Number.isFinite(+out.servings) && +out.servings > 0 ? Math.round(+out.servings) : draft.servings;
+    if (typeof out.time === "string") draft.time = out.time.trim();
+    draft.ingredients = out.ingredients.map(x => String(x).trim()).filter(Boolean);
+    draft.steps = out.steps.map(x => String(x).trim()).filter(Boolean);
+    if (out.summary) draft.myChanges = [r.myChanges, String(out.summary).trim()].filter(Boolean).join("\n");
+    view = { name: "edit", id: r.id }; render(); window.scrollTo(0, 0);
+    toast("Granska ändringen och spara");
+  } catch (e) {
+    err.textContent = aiErr(e);
+    btn.disabled = false; btn.textContent = "Ändra";
+  }
+}
+document.addEventListener("submit", e => {
+  if (e.target.id !== "edit-form") return;
+  e.preventDefault();
+  const q = $id("edit-input").value.trim(); if (!q) return;
+  const r = recipes.find(x => x.id === view.id); if (r) aiEditRecipe(r, q);
+});
+
+// ---------- Tillagningar (frivillig historik) ----------
+const histOf = r => Array.isArray(r.history) ? r.history : [];
+function historyHtml(r){
+  const h = histOf(r).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  if (!h.length) return "";
+  return `<div class="panel">
+    <h2><span>Tillagningar</span><span class="meta">${h.length} st</span></h2>
+    <ul class="hist">${h.map(e => `
+      <li class="hitem">
+        ${e.photo ? `<img class="hphoto" src="${esc(e.photo)}" alt="" loading="lazy">` : ""}
+        <div class="hbody">
+          <div class="hhead"><span class="hdate">${esc(fmtDate(e.date))}</span>${e.rating ? `<span class="rstars">${"★".repeat(e.rating)}</span>` : ""}</div>
+          ${e.note ? `<div class="prewrap">${esc(e.note)}</div>` : ""}
+          ${e.snapshot ? `<details class="hvar"><summary>Receptet den gången</summary>
+            <ul>${(e.snapshot.ingredients || []).map(l => l.startsWith("#") ? `<li class="g">${esc(l.replace(/^#+\s*/, ""))}</li>` : `<li>${esc(l)}</li>`).join("")}</ul>
+            <ol>${(e.snapshot.steps || []).map(st => `<li>${esc(st)}</li>`).join("")}</ol>
+            ${can("contributor") ? `<button class="btn ghost small" data-a="histuse" data-h="${esc(e.id)}">Använd som min version</button>` : ""}
+          </details>` : ""}
+          ${can("contributor") ? `<div class="hacts"><button class="linkbtn" data-a="histedit" data-h="${esc(e.id)}">Ändra</button><button class="linkbtn" data-a="histdel" data-h="${esc(e.id)}">Ta bort</button></div>` : ""}
+        </div>
+      </li>`).join("")}</ul>
+  </div>`;
+}
+function openHistory(r, entryId){
+  const e = histOf(r).find(x => x.id === entryId) || { date: today(), rating: 0, note: "", photo: null };
+  let photo = e.photo || null;
+  openSheet(`<h2>${entryId ? "Ändra tillagning" : "Ny tillagning"}</h2>
+    <p class="sub">${esc(r.title || "")}</p>
+    <form id="hf" class="form">
+      <div class="two">
+        <div><label>Datum</label><input type="text" id="hdate" value="${esc(e.date)}" placeholder="ÅÅÅÅ-MM-DD"></div>
+        <div><label>Betyg</label><select id="hrate"><option value="0">Inget</option>${[1,2,3,4,5].map(n => `<option value="${n}" ${e.rating === n ? "selected" : ""}>${"★".repeat(n)}</option>`).join("")}</select></div>
+      </div>
+      <label>Vad gjorde du, och hur blev det?</label>
+      <textarea id="hnote" rows="4" placeholder="t.ex. Grillade på hög värme, la till lime. Lite för salt – nästa gång mindre fisksås.">${esc(e.note || "")}</textarea>
+      ${entryId ? "" : `<label class="check" style="color:var(--ink)"><input type="checkbox" id="hsnap"> Spara ingredienser och steg som de ser ut nu, som en variant</label>`}
+      <label>Bild (valfritt)</label>
+      <div class="photo-pick"><span id="hprev">${photo ? `<img src="${esc(photo)}" alt="">` : ""}</span><input type="file" accept="image/*" id="hphoto"></div>
+      <div class="err" id="herr"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:18px"><button type="button" class="btn ghost" id="hcancel">Avbryt</button><button class="btn accent" id="hsave">Spara</button></div>
+    </form>`);
+  $id("hcancel").onclick = closeSheet;
+  $id("hphoto").onchange = async ev => {
+    const f = ev.target.files[0]; if (!f) return;
+    $id("hsave").disabled = true;
+    const url = await storePhoto(await compress(f, 1200, 400000));
+    if (url) { photo = url; $id("hprev").innerHTML = `<img src="${esc(url)}" alt="">`; }
+    $id("hsave").disabled = false;
+  };
+  $id("hf").onsubmit = async ev => {
+    ev.preventDefault();
+    const date = $id("hdate").value.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { $id("herr").textContent = "Skriv datum som ÅÅÅÅ-MM-DD."; return; }
+    const entry = { id: entryId || ("h" + Date.now().toString(36)), date, rating: +$id("hrate").value || 0, note: $id("hnote").value.trim(), photo };
+    if (!entryId && $id("hsnap") && $id("hsnap").checked) entry.snapshot = { servings: r.servings || null, ingredients: r.ingredients || [], steps: r.steps || [] };
+    if (entryId && e.snapshot) entry.snapshot = e.snapshot;
+    const list = histOf(r).filter(x => x.id !== entry.id).concat(entry);
+    const data = { history: list };
+    if (!entryId) {
+      data.timesCooked = (r.timesCooked || 0) + 1;
+      if (!r.lastCooked || date > r.lastCooked) data.lastCooked = date;
+    }
+    $id("hsave").disabled = true;
+    if (await patch(r.id, data)) { closeSheet(); toast(entryId ? "Tillagningen är ändrad" : "Tillagningen är sparad"); }
+    else $id("hsave").disabled = false;
+  };
 }

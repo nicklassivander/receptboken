@@ -296,6 +296,24 @@ html,body{overflow-x:hidden;max-width:100%}
 @supports (overflow:clip){html,body{overflow-x:clip}}
 .card,.grid > *,.rmain{min-width:0}
 .card h3,.rmain h3,.dtitle,.ai-a,.prewrap,.ings li span{overflow-wrap:anywhere;hyphens:auto;-webkit-hyphens:auto}
+
+/* tillagningar */
+.hist{list-style:none;margin:0;padding:0}
+.hitem{display:flex;gap:18px;padding:16px 0;border-bottom:1px solid #dcd8d0}
+.hitem:last-child{border-bottom:0}
+.hphoto{width:96px;height:96px;object-fit:cover;flex:none}
+.hbody{flex:1;min-width:0}
+.hhead{display:flex;gap:14px;align-items:baseline;margin-bottom:4px}
+.hdate{font-family:var(--serif);font-size:20px}
+.hvar{margin-top:10px;font-size:14px}
+.hvar summary{cursor:pointer;color:var(--accent);font-family:var(--serif);font-style:italic;font-size:17px}
+.hvar ul,.hvar ol{margin:8px 0 12px;padding-left:20px}
+.hvar li.g{list-style:none;margin-left:-20px;font-family:var(--serif);font-style:italic}
+.hacts{display:flex;gap:16px;margin-top:8px}
+.linkbtn{border:0;background:none;padding:0;font-size:13px;color:var(--muted);border-bottom:1px solid transparent}
+.linkbtn:hover{color:var(--ink);border-bottom-color:var(--ink)}
+.linkbtn.armed{color:var(--accent)}
+@media(max-width:620px){.hphoto{width:68px;height:68px}}
 </style>
 </head>
 <body>
