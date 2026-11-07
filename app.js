@@ -239,7 +239,7 @@ function renderList(){
   }
 
   $app.innerHTML = `
-    <header class="top"><h1>Receptboken</h1>
+    <header class="top"><h1>Sivander's Recept</h1>
       <span class="row"><span class="meta">${recipes.length ? recipes.length + " recept" : ""}</span><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto</button></span></header>
     ${loadNote ? `<div class="notice">${esc(loadNote)}</div>` : ""}
     ${recipes.length ? `
