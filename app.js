@@ -3,7 +3,7 @@
 const sample = true, sampleImages = true;   // AI finns alltid i webbversionen
 let recipes = [], loaded = false, loadNote = "", storageOk = true;
 let view = { name: "list" };              // list | detail | edit
-let filter = { q: "", tag: null, fav: false, sort: "new" };
+let filter = { q: "", tag: null, fav: false, mine: false, cookedMe: false, sort: "new" };
 let layout = "grid";
 try { layout = localStorage.getItem("layout") === "list" ? "list" : "grid"; } catch {}
 let draft = null;                          // recipe being edited
@@ -99,10 +99,32 @@ function subscribe(){
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && view.name !== "edit") loadAll(); });
 }
 
+// ---------- vem: lagt till, lagat, favoriter ----------
+const OWNER = "nicklas.sivander@gmail.com";   // äldre recept utan uppgift räknas som hans
+const KNOWN_NAMES = { "nicklas.sivander@gmail.com": "Nicklas", "annsofiesivander@gmail.com": "Ann-Sofie" };
+let userNames = {};
+function nameOf(email){
+  const e = (email || "").toLowerCase();
+  if (!e) return "";
+  if (userNames[e]) return userNames[e];
+  if (KNOWN_NAMES[e]) return KNOWN_NAMES[e];
+  const p = e.split("@")[0].split(/[._]/)[0].replace(/\d+/g, "");
+  return p ? p.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join("-") : e;
+}
+const addedByOf = r => (r.addedBy || OWNER).toLowerCase();
+const favsOf = r => Array.isArray(r.favBy) ? r.favBy.map(x => x.toLowerCase()) : (r.favorite ? [OWNER] : []);
+const isFav = r => favsOf(r).includes(me);
+const cookLogOf = r => Array.isArray(r.cookLog) ? r.cookLog : [];
+function cooksSummary(r){
+  const c = {}; cookLogOf(r).forEach(x => { const n = nameOf(x.by); c[n] = (c[n] || 0) + 1; });
+  return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([n, k]) => k > 1 ? `${n} (${k})` : n).join(", ");
+}
+
 async function saveRecipe(r){
   const { id, ...body } = r;
   body.updatedAt = new Date().toISOString();
   if (!body.createdAt) body.createdAt = body.updatedAt;
+  if (!id && !body.addedBy && me) body.addedBy = me;
   const data = JSON.parse(JSON.stringify(body));
   const rid = id || newId();
   const { error } = await sb.from("recipes").upsert({ id: rid, data, updated_at: body.updatedAt });
@@ -222,7 +244,9 @@ function render(){
 function filtered(){
   const q = filter.q.trim().toLowerCase();
   let list = recipes.filter(r => {
-    if (filter.fav && !r.favorite) return false;
+    if (filter.fav && !isFav(r)) return false;
+    if (filter.mine && addedByOf(r) !== me) return false;
+    if (filter.cookedMe && !cookLogOf(r).some(x => (x.by || "").toLowerCase() === me)) return false;
     if (filter.tag && !(r.tags || []).includes(filter.tag)) return false;
     if (!q) return true;
     const hay = [r.title, (r.tags || []).join(" "), (r.ingredients || []).join(" "), r.myChanges, r.notes].join(" ").toLowerCase();
@@ -263,7 +287,7 @@ function renderList(){
   } else {
     body = layout === "list" ? listRows(list) : `<div class="grid">${list.map(r => `
       <div class="card" data-a="open" data-id="${esc(r.id)}">
-        <div class="thumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '<svg class="plate" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="32" cy="32" r="15" fill="none" stroke="currentColor" stroke-width=".6"/><path d="M6 14v14M3 14v8a3 3 0 006 0v-8M6 28v24M58 14c-4 2-4 14 0 16v22" fill="none" stroke="currentColor" stroke-width="1"/></svg>'}${r.favorite ? `<span class="fav" aria-label="Favorit">♥</span>` : ""}</div>
+        <div class="thumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '<svg class="plate" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="32" cy="32" r="15" fill="none" stroke="currentColor" stroke-width=".6"/><path d="M6 14v14M3 14v8a3 3 0 006 0v-8M6 28v24M58 14c-4 2-4 14 0 16v22" fill="none" stroke="currentColor" stroke-width="1"/></svg>'}${isFav(r) ? `<span class="fav" aria-label="Favorit">♥</span>` : ""}</div>
         <div class="body">
           <h3>${esc(r.title || "Namnlöst recept")}</h3>
           <div class="meta">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}</div>
@@ -298,7 +322,9 @@ function renderList(){
       </div>
     </div>
     <div class="chips">
-      <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">Favoriter</button>
+      <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">Mina favoriter</button>
+      <button class="chip ${filter.mine ? "on" : ""}" data-a="mine">Tillagda av mig</button>
+      <button class="chip ${filter.cookedMe ? "on" : ""}" data-a="cookedme">Lagade av mig</button>
       ${tagList.map(t => `<button class="chip ${filter.tag === t ? "on" : ""}" data-a="tag" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
     </div>` : ""}
     ${body}
@@ -343,11 +369,13 @@ function renderDetail(){
     </div>
     <div class="row" style="justify-content:center;gap:18px">
       <div class="stars" ${can("contributor") ? "" : 'style="pointer-events:none"'}>${[1,2,3,4,5].map(n => `<button class="${(r.rating || 0) >= n ? "on" : ""}" data-a="rate" data-n="${n}" aria-label="${n} stjärnor">★</button>`).join("")}</div>
-      <button class="iconbtn" data-a="togglefav" aria-label="Favorit" style="font-size:20px;color:var(--accent)" ${can("contributor") ? "" : "disabled"}>${r.favorite ? "♥" : "♡"}</button>
+      <button class="iconbtn" data-a="togglefav" aria-label="Favorit" style="font-size:20px;color:var(--accent)" ${can("contributor") ? "" : "disabled"}>${isFav(r) ? "♥" : "♡"}</button>
     </div>
     <div class="meta" style="margin-top:6px">
       ${r.time ? `<span>${esc(r.time)}</span>` : ""}
-      ${r.timesCooked ? `<span>Lagad ${r.timesCooked} gånger, senast ${fmtDate(r.lastCooked)}</span>` : `<span>Inte lagad än</span>`}
+      ${r.timesCooked ? `<span>Lagad ${r.timesCooked} gånger, senast ${fmtDate(r.lastCooked)}${(() => { const l = cookLogOf(r); const last = l.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0]; return last && last.date === r.lastCooked ? " av " + esc(nameOf(last.by)) : ""; })()}</span>` : `<span>Inte lagad än</span>`}
+      ${cookLogOf(r).length ? `<span>Lagad av ${esc(cooksSummary(r))}</span>` : ""}
+      <span>Tillagd av ${esc(nameOf(addedByOf(r)))}</span>
       ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
     </div>
 
@@ -739,9 +767,11 @@ document.addEventListener("click", async e => {
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
     case "home": e.preventDefault(); if (view.name === "list") break; goBack(); break;
     case "fav": filter.fav = !filter.fav; render(); break;
+    case "mine": filter.mine = !filter.mine; render(); break;
+    case "cookedme": filter.cookedMe = !filter.cookedMe; render(); break;
     case "layout": layout = el.dataset.l; try { localStorage.setItem("layout", layout); } catch {} render(); break;
     case "tag": filter.tag = filter.tag === el.dataset.t ? null : el.dataset.t; render(); break;
-    case "clear": filter = { ...filter, q: "", tag: null, fav: false }; render(); break;
+    case "clear": filter = { ...filter, q: "", tag: null, fav: false, mine: false, cookedMe: false }; render(); break;
     case "mode": detailState.mode = el.dataset.m; detailState.servings = null; detailState.done = {}; render(); break;
     case "serv": {
       const base = (detailState.mode === "orig" ? cur.original.servings : cur.servings) || 1;
@@ -756,7 +786,9 @@ document.addEventListener("click", async e => {
     case "rate": {
       const n = +el.dataset.n; await patch(cur.id, { rating: cur.rating === n ? 0 : n }); break;
     }
-    case "togglefav": await patch(cur.id, { favorite: !cur.favorite }); break;
+    case "togglefav": {
+      const f = favsOf(cur); const nf = f.includes(me) ? f.filter(x => x !== me) : f.concat(me);
+      await patch(cur.id, { favBy: nf }); toast(nf.includes(me) ? "Sparad bland dina favoriter" : "Borttagen från dina favoriter"); break; }
     case "histadd": openHistory(cur); break;
     case "histedit": openHistory(cur, el.dataset.h); break;
     case "histdel":
@@ -771,7 +803,7 @@ document.addEventListener("click", async e => {
       view = { name: "edit", id: cur.id }; render(); window.scrollTo(0, 0); toast("Granska och spara"); break;
     }
     case "cooked":
-      await patch(cur.id, { timesCooked: (cur.timesCooked || 0) + 1, lastCooked: today() });
+      await patch(cur.id, { timesCooked: (cur.timesCooked || 0) + 1, lastCooked: today(), cookLog: cookLogOf(cur).concat({ by: me, date: today() }) });
       toast("Noterat: lagad idag"); break;
     case "copy":
       try { await navigator.clipboard.writeText(recipeText(cur)); toast("Receptet kopierat"); } catch { toast("Kunde inte kopiera"); }
@@ -861,6 +893,7 @@ async function openUsers(){
   const load = async () => {
     const { data, error } = await sb.rpc("recipe_admin_list_users");
     if (error) { $id("uList").innerHTML = `<p class="err">${esc(error.message)}</p>`; return; }
+    (data || []).forEach(u => { if (u.name) userNames[(u.email || "").toLowerCase()] = u.name; });
     $id("uList").innerHTML = (data || []).map(u => {
       const self = u.email === me;
       const opts = ROLE_ORDER.map(r => `<option value="${r}" ${u.role === r ? "selected" : ""}>${ROLE_LABEL[r]}</option>`).join("");
@@ -1004,7 +1037,7 @@ function listRows(list){
     <li class="rrow" data-a="open" data-id="${esc(r.id)}">
       <div class="rthumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : ""}</div>
       <div class="rmain">
-        <h3>${esc(r.title || "Namnlöst recept")}${r.favorite ? ` <span class="rfav" aria-label="Favorit">♥</span>` : ""}</h3>
+        <h3>${esc(r.title || "Namnlöst recept")}${isFav(r) ? ` <span class="rfav" aria-label="Favorit">♥</span>` : ""}</h3>
         <div class="rmeta">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}${(r.tags || []).slice(0, 3).map(t => `<span>${esc(t)}</span>`).join("")}</div>
       </div>
       <div class="rside">
@@ -1068,7 +1101,7 @@ function historyHtml(r){
       <li class="hitem">
         ${e.photo ? `<img class="hphoto" src="${esc(e.photo)}" alt="" loading="lazy">` : ""}
         <div class="hbody">
-          <div class="hhead"><span class="hdate">${esc(fmtDate(e.date))}</span>${e.rating ? `<span class="rstars">${"★".repeat(e.rating)}</span>` : ""}</div>
+          <div class="hhead"><span class="hdate">${esc(fmtDate(e.date))}</span>${e.by ? `<span class="hby">${esc(nameOf(e.by))}</span>` : ""}${e.rating ? `<span class="rstars">${"★".repeat(e.rating)}</span>` : ""}</div>
           ${e.note ? `<div class="prewrap">${esc(e.note)}</div>` : ""}
           ${e.snapshot ? `<details class="hvar"><summary>Receptet den gången</summary>
             <ul>${(e.snapshot.ingredients || []).map(l => l.startsWith("#") ? `<li class="g">${esc(l.replace(/^#+\s*/, ""))}</li>` : `<li>${esc(l)}</li>`).join("")}</ul>
@@ -1110,7 +1143,7 @@ function openHistory(r, entryId){
     ev.preventDefault();
     const date = $id("hdate").value.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { $id("herr").textContent = "Skriv datum som ÅÅÅÅ-MM-DD."; return; }
-    const entry = { id: entryId || ("h" + Date.now().toString(36)), date, rating: +$id("hrate").value || 0, note: $id("hnote").value.trim(), photo };
+    const entry = { id: entryId || ("h" + Date.now().toString(36)), date, rating: +$id("hrate").value || 0, note: $id("hnote").value.trim(), photo, by: (e && e.by) || me };
     if (!entryId && $id("hsnap") && $id("hsnap").checked) entry.snapshot = { servings: r.servings || null, ingredients: r.ingredients || [], steps: r.steps || [] };
     if (entryId && e.snapshot) entry.snapshot = e.snapshot;
     const list = histOf(r).filter(x => x.id !== entry.id).concat(entry);
@@ -1118,6 +1151,7 @@ function openHistory(r, entryId){
     if (!entryId) {
       data.timesCooked = (r.timesCooked || 0) + 1;
       if (!r.lastCooked || date > r.lastCooked) data.lastCooked = date;
+      data.cookLog = cookLogOf(r).concat({ by: me, date });
     }
     $id("hsave").disabled = true;
     if (await patch(r.id, data)) { closeSheet(); toast(entryId ? "Tillagningen är ändrad" : "Tillagningen är sparad"); }
