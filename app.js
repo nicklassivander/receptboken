@@ -8,8 +8,9 @@ let layout = "grid";
 try { layout = localStorage.getItem("layout") === "list" ? "list" : "grid"; } catch {}
 let draft = null;                          // recipe being edited
 let menuOpen = false;
-let detailState = { mode: "mine", servings: null, done: {}, tab: "ing" };
+let detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
 let importState = null;
+let SHARE_Q = new URLSearchParams(location.search);  // läses innan historiken skriver om adressen
 
 const $app = document.getElementById("app");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -73,12 +74,27 @@ const ROLE_LABEL = { viewer: "Läsa", contributor: "Lägga till och ändra", edi
 const can = r => ROLE_ORDER.indexOf(role) >= ROLE_ORDER.indexOf(r);
 const newId = () => { const a = new Uint8Array(12); crypto.getRandomValues(a); return "r-" + [...a].map(b => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join(""); };
 
+// ---------- offline: recepten sparas på enheten ----------
+const CACHE_KEY = "recept-cache-v1";
+function writeCache(){
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ me, role, at: Date.now(), recipes })); } catch {}
+}
+function readCache(){
+  try { const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); return c && Array.isArray(c.recipes) ? c : null; } catch { return null; }
+}
+
 async function loadAll(){
   const { data: rows, error } = await sb.from("recipes").select("id,data");
   loaded = true;
-  if (error) { loadNote = "Kunde inte hämta recepten. Kontrollera att du har behörighet."; render(); return; }
+  if (error) {
+    const c = readCache();
+    if (c && c.recipes.length) { recipes = c.recipes; loadNote = "Du är offline – visar senast sparade recept."; }
+    else loadNote = navigator.onLine === false ? "Du är offline och inga recept är sparade på enheten än." : "Kunde inte hämta recepten. Kontrollera att du har behörighet.";
+    render(); return;
+  }
   loadNote = "";
   recipes = (rows || []).map(r => ({ ...r.data, id: r.id }));
+  writeCache();
   if (view.name !== "edit") render();
 }
 let subscribed = false;
@@ -92,6 +108,7 @@ function subscribe(){
         const i = recipes.findIndex(x => x.id === r.id);
         if (i >= 0) recipes[i] = r; else recipes.push(r);
       }
+      writeCache();
       if (view.name !== "edit") render();
     })
     .subscribe();
@@ -236,6 +253,7 @@ function goBack(){
 }
 function render(){
   syncHistory();
+  syncWakeLock();
   if (view.name === "detail") return renderDetail();
   if (view.name === "edit") return renderEdit();
   renderList();
@@ -410,7 +428,11 @@ function renderDetail(){
     <button class="cnext" data-a="ctab" data-t="${(detailState.tab || "ing") === "ing" ? "steps" : "ing"}">${(detailState.tab || "ing") === "ing" ? "Till Gör så här →" : "← Till ingredienserna"}</button>
     </div>
 
-    ${r.notes ? `<div class="panel"><h2>Anteckningar</h2><div class="prewrap">${esc(r.notes)}</div></div>` : ""}
+    ${detailState.notesEdit ? `<div class="panel notes-edit"><h2>Anteckningar</h2>
+        <textarea id="notes-input" rows="6" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(detailState.notesDraft ?? (r.notes || ""))}</textarea>
+        <div class="row" style="margin-top:12px"><button class="btn accent" data-a="notessave">Spara</button><button class="btn ghost" data-a="notescancel">Avbryt</button></div></div>`
+      : r.notes ? `<div class="panel"><h2><span>Anteckningar</span>${can("contributor") ? `<button class="linkbtn" data-a="notesedit">Redigera</button>` : ""}</h2><div class="prewrap">${esc(r.notes)}</div></div>`
+      : can("contributor") ? `<div class="panel notes-empty"><button class="linkbtn" data-a="notesedit">+ Lägg till anteckning</button></div>` : ""}
 
     ${historyHtml(r)}
 
@@ -763,7 +785,7 @@ document.addEventListener("click", async e => {
       menuOpen = false; draft = { title: "", sourceUrl: "", servings: 4, time: "", tags: [], ingredients: [], steps: [], myChanges: "", notes: "", photo: null };
       view = { name: "edit" }; render(); window.scrollTo(0, 0); break;
     case "open":
-      detailState = { mode: "mine", servings: null, done: {}, tab: "ing" };
+      detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
     case "home": e.preventDefault(); if (view.name === "list") break; goBack(); break;
     case "fav": filter.fav = !filter.fav; render(); break;
@@ -777,6 +799,17 @@ document.addEventListener("click", async e => {
       const base = (detailState.mode === "orig" ? cur.original.servings : cur.servings) || 1;
       detailState.servings = Math.max(1, (detailState.servings ?? base) + (+el.dataset.d)); render(); break;
     }
+    case "notesedit":
+      detailState.notesEdit = true; detailState.notesDraft = cur.notes || ""; render();
+      { const t = $id("notes-input"); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+      break;
+    case "notescancel": detailState.notesEdit = false; detailState.notesDraft = null; render(); break;
+    case "notessave": {
+      const val = ($id("notes-input") ? $id("notes-input").value : detailState.notesDraft || "").trim();
+      el.disabled = true;
+      if (await patch(cur.id, { notes: val })) { detailState.notesEdit = false; detailState.notesDraft = null; render(); toast("Anteckningarna är sparade"); }
+      else el.disabled = false;
+      break; }
     case "ctab": {
       detailState.tab = el.dataset.t; render();
       const c = document.getElementById("cook");
@@ -822,7 +855,7 @@ document.addEventListener("click", async e => {
       const btn = document.getElementById("savebtn"); btn.disabled = true; btn.textContent = "Sparar …";
       const id = await saveRecipe(draft);
       if (id) {
-        toast("Receptet sparat"); detailState = { mode: "mine", servings: null, done: {}, tab: "ing" };
+        toast("Receptet sparat"); detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
         const wasExisting = !!draft.id; draft = null;
         if (wasExisting && inAppSteps > 0) { goBack(); }
         else { view = { name: "detail", id }; render(); window.scrollTo(0, 0); }
@@ -963,10 +996,15 @@ async function showApp(session){
   // Vid omladdning: stanna kvar på receptet som var öppet
   const hm = location.hash.match(/^#[re]=([^&]+)$/);
   if (hm) view = { name: "detail", id: decodeURIComponent(hm[1]) };
+  // Visa sparade recept direkt, hämta färska i bakgrunden
+  const cache = readCache();
+  if (cache && cache.me === me && cache.recipes.length) { recipes = cache.recipes; role = cache.role; loaded = true; }
   render();
-  try { const { data: r } = await sb.rpc("recipe_my_role"); role = r || null; } catch { role = null; }
+  let roleErr = null;
+  try { const { data: r, error } = await sb.rpc("recipe_my_role"); roleErr = error; if (!error) role = r || null; } catch (e) { roleErr = e; }
+  if (roleErr && cache && cache.me === me && (navigator.onLine === false || /fetch|network|load failed/i.test(String(roleErr.message || roleErr)))) { role = cache.role; loadNote = "Du är offline – visar senast sparade recept."; loaded = true; render(); subscribe(); handleShare(); return; }
   if (!role) { storageOk = false; loaded = true; render(); return; }
-  await loadAll(); subscribe();
+  await loadAll(); subscribe(); handleShare();
   const md = (session.user && session.user.user_metadata) || {};
   if (!md.has_password) openPasswordSheet(true);
 }
@@ -1005,7 +1043,13 @@ $id("magicLink").onclick = async e => {
   if (!window.supabase || !cfg.supabaseUrl) { document.body.innerHTML = '<div class="wrap"><div class="notice">Appen är inte konfigurerad än (config.js).</div></div>'; return; }
   sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
   const { data: { session } } = await sb.auth.getSession();
-  if (session) showApp(session); else showLogin();
+  if (session) showApp(session);
+  else {
+    // Offline och sessionen kunde inte förnyas: öppna ändå med sparade recept
+    const c = readCache();
+    if (navigator.onLine === false && c && c.me) showApp({ user: { email: c.me, user_metadata: { has_password: true } } });
+    else showLogin();
+  }
   sb.auth.onAuthStateChange((ev, s) => { if (ev === "SIGNED_IN" && s) showApp(s); if (ev === "SIGNED_OUT") { started = false; me = null; showLogin(); } });
 })();
 
@@ -1175,3 +1219,50 @@ function openHistory(r, entryId){
     const b = document.querySelector(`.ctabs [data-t="${t}"]`); if (b) b.click();
   }, { passive: true });
 })();
+
+// behåll texten i anteckningsrutan om sidan ritas om medan man skriver
+document.addEventListener("input", e => { if (e.target.id === "notes-input") detailState.notesDraft = e.target.value; });
+
+// ---------- webbapp: service worker ----------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+window.addEventListener("online", () => { if (started && role) { loadNote = ""; loadAll(); } });
+window.addEventListener("offline", () => { if (started) { loadNote = "Du är offline – visar senast sparade recept."; if (view.name !== "edit") render(); } });
+
+// ---------- skärmen tänd medan ett recept är öppet ----------
+let wakeLock = null;
+async function syncWakeLock(){
+  const want = view.name === "detail" && document.visibilityState === "visible";
+  try {
+    if (want && !wakeLock && "wakeLock" in navigator) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } else if (!want && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { wakeLock = null; }
+}
+document.addEventListener("visibilitychange", syncWakeLock);
+
+// ---------- "Dela till Sivander's Recept" (Android) ----------
+async function handleShare(){
+  const q = SHARE_Q; SHARE_Q = new URLSearchParams();
+  if (!q.has("share")) return;
+  if (!can("contributor")) { toast("Du har bara läsbehörighet"); return; }
+  const files = [];
+  try {
+    const inbox = await caches.open("share-inbox");
+    for (const req of await inbox.keys()) {
+      const res = await inbox.match(req); const blob = await res.blob();
+      files.push(new File([blob], decodeURIComponent(res.headers.get("x-name") || "bild.jpg"), { type: blob.type || "image/jpeg" }));
+      await inbox.delete(req);
+    }
+  } catch {}
+  const text = [q.get("title"), q.get("text")].filter(Boolean).join("\n");
+  let url = q.get("url") || "";
+  if (!url) { const m = text.match(/https?:\/\/\S+/); if (m) url = m[0]; }
+  view = { name: "list" }; render();
+  openImport(files);
+  if (importState && !files.length) {
+    importState.text = text; importState.url = url; renderImport();
+  } else if (importState) { importState.url = url; }
+}
