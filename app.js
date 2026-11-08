@@ -131,6 +131,10 @@ function nameOf(email){
 const addedByOf = r => (r.addedBy || OWNER).toLowerCase();
 const favsOf = r => Array.isArray(r.favBy) ? r.favBy.map(x => x.toLowerCase()) : (r.favorite ? [OWNER] : []);
 const isFav = r => favsOf(r).includes(me);
+// Ägaren (den som lade till receptet) och superanvändare får ändra och radera; andra gör en egen variant
+const canEdit = r => !!r && can("contributor") && (addedByOf(r) === me || role === "admin");
+const genitive = n => /[sxz]$/i.test(n) ? n : n + "s";
+const variantsOf = r => recipes.filter(x => x.variantOf === r.id);
 const cookLogOf = r => Array.isArray(r.cookLog) ? r.cookLog : [];
 function cooksSummary(r){
   const c = {}; cookLogOf(r).forEach(x => { const n = nameOf(x.by); c[n] = (c[n] || 0) + 1; });
@@ -308,7 +312,7 @@ function renderList(){
         <div class="thumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '<svg class="plate" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="32" cy="32" r="15" fill="none" stroke="currentColor" stroke-width=".6"/><path d="M6 14v14M3 14v8a3 3 0 006 0v-8M6 28v24M58 14c-4 2-4 14 0 16v22" fill="none" stroke="currentColor" stroke-width="1"/></svg>'}${isFav(r) ? `<span class="fav" aria-label="Favorit">♥</span>` : ""}</div>
         <div class="body">
           <h3>${esc(r.title || "Namnlöst recept")}</h3>
-          <div class="meta">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}</div>
+          <div class="meta">${sourceBadge(r)}${r.variantOf ? `<span class="badge mod">${esc(genitive(nameOf(addedByOf(r))))} variant</span>` : isModified(r) ? `<span class="badge mod">Min version</span>` : ""}</div>
           <div class="meta" style="margin-top:6px">
             ${r.rating ? `<span>${"★".repeat(r.rating)}</span>` : ""}
             ${r.time ? `<span>${esc(r.time)}</span>` : ""}
@@ -396,8 +400,17 @@ function renderDetail(){
       <span>Tillagd av ${esc(nameOf(addedByOf(r)))}</span>
       ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
     </div>
+    ${(() => {
+      const base = r.variantOf ? recipes.find(x => x.id === r.variantOf) : null;
+      const vs = variantsOf(r);
+      if (!base && !vs.length && !r.variantOf) return "";
+      return `<div class="variants">
+        ${r.variantOf ? (base ? `<span>Variant av <button class="linkbtn" data-a="open" data-id="${esc(base.id)}">${esc(genitive(nameOf(addedByOf(base))))} recept</button></span>` : `<span>Variant av ett borttaget recept</span>`) : ""}
+        ${vs.length ? `<span>Varianter: ${vs.map(v => `<button class="linkbtn" data-a="open" data-id="${esc(v.id)}">${esc(genitive(nameOf(addedByOf(v))))} variant</button>`).join(" · ")}</span>` : ""}
+      </div>`;
+    })()}
 
-    ${(!ings.length || !steps.length || (r.tags || []).includes("att komplettera")) && can("contributor") ? `<div class="panel changes"><h2>Receptet är inte komplett</h2>
+    ${(!ings.length || !steps.length || (r.tags || []).includes("att komplettera")) && canEdit(r) ? `<div class="panel changes"><h2>Receptet är inte komplett</h2>
       <p style="margin:0 0 12px">Ta skärmdumpar av receptet i videon eller på sidan och lägg till dem här, så fyller Claude i det som saknas.</p>
       <button class="btn accent" data-a="pickcomplete">Komplettera med skärmdumpar</button></div>` : ""}
 
@@ -431,12 +444,12 @@ function renderDetail(){
     ${detailState.notesEdit ? `<div class="panel notes-edit"><h2>Anteckningar</h2>
         <textarea id="notes-input" rows="6" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(detailState.notesDraft ?? (r.notes || ""))}</textarea>
         <div class="row" style="margin-top:12px"><button class="btn accent" data-a="notessave">Spara</button><button class="btn ghost" data-a="notescancel">Avbryt</button></div></div>`
-      : r.notes ? `<div class="panel"><h2><span>Anteckningar</span>${can("contributor") ? `<button class="linkbtn" data-a="notesedit">Redigera</button>` : ""}</h2><div class="prewrap">${esc(r.notes)}</div></div>`
-      : can("contributor") ? `<div class="panel notes-empty"><button class="linkbtn" data-a="notesedit">+ Lägg till anteckning</button></div>` : ""}
+      : r.notes ? `<div class="panel"><h2><span>Anteckningar</span>${canEdit(r) ? `<button class="linkbtn" data-a="notesedit">Redigera</button>` : ""}</h2><div class="prewrap">${esc(r.notes)}</div></div>`
+      : canEdit(r) ? `<div class="panel notes-empty"><button class="linkbtn" data-a="notesedit">+ Lägg till anteckning</button></div>` : ""}
 
     ${historyHtml(r)}
 
-    ${can("contributor") ? `<div class="panel">
+    ${canEdit(r) ? `<div class="panel">
       <h2>Ändra receptet</h2>
       <p class="meta" style="justify-content:flex-start;margin:-6px 0 12px">Skriv vad du vill ändra, lägga till eller ta bort. Du granskar ändringen innan den sparas.</p>
       <form class="ai-ask" id="edit-form"><input id="edit-input" placeholder="t.ex. Byt grädde mot crème fraiche och ta bort koriandern" autocomplete="off"><button class="btn small" type="submit" id="edit-btn">Ändra</button></form>
@@ -458,11 +471,12 @@ function renderDetail(){
 
     <div class="actions">
       ${can("contributor") ? `<button class="btn accent" data-a="cooked">Lagad idag</button>
-      <button class="btn ghost" data-a="histadd">Ny tillagning</button>
-      <button class="btn ghost" data-a="pickdish">${r.photo ? "Byt bild" : "Lägg till bild"}</button>
+      <button class="btn ghost" data-a="histadd">Ny tillagning</button>` : ""}
+      ${canEdit(r) ? `<button class="btn ghost" data-a="pickdish">${r.photo ? "Byt bild" : "Lägg till bild"}</button>
       <button class="btn ghost" data-a="edit">Redigera</button>` : ""}
+      ${can("contributor") && addedByOf(r) !== me ? `<button class="btn ghost" data-a="variant">Gör min egen variant</button>` : ""}
       <button class="btn ghost" data-a="copy">Kopiera</button>
-      ${can("editor") ? `<button class="btn danger" data-a="del">Radera</button>` : ""}
+      ${canEdit(r) ? `<button class="btn danger" data-a="del">Radera</button>` : ""}
     </div>
   `;
 }
@@ -593,7 +607,7 @@ function aiOutHtml(id){
     return `<div class="ai-q">${esc(it.q)}</div>
       <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : it.a ? aiMd(it.a) : `<span class="meta">Claude tänker …</span>`}</div>
       ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
-      ${!it.busy && it.a ? `<div class="ai-tools"><button class="btn ghost small" data-a="aisave" data-i="${i}">Spara i anteckningar</button></div>` : ""}`;
+      ${!it.busy && it.a && canEdit(recipes.find(x => x.id === id)) ? `<div class="ai-tools"><button class="btn ghost small" data-a="aisave" data-i="${i}">Spara i anteckningar</button></div>` : ""}`;
   }).reverse().join("");
 }
 function aiRefresh(id){ const el = document.getElementById("ai-out"); if (el && view.id === id) el.innerHTML = aiOutHtml(id); }
@@ -774,6 +788,9 @@ document.addEventListener("click", async e => {
   const a = el.dataset.a;
   const cur = view.id ? recipes.find(x => x.id === view.id) : null;
 
+  if (cur && ["edit", "del", "pickdish", "pickcomplete", "notesedit", "notessave", "aisave", "histuse"].includes(a) && !canEdit(cur)) {
+    toast("Det här är " + genitive(nameOf(addedByOf(cur))) + " recept – gör din egen variant för att ändra"); return;
+  }
   switch (a) {
     case "menu": menuOpen = !menuOpen; render(); break;
     case "settings": openSettings(); break;
@@ -827,6 +844,15 @@ document.addEventListener("click", async e => {
     case "histdel":
       if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Säker? Tryck igen"; break; }
       await patch(cur.id, { history: histOf(cur).filter(x => x.id !== el.dataset.h) }); toast("Tillagningen är borttagen"); break;
+    case "variant": {
+      const v = JSON.parse(JSON.stringify(cur));
+      ["id", "createdAt", "updatedAt", "history", "cookLog", "favBy", "favorite", "rating", "timesCooked", "lastCooked", "addedBy", "myChanges"].forEach(k => delete v[k]);
+      v.variantOf = cur.id;
+      v.original = { servings: cur.servings || null, ingredients: cur.ingredients || [], steps: cur.steps || [] };
+      v.myChanges = "";
+      draft = v; view = { name: "edit" }; render(); window.scrollTo(0, 0);
+      toast("Ändra det du vill och spara din variant"); break;
+    }
     case "histuse": {
       const e = histOf(cur).find(x => x.id === el.dataset.h); if (!e || !e.snapshot) break;
       draft = JSON.parse(JSON.stringify(cur));
@@ -1082,7 +1108,7 @@ function listRows(list){
       <div class="rthumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : ""}</div>
       <div class="rmain">
         <h3>${esc(r.title || "Namnlöst recept")}${isFav(r) ? ` <span class="rfav" aria-label="Favorit">♥</span>` : ""}</h3>
-        <div class="rmeta">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}${(r.tags || []).slice(0, 3).map(t => `<span>${esc(t)}</span>`).join("")}</div>
+        <div class="rmeta">${sourceBadge(r)}${r.variantOf ? `<span class="badge mod">${esc(genitive(nameOf(addedByOf(r))))} variant</span>` : isModified(r) ? `<span class="badge mod">Min version</span>` : ""}${(r.tags || []).slice(0, 3).map(t => `<span>${esc(t)}</span>`).join("")}</div>
       </div>
       <div class="rside">
         ${r.rating ? `<span class="rstars">${"★".repeat(r.rating)}</span>` : ""}
@@ -1131,7 +1157,7 @@ document.addEventListener("submit", e => {
   if (e.target.id !== "edit-form") return;
   e.preventDefault();
   const q = $id("edit-input").value.trim(); if (!q) return;
-  const r = recipes.find(x => x.id === view.id); if (r) aiEditRecipe(r, q);
+  const r = recipes.find(x => x.id === view.id); if (r && canEdit(r)) aiEditRecipe(r, q);
 });
 
 // ---------- Tillagningar (frivillig historik) ----------
@@ -1150,9 +1176,9 @@ function historyHtml(r){
           ${e.snapshot ? `<details class="hvar"><summary>Receptet den gången</summary>
             <ul>${(e.snapshot.ingredients || []).map(l => l.startsWith("#") ? `<li class="g">${esc(l.replace(/^#+\s*/, ""))}</li>` : `<li>${esc(l)}</li>`).join("")}</ul>
             <ol>${(e.snapshot.steps || []).map(st => `<li>${esc(st)}</li>`).join("")}</ol>
-            ${can("contributor") ? `<button class="btn ghost small" data-a="histuse" data-h="${esc(e.id)}">Använd som min version</button>` : ""}
+            ${canEdit(r) ? `<button class="btn ghost small" data-a="histuse" data-h="${esc(e.id)}">Använd som min version</button>` : ""}
           </details>` : ""}
-          ${can("contributor") ? `<div class="hacts"><button class="linkbtn" data-a="histedit" data-h="${esc(e.id)}">Ändra</button><button class="linkbtn" data-a="histdel" data-h="${esc(e.id)}">Ta bort</button></div>` : ""}
+          ${can("contributor") && (canEdit(r) || (e.by || OWNER) === me) ? `<div class="hacts"><button class="linkbtn" data-a="histedit" data-h="${esc(e.id)}">Ändra</button><button class="linkbtn" data-a="histdel" data-h="${esc(e.id)}">Ta bort</button></div>` : ""}
         </div>
       </li>`).join("")}</ul>
   </div>`;
