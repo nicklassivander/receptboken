@@ -8,7 +8,7 @@ let layout = "grid";
 try { layout = localStorage.getItem("layout") === "list" ? "list" : "grid"; } catch {}
 let draft = null;                          // recipe being edited
 let menuOpen = false;
-let detailState = { mode: "mine", servings: null, done: {} };
+let detailState = { mode: "mine", servings: null, done: {}, tab: "ing" };
 let importState = null;
 
 const $app = document.getElementById("app");
@@ -356,7 +356,12 @@ function renderDetail(){
 
     ${r.myChanges ? `<div class="panel changes"><h2>Mina ändringar</h2><div class="prewrap">${esc(r.myChanges)}</div></div>` : ""}
 
-    <div class="panel">
+    <div class="cook" id="cook" data-tab="${detailState.tab || "ing"}">
+    <div class="ctabs" role="tablist">
+      <button role="tab" class="${(detailState.tab || "ing") === "ing" ? "on" : ""}" data-a="ctab" data-t="ing">Ingredienser<small>${ings.filter(l => !l.startsWith("#")).length}</small></button>
+      <button role="tab" class="${detailState.tab === "steps" ? "on" : ""}" data-a="ctab" data-t="steps">Gör så här<small>${steps.length}</small></button>
+    </div>
+    <div class="panel cpane cp-ing">
       <h2><span>Ingredienser</span>
         <span class="row">
           ${hasOrig ? `<span class="seg"><button class="${mode === "mine" ? "on" : ""}" data-a="mode" data-m="mine">Min</button><button class="${mode === "orig" ? "on" : ""}" data-a="mode" data-m="orig">Original</button></span>` : ""}
@@ -368,10 +373,12 @@ function renderDetail(){
         : `<p class="meta">Inga ingredienser ifyllda.</p>`}
     </div>
 
-    <div class="panel">
+    <div class="panel cpane cp-steps">
       <h2>Gör så här</h2>
       ${steps.length ? `<ol class="steps">${steps.map((s, i) => `<li class="${detailState.done["s" + i] ? "done" : ""}" data-a="tick" data-k="s${i}">${esc(s)}</li>`).join("")}</ol>`
         : `<p class="meta">Inga steg ifyllda.</p>`}
+    </div>
+    <button class="cnext" data-a="ctab" data-t="${(detailState.tab || "ing") === "ing" ? "steps" : "ing"}">${(detailState.tab || "ing") === "ing" ? "Till Gör så här →" : "← Till ingredienserna"}</button>
     </div>
 
     ${r.notes ? `<div class="panel"><h2>Anteckningar</h2><div class="prewrap">${esc(r.notes)}</div></div>` : ""}
@@ -727,7 +734,7 @@ document.addEventListener("click", async e => {
       menuOpen = false; draft = { title: "", sourceUrl: "", servings: 4, time: "", tags: [], ingredients: [], steps: [], myChanges: "", notes: "", photo: null };
       view = { name: "edit" }; render(); window.scrollTo(0, 0); break;
     case "open":
-      detailState = { mode: "mine", servings: null, done: {} };
+      detailState = { mode: "mine", servings: null, done: {}, tab: "ing" };
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
     case "home": e.preventDefault(); if (view.name === "list") break; goBack(); break;
     case "fav": filter.fav = !filter.fav; render(); break;
@@ -739,6 +746,11 @@ document.addEventListener("click", async e => {
       const base = (detailState.mode === "orig" ? cur.original.servings : cur.servings) || 1;
       detailState.servings = Math.max(1, (detailState.servings ?? base) + (+el.dataset.d)); render(); break;
     }
+    case "ctab": {
+      detailState.tab = el.dataset.t; render();
+      const c = document.getElementById("cook");
+      if (c) { const top = c.getBoundingClientRect().top; if (top < 0 || el.classList.contains("cnext")) window.scrollTo({ top: window.scrollY + top - 4 }); }
+      break; }
     case "tick": detailState.done[el.dataset.k] = !detailState.done[el.dataset.k]; render(); break;
     case "rate": {
       const n = +el.dataset.n; await patch(cur.id, { rating: cur.rating === n ? 0 : n }); break;
@@ -777,7 +789,7 @@ document.addEventListener("click", async e => {
       const btn = document.getElementById("savebtn"); btn.disabled = true; btn.textContent = "Sparar …";
       const id = await saveRecipe(draft);
       if (id) {
-        toast("Receptet sparat"); detailState = { mode: "mine", servings: null, done: {} };
+        toast("Receptet sparat"); detailState = { mode: "mine", servings: null, done: {}, tab: "ing" };
         const wasExisting = !!draft.id; draft = null;
         if (wasExisting && inAppSteps > 0) { goBack(); }
         else { view = { name: "detail", id }; render(); window.scrollTo(0, 0); }
@@ -1108,3 +1120,20 @@ function openHistory(r, entryId){
     else $id("hsave").disabled = false;
   };
 }
+
+// svep åt sidan mellan Ingredienser och Gör så här (mobil)
+(() => {
+  let sx = 0, sy = 0, on = false;
+  document.addEventListener("touchstart", e => {
+    on = !!e.target.closest(".cook"); if (!on) return;
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener("touchend", e => {
+    if (!on) return; on = false;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const t = dx < 0 ? "steps" : "ing";
+    if (detailState.tab === t) return;
+    const b = document.querySelector(`.ctabs [data-t="${t}"]`); if (b) b.click();
+  }, { passive: true });
+})();
