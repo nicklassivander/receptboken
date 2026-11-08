@@ -398,6 +398,16 @@ header.top h1{font-weight:600}
 .notes-empty{padding-top:8px;padding-bottom:8px}
 .variants{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 22px;margin:4px 0 0;font-size:13px;color:var(--muted)}
 .variants .linkbtn{color:var(--accent);border-bottom-color:currentColor}
+/* bredare lista på stora skärmar, filter som bryts snyggt */
+#app.wide{max-width:1480px}
+@media(min-width:1100px){#app.wide{padding-left:40px;padding-right:40px}}
+.filters{display:flex;flex-direction:column;gap:10px;padding:2px 0 26px}
+.filters .chips{flex-wrap:wrap;overflow:visible;padding:0;gap:8px 20px}
+.mine-chips{padding-bottom:10px !important;border-bottom:1px solid var(--line)}
+.tag-chips .chip{font-size:13px}
+.tag-chips .chip.more{color:var(--accent)}
+@media(max-width:900px){.tag-chips:not(.all) .chip.extra{display:none}}
+@media(min-width:901px){.tag-chips .chip.more{display:none}}
 </style>
 </head>
 <body>

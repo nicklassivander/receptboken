@@ -4,6 +4,7 @@ const sample = true, sampleImages = true;   // AI finns alltid i webbversionen
 let recipes = [], loaded = false, loadNote = "", storageOk = true;
 let view = { name: "list" };              // list | detail | edit
 let filter = { q: "", tag: null, fav: false, mine: false, cookedMe: false, sort: "new" };
+let showAllTags = false;
 let layout = "grid";
 try { layout = localStorage.getItem("layout") === "list" ? "list" : "grid"; } catch {}
 let draft = null;                          // recipe being edited
@@ -262,6 +263,7 @@ function goBack(){
   else { view = { name: "list" }; draft = null; render(); window.scrollTo(0, 0); }
 }
 function render(){
+  $app.classList.toggle("wide", view.name === "list");
   syncHistory();
   syncWakeLock();
   if (view.name === "detail") return renderDetail();
@@ -349,11 +351,16 @@ function renderList(){
         <button class="${layout === "list" ? "on" : ""}" data-a="layout" data-l="list" aria-pressed="${layout === "list"}">Lista</button>
       </div>
     </div>
-    <div class="chips">
-      <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">Mina favoriter</button>
-      <button class="chip ${filter.mine ? "on" : ""}" data-a="mine">Tillagda av mig</button>
-      <button class="chip ${filter.cookedMe ? "on" : ""}" data-a="cookedme">Lagade av mig</button>
-      ${tagList.map(t => `<button class="chip ${filter.tag === t ? "on" : ""}" data-a="tag" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
+    <div class="filters">
+      <div class="chips mine-chips">
+        <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">Mina favoriter</button>
+        <button class="chip ${filter.mine ? "on" : ""}" data-a="mine">Tillagda av mig</button>
+        <button class="chip ${filter.cookedMe ? "on" : ""}" data-a="cookedme">Lagade av mig</button>
+      </div>
+      ${tagList.length ? `<div class="chips tag-chips ${showAllTags ? "all" : ""}">
+        ${tagList.map((t, i) => `<button class="chip ${filter.tag === t ? "on" : ""} ${i >= 8 && filter.tag !== t ? "extra" : ""}" data-a="tag" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
+        ${tagList.length > 8 ? `<button class="chip more" data-a="moretags">${showAllTags ? "Färre" : `Fler (${tagList.length - 8})`}</button>` : ""}
+      </div>` : ""}
     </div>` : ""}
     ${body}
     ${storageOk && loaded && can("contributor") ? `<button class="fab" data-a="menu" aria-label="Lägg till">${menuOpen ? "×" : "+"}</button>` : ""}
@@ -812,6 +819,7 @@ document.addEventListener("click", async e => {
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
     case "home": e.preventDefault(); if (view.name === "list") break; goBack(); break;
     case "fav": filter.fav = !filter.fav; render(); break;
+    case "moretags": showAllTags = !showAllTags; render(); break;
     case "mine": filter.mine = !filter.mine; render(); break;
     case "cookedme": filter.cookedMe = !filter.cookedMe; render(); break;
     case "layout": layout = el.dataset.l; try { localStorage.setItem("layout", layout); } catch {} render(); break;
