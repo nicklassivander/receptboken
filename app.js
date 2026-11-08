@@ -319,6 +319,7 @@ function renderList(){
 
 function renderDetail(){
   const r = recipes.find(x => x.id === view.id);
+  if (!r && !loaded) { $app.innerHTML = `<p class="meta" style="text-align:center;padding:80px 0">Hämtar receptet …</p>`; return; }
   if (!r) { view = { name: "list" }; return renderList(); }
   const hasOrig = !!r.original && isModified(r) && (r.original.ingredients || r.original.steps);
   const mode = hasOrig ? detailState.mode : "mine";
@@ -926,6 +927,9 @@ async function showApp(session){
   if (started) return; started = true;
   me = (session.user.email || "").toLowerCase();
   $id("loginView").classList.add("hidden"); $id("app").classList.remove("hidden");
+  // Vid omladdning: stanna kvar på receptet som var öppet
+  const hm = location.hash.match(/^#[re]=([^&]+)$/);
+  if (hm) view = { name: "detail", id: decodeURIComponent(hm[1]) };
   render();
   try { const { data: r } = await sb.rpc("recipe_my_role"); role = r || null; } catch { role = null; }
   if (!role) { storageOk = false; loaded = true; render(); return; }
