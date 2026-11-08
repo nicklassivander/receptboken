@@ -117,8 +117,14 @@ module.exports = async (req, res) => {
   if (!url) return res.status(400).json({ error: "Ingen länk" });
 
   let page;
-  try { page = await get(url, MAX_HTML, "text/html,application/xhtml+xml"); }
+  try { page = await get(url, Math.max(MAX_HTML, MAX_IMG), "text/html,application/xhtml+xml,image/*;q=0.9"); }
   catch (e) { return res.status(422).json({ error: "Kunde inte hämta sidan (" + e.message + ")" }); }
+  // Länken går direkt till en bild
+  const ptype = (page.type.split(";")[0] || "").trim().toLowerCase();
+  if (ptype.startsWith("image/")) {
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(ptype) || page.buf.length > MAX_IMG) return res.status(422).json({ error: "Bildformatet stöds inte" });
+    return res.status(200).json({ url: page.url, title: "", text: "", image: `data:${ptype};base64,${page.buf.toString("base64")}` });
+  }
   const html = page.buf.toString("utf8");
 
   const recipes = [];
@@ -126,6 +132,16 @@ module.exports = async (req, res) => {
     try { findRecipes(JSON.parse(m[1].trim()), recipes); } catch {}
   }
   const rec = recipes[0] || null;
+  if (body.imageOnly) {
+    const iu = imageOf(rec, html, page.url);
+    if (!iu) return res.status(422).json({ error: "Hittade ingen bild på sidan" });
+    try {
+      const im = await get(iu, MAX_IMG, "image/*");
+      const type = (im.type.split(";")[0] || "").trim();
+      if (!/^image\/(jpeg|png|webp|gif)$/.test(type)) throw new Error("format");
+      return res.status(200).json({ url: page.url, title: "", text: "", image: `data:${type};base64,${im.buf.toString("base64")}` });
+    } catch { return res.status(422).json({ error: "Kunde inte hämta bilden från sidan" }); }
+  }
   const fromLd = rec ? recipeText(rec) : null;
   const title = rec && rec.name ? strip(rec.name) : strip((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "");
   // Om receptdatan saknar delar: skicka med sidans text också

@@ -533,7 +533,7 @@ function renderEdit(){
       <label>Bild på rätten</label>
       <div class="photo-pick">
         ${d.photo ? `<img src="${esc(d.photo)}" alt="">` : ""}
-        <input type="file" accept="image/*" id="photo">
+        <button type="button" class="btn ghost small" data-a="editphoto">${d.photo ? "Byt bild" : "Lägg till bild"}</button>
         ${d.photo ? `<button type="button" class="btn ghost small" data-a="rmphoto">Ta bort</button>` : ""}
       </div>
     </form>
@@ -542,11 +542,6 @@ function renderEdit(){
       <button class="btn accent" data-a="save" id="savebtn">Spara recept</button>
     </div></div>
   `;
-  document.getElementById("photo").addEventListener("change", async e => {
-    const file = e.target.files[0]; if (!file) return;
-    readForm();
-    try { const p = await storePhoto(await compress(file, 1200, 400000)); if (p) draft.photo = p; renderEdit(); } catch { toast("Kunde inte läsa bilden"); }
-  });
 }
 
 function readForm(){
@@ -833,7 +828,8 @@ document.addEventListener("click", async e => {
     case "import": openImport(); break;
     case "pickimport": menuOpen = false; render(); openPicker("import"); break;
     case "pickcomplete": openPicker("complete"); break;
-    case "pickdish": openPicker("dish"); break;
+    case "pickdish": openPhotoSheet(async url => { if (await patch(cur.id, { photo: url })) toast("Bilden sparad"); }); break;
+    case "editphoto": readForm(); openPhotoSheet(url => { draft.photo = url; renderEdit(); }); break;
     case "new":
       menuOpen = false; draft = { title: "", sourceUrl: "", servings: 4, time: "", tags: [], ingredients: [], steps: [], myChanges: "", notes: "", photo: null };
       view = { name: "edit" }; render(); window.scrollTo(0, 0); break;
@@ -1328,4 +1324,71 @@ async function handleShare(){
   if (importState && !files.length) {
     importState.text = text; importState.url = url; renderImport();
   } else if (importState) { importState.url = url; }
+}
+
+// ---------- bild: från enheten, urklipp eller länk ----------
+function openPhotoSheet(onDone){
+  openSheet(`
+    <h2>Bild på rätten</h2>
+    <div class="photo-opts">
+      <label class="btn accent photo-file">Välj från enheten<input type="file" accept="image/*" id="ps-file" hidden></label>
+      <button type="button" class="btn ghost" id="ps-paste">Klistra in kopierad bild</button>
+    </div>
+    <div class="hint" id="ps-pastehint">Har du kopierat en bild kan du också trycka Ctrl+V (Cmd+V på Mac) när den här rutan är öppen.</div>
+    <label>Eller hämta från en länk</label>
+    <form class="ai-ask" id="ps-urlform"><input id="ps-url" type="url" placeholder="Länk till bilden eller receptsidan" autocomplete="off"><button class="btn small" type="submit">Hämta</button></form>
+    <div class="err" id="ps-err"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:16px"><button type="button" class="btn ghost" id="ps-close">Avbryt</button></div>`);
+  let busy = false;
+  const err = m => { $id("ps-err").textContent = m || ""; };
+  const finish = async blob => {
+    if (busy) return; busy = true; err("");
+    $id("ps-err").innerHTML = `<span class="meta"><span class="spinner"></span> Sparar bilden …</span>`;
+    try {
+      const url = await storePhoto(await compress(blob, 1200, 400000));
+      if (!url) throw 0;
+      document.removeEventListener("paste", onPaste);
+      closeSheet(); await onDone(url);
+    } catch { busy = false; err("Kunde inte läsa bilden. Prova en annan."); }
+  };
+  const onPaste = e => {
+    if (!$id("ps-err")) { document.removeEventListener("paste", onPaste); return; }
+    const item = [...(e.clipboardData && e.clipboardData.items || [])].find(i => i.type.startsWith("image/"));
+    if (item) { e.preventDefault(); finish(item.getAsFile()); return; }
+    const txt = e.clipboardData && e.clipboardData.getData("text");
+    if (txt && /^https?:\/\//.test(txt.trim()) && document.activeElement !== $id("ps-url")) { e.preventDefault(); $id("ps-url").value = txt.trim(); fromUrl(); }
+  };
+  document.addEventListener("paste", onPaste);
+  $id("ps-close").onclick = () => { document.removeEventListener("paste", onPaste); closeSheet(); };
+  $id("ps-file").onchange = e => { const f = e.target.files[0]; if (f) finish(f); };
+  $id("ps-paste").onclick = async () => {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.read) throw { hint: true };
+      const items = await navigator.clipboard.read();
+      for (const it of items) {
+        const t = it.types.find(x => x.startsWith("image/"));
+        if (t) return finish(await it.getType(t));
+        if (it.types.includes("text/plain")) {
+          const txt = (await (await it.getType("text/plain")).text()).trim();
+          if (/^https?:\/\//.test(txt)) { $id("ps-url").value = txt; return fromUrl(); }
+        }
+      }
+      err("Hittade ingen bild bland det du kopierat.");
+    } catch (e) {
+      err(e && e.hint ? "Webbläsaren tillåter inte knappen här – tryck Ctrl+V (Cmd+V) i stället." : "Fick inte läsa urklippet. Tryck Ctrl+V (Cmd+V) i stället, eller tillåt urklipp när webbläsaren frågar.");
+    }
+  };
+  const fromUrl = async () => {
+    let u = $id("ps-url").value.trim(); if (!u || busy) return;
+    if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+    err(""); $id("ps-err").innerHTML = `<span class="meta"><span class="spinner"></span> Hämtar bilden …</span>`;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch("/api/fetch", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) }, body: JSON.stringify({ url: u, imageOnly: true }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.image) throw new Error(j.error || "Hittade ingen bild på den länken");
+      await finish(await (await fetch(j.image)).blob());
+    } catch (e) { err((e.message || "Kunde inte hämta bilden") + "."); }
+  };
+  $id("ps-urlform").onsubmit = e => { e.preventDefault(); fromUrl(); };
 }
