@@ -702,8 +702,8 @@ function renderImport(){
   <div class="modal-bg" data-a="closeimport-bg">
     <div class="modal form" role="dialog" aria-label="Importera recept">
       <h2>${s.targetId ? "Komplettera recept" : "Importera recept"}</h2>
-      <p class="sub">Klistra in text, fota en kokbok eller lägg till skärmdumpar. Claude plockar ut ingredienser och steg.</p>
-      <label>Länk (sparas som källa)</label>
+      <p class="sub">Klistra in en länk eller text, fota en kokbok eller lägg till skärmdumpar. Claude plockar ut ingredienser och steg.</p>
+      <label>Länk till receptet</label>
       <input type="url" id="imp-url" value="${esc(s.url)}" placeholder="https://…">
       <label>Recepttext</label>
       <textarea id="imp-text" rows="9" placeholder="Klistra in hela receptet – eller Instagram-bildtexten">${esc(s.text)}</textarea>
@@ -713,7 +713,7 @@ function renderImport(){
       <div class="hint">Fota en kokbokssida eller en lapp, eller välj skärmdumpar från Instagram-videor.</div>
       <div class="shots">${s.shots.map((sh, i) => `<div><img src="${sh.url}" alt=""><button type="button" data-a="rmshot" data-i="${i}">×</button></div>`).join("")}</div>` : ""}
       <label class="check" style="color:var(--ink);font-weight:500"><input type="checkbox" id="imp-tr" ${s.translate ? "checked" : ""}> Översätt till svenska och metriska mått</label>
-      ${s.error ? `<div class="err">${esc(s.error)}</div>` : ""}
+      ${s.error ? `<div class="err" id="imp-err">${esc(s.error)}</div>` : ""}
       <div class="row" style="justify-content:flex-end;margin-top:18px">
         <button class="btn ghost" data-a="closeimport">Avbryt</button>
         <button class="btn accent" data-a="runimport" ${s.busy ? "disabled" : ""}>${s.busy ? `<span class="spinner"></span> Läser receptet …` : "Läs in receptet"}</button>
@@ -722,6 +722,7 @@ function renderImport(){
   </div>`;
   const sync = () => { s.url = document.getElementById("imp-url").value; s.text = document.getElementById("imp-text").value; s.translate = document.getElementById("imp-tr").checked; };
   ["imp-url", "imp-text", "imp-tr"].forEach(id => document.getElementById(id).addEventListener("input", sync));
+  { const er = document.getElementById("imp-err"); if (er) er.scrollIntoView({ block: "center", behavior: "smooth" }); }
   document.getElementById("imp-tr").addEventListener("change", sync);
   const shots = document.getElementById("imp-shots");
   if (shots) shots.addEventListener("change", e => {
@@ -736,8 +737,28 @@ async function runImport(){
   s.url = document.getElementById("imp-url").value.trim();
   s.text = document.getElementById("imp-text").value.trim();
   s.translate = document.getElementById("imp-tr").checked;
-  if (!s.text && !s.shots.length) { s.error = "Klistra in recepttexten" + (sampleImages ? " eller lägg till en skärmdump." : "."); return renderImport(); }
+  if (!s.text && !s.shots.length && !s.url) { s.error = "Klistra in en länk, recepttexten" + (sampleImages ? " eller en skärmdump." : "."); return renderImport(); }
   s.busy = true; s.error = ""; renderImport();
+
+  // Bara en länk: hämta sidan via servern
+  let pageImage = null;
+  if (!s.text && !s.shots.length && s.url) {
+    if (!/^https?:\/\//i.test(s.url)) s.url = "https://" + s.url;
+    if (/instagram\.com|facebook\.com|fb\.watch|tiktok\.com/i.test(s.url)) {
+      s.busy = false; s.error = "Instagram och Facebook släpper inte in appen. Kopiera bildtexten och klistra in den, eller ta skärmdumpar av receptet."; return renderImport();
+    }
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch("/api/fetch", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) }, body: JSON.stringify({ url: s.url, withImage: !s.targetId }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.text) throw new Error(j.error || "Sidan gick inte att läsa");
+      s.text = j.text; pageImage = j.image || null;
+    } catch (e) {
+      s.busy = false;
+      s.error = (e.message || "Sidan gick inte att läsa") + ". Kopiera texten från sidan och klistra in den i stället.";
+      return renderImport();
+    }
+  }
 
   const prompt = `Du får ett matrecept som användaren kopierat från en webbsida eller Instagram, i form av text och/eller bilder (skärmdumpar, foton av kokbokssidor eller handskrivna lappar). Flera bilder hör till samma recept – slå ihop dem. Texten kan innehålla skräp som reklam, kommentarer och hashtags – ignorera det.
 Svara ENDAST med ett JSON-objekt, utan förklaring:
@@ -782,8 +803,10 @@ ${s.text ? "\nRECEPTTEXT:\n" + s.text.slice(0, 20000) : ""}`;
       view = { name: "edit", id: target.id }; render(); window.scrollTo(0, 0);
       return;
     }
+    let photo = null;
+    if (pageImage) { try { photo = await storePhoto(await compress(await (await fetch(pageImage)).blob(), 1200, 400000)); } catch {} }
     draft = {
-      ...parsed, sourceUrl: s.url, myChanges: "", photo: null,
+      ...parsed, sourceUrl: s.url, myChanges: "", photo,
       original: { servings: parsed.servings, ingredients: parsed.ingredients, steps: parsed.steps },
     };
     closeImport();
