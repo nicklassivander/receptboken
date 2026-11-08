@@ -136,8 +136,14 @@ const canEdit = r => !!r && can("contributor") && (addedByOf(r) === me || role =
 const genitive = n => /[sxz]$/i.test(n) ? n : n + "s";
 const variantsOf = r => recipes.filter(x => x.variantOf === r.id);
 const cookLogOf = r => Array.isArray(r.cookLog) ? r.cookLog : [];
+// Tillagningar från innan vi sparade vem som lagade räknas som receptägarens
+function cooksOf(r){
+  const log = cookLogOf(r);
+  const extra = Math.max(0, (r.timesCooked || 0) - log.length);
+  return log.concat(Array.from({ length: extra }, () => ({ by: addedByOf(r), date: null })));
+}
 function cooksSummary(r){
-  const c = {}; cookLogOf(r).forEach(x => { const n = nameOf(x.by); c[n] = (c[n] || 0) + 1; });
+  const c = {}; cooksOf(r).forEach(x => { const n = nameOf(x.by); c[n] = (c[n] || 0) + 1; });
   return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([n, k]) => k > 1 ? `${n} (${k})` : n).join(", ");
 }
 
@@ -268,7 +274,7 @@ function filtered(){
   let list = recipes.filter(r => {
     if (filter.fav && !isFav(r)) return false;
     if (filter.mine && addedByOf(r) !== me) return false;
-    if (filter.cookedMe && !cookLogOf(r).some(x => (x.by || "").toLowerCase() === me)) return false;
+    if (filter.cookedMe && !cooksOf(r).some(x => (x.by || "").toLowerCase() === me)) return false;
     if (filter.tag && !(r.tags || []).includes(filter.tag)) return false;
     if (!q) return true;
     const hay = [r.title, (r.tags || []).join(" "), (r.ingredients || []).join(" "), r.myChanges, r.notes].join(" ").toLowerCase();
@@ -396,7 +402,7 @@ function renderDetail(){
     <div class="meta" style="margin-top:6px">
       ${r.time ? `<span>${esc(r.time)}</span>` : ""}
       ${r.timesCooked ? `<span>Lagad ${r.timesCooked} gånger, senast ${fmtDate(r.lastCooked)}${(() => { const l = cookLogOf(r); const last = l.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0]; return last && last.date === r.lastCooked ? " av " + esc(nameOf(last.by)) : ""; })()}</span>` : `<span>Inte lagad än</span>`}
-      ${cookLogOf(r).length ? `<span>Lagad av ${esc(cooksSummary(r))}</span>` : ""}
+      ${cooksOf(r).length ? `<span>Lagad av ${esc(cooksSummary(r))}</span>` : ""}
       <span>Tillagd av ${esc(nameOf(addedByOf(r)))}</span>
       ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
     </div>
