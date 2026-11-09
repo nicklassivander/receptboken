@@ -71,7 +71,7 @@ function scaleLine(line, f){
 // ---------- data (Supabase) ----------
 let sb = null, me = null, role = null;
 const ROLE_ORDER = ["viewer", "contributor", "editor", "admin"];
-const ROLE_LABEL = { viewer: "Läsa", contributor: "Lägga till och ändra", editor: "Full behörighet", admin: "Superanvändare" };
+const ROLE_LABEL = { viewer: "Läsa", contributor: "Egna recept", editor: "Egna recept", admin: "Superanvändare" };  // editor = äldre nivå, samma rättigheter som contributor
 const can = r => ROLE_ORDER.indexOf(role) >= ROLE_ORDER.indexOf(r);
 const newId = () => { const a = new Uint8Array(12); crypto.getRandomValues(a); return "r-" + [...a].map(b => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join(""); };
 
@@ -989,12 +989,16 @@ async function openUsers(){
       <div class="two"><div><label>Namn</label><input type="text" id="uName" placeholder="t.ex. Mamma"></div>
       <div><label>E-post</label><input type="text" id="uEmail" inputmode="email" required></div></div>
       <label>Behörighet</label>
-      <select id="uRole"><option value="viewer">Läsa</option><option value="contributor" selected>Lägga till och ändra</option><option value="editor">Full behörighet</option></select>
+      <select id="uRole"><option value="viewer">Läsa</option><option value="contributor" selected>Egna recept</option><option value="admin">Superanvändare</option></select>
       <label class="check" style="color:var(--ink);font-weight:500"><input type="checkbox" id="uInvite" checked> Skicka inloggningslänk till personen</label>
       <div class="err" id="uErr"></div>
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn ghost" id="uClose">Stäng</button><button class="btn accent">Lägg till</button></div>
     </form>
-    <p class="meta" style="margin-top:14px">Läsa: ser alla recept. Lägga till och ändra: kan spara, ändra och använda AI. Full: kan även radera recept.</p>`);
+    <div class="roles-help">
+      <p><b>Läsa</b> – ser alla recept, men kan inte ändra något.</p>
+      <p><b>Egna recept</b> – lägger till recept och ändrar och raderar sina egna. Gör egna varianter av andras recept, sätter favoriter och betyg, loggar tillagningar och använder AI-hjälpen. <i>Rätt nivå för de flesta.</i></p>
+      <p><b>Superanvändare</b> – kan ändra och radera alla recept och bjuda in eller ta bort användare.</p>
+    </div>`);
   $id("uClose").onclick = closeSheet;
   const load = async () => {
     const { data, error } = await sb.rpc("recipe_admin_list_users");
@@ -1002,7 +1006,7 @@ async function openUsers(){
     (data || []).forEach(u => { if (u.name) userNames[(u.email || "").toLowerCase()] = u.name; });
     $id("uList").innerHTML = (data || []).map(u => {
       const self = u.email === me;
-      const opts = ROLE_ORDER.map(r => `<option value="${r}" ${u.role === r ? "selected" : ""}>${ROLE_LABEL[r]}</option>`).join("");
+      const opts = ROLE_ORDER.filter(r => r !== "editor" || u.role === "editor").map(r => `<option value="${r}" ${u.role === r ? "selected" : ""}>${ROLE_LABEL[r]}</option>`).join("");
       return `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e8da">
         <div><strong>${esc(u.name || u.email.split("@")[0])}</strong>${self ? ' <span class="meta">(du)</span>' : ""}<div class="meta">${esc(u.email)}</div></div>
         ${self ? `<span class="badge">${ROLE_LABEL[u.role]}</span>` : `<span class="row"><select data-urole="${esc(u.email)}" data-uname="${esc(u.name || "")}" style="width:auto;padding:6px 8px;font-size:13px">${opts}</select>
