@@ -5,6 +5,9 @@
 //   RESEND_API_KEY  – från resend.com (API Keys)
 //   NOTIFY_EMAIL    – vem som får mejlet (standard: nicklas.sivander@gmail.com)
 //   NOTIFY_FROM     – avsändare (standard: Sivander's Recept <onboarding@resend.dev>)
+//   VAPID_PRIVATE_KEY – för pushnotiser till superanvändarnas telefoner/datorer
+
+const VAPID_PUBLIC = "BA2Icb0ajrelU-ZBp_9MzhDPe7rl5cgIC1iRZM1EJl_NafNWJ9a6Gs98FRr8zePfW3Svu-y1njqq_dibeKhl26A";
 
 const esc = (s) => String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -29,6 +32,31 @@ module.exports = async (req, res) => {
   const result = await r.json().catch(() => null);
   if (!r.ok) return res.status(400).json({ error: (result && result.message) || "Kunde inte spara förfrågan" });
 
+  let pushed = 0;
+  if (result === "skickad" && process.env.VAPID_PRIVATE_KEY) {
+    try {
+      const webpush = require("web-push");
+      webpush.setVapidDetails("mailto:" + (process.env.NOTIFY_EMAIL || "nicklas.sivander@gmail.com"), VAPID_PUBLIC, process.env.VAPID_PRIVATE_KEY);
+      const t = await fetch(`${SUPABASE_URL}/rest/v1/rpc/recipe_push_targets`, {
+        method: "POST", headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "content-type": "application/json" }, body: "{}",
+      });
+      const subs = t.ok ? await t.json() : [];
+      const payload = JSON.stringify({
+        title: "Ny förfrågan om tillgång",
+        body: `${name || email} vill komma in i Sivander's Recept${message ? ": " + message.slice(0, 120) : ""}`,
+        url: "/#anvandare", tag: "access-" + email,
+      });
+      await Promise.all((subs || []).map(async (sub) => {
+        try { await webpush.sendNotification(sub, payload, { TTL: 86400, urgency: "high" }); pushed++; }
+        catch (e) {
+          if (e.statusCode === 404 || e.statusCode === 410) {
+            await fetch(`${SUPABASE_URL}/rest/v1/rpc/recipe_push_delete`, { method: "POST", headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ p_endpoint: sub.endpoint }) });
+          } else console.error("Push:", e.statusCode, e.body);
+        }
+      }));
+    } catch (e) { console.error("Push:", e); }
+  }
+
   let mailed = false;
   if (result === "skickad" && RESEND_API_KEY) {
     const to = process.env.NOTIFY_EMAIL || "nicklas.sivander@gmail.com";
@@ -50,5 +78,5 @@ module.exports = async (req, res) => {
       if (!m.ok) console.error("Resend:", m.status, await m.text());
     } catch (e) { console.error("Resend:", e); }
   }
-  return res.status(200).json({ result, mailed });
+  return res.status(200).json({ result, mailed, pushed });
 };

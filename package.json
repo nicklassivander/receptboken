@@ -1,0 +1,8 @@
+{
+  "name": "receptboken",
+  "private": true,
+  "description": "Sivander's Recept – statisk app med serverfunktioner på Vercel",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
