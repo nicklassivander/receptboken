@@ -714,8 +714,11 @@ function renderImport(){
       <textarea id="imp-text" rows="9" placeholder="Klistra in hela receptet – eller Instagram-bildtexten">${esc(s.text)}</textarea>
       ${sampleImages ? `
       <label>Foton och skärmdumpar (upp till 6)</label>
-      <input type="file" id="imp-shots" accept="image/*" multiple>
-      <div class="hint">Fota en kokbokssida eller en lapp, eller välj skärmdumpar från Instagram-videor.</div>
+      <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+        <input type="file" id="imp-shots" accept="image/*" multiple style="flex:1;min-width:200px">
+        <button type="button" class="btn ghost small" data-a="imppaste" ${s.shots.length >= 6 ? "disabled" : ""}>Klistra in skärmdump</button>
+      </div>
+      <div class="hint">Fota en kokbokssida, välj skärmdumpar – eller ta en skärmdump i ett annat fönster och tryck Ctrl+V (Cmd+V på Mac) här. Upprepa så många gånger du vill, rutan väntar. ${s.shots.length ? `<b>${s.shots.length} av 6</b> bilder.` : ""}</div>
       <div class="shots">${s.shots.map((sh, i) => `<div><img src="${sh.url}" alt=""><button type="button" data-a="rmshot" data-i="${i}">×</button></div>`).join("")}</div>` : ""}
       <label class="check" style="color:var(--ink);font-weight:500"><input type="checkbox" id="imp-tr" ${s.translate ? "checked" : ""}> Översätt till svenska och metriska mått</label>
       ${s.error ? `<div class="err" id="imp-err">${esc(s.error)}</div>` : ""}
@@ -881,6 +884,7 @@ document.addEventListener("click", async e => {
       if (error) { el.disabled = false; toast("Kunde inte skicka: " + error.message); break; }
       el.outerHTML = `<p class="meta" style="margin-top:14px">${data === "har_tillgang" ? "Du har redan tillgång – ladda om sidan." : "Förfrågan är skickad. Ladda om sidan när du fått klartecken."}</p>`;
       break; }
+    case "imppaste": await pasteShotsFromClipboard(); break;
     case "ctab": {
       detailState.tab = el.dataset.t; render();
       const c = document.getElementById("cook");
@@ -1494,3 +1498,34 @@ $id("reqForm").onsubmit = async e => {
     $id("reqErr").textContent = /function|schema cache|does not exist/i.test(err.message || "") ? "Det går inte att begära tillgång just nu." : (err.message || "Något gick fel");
   } finally { btn.disabled = false; }
 };
+
+// ---------- klistra in skärmdumpar i importrutan ----------
+function addImportShots(blobs){
+  const s = importState; if (!s || s.busy) return 0;
+  let n = 0;
+  for (const b of blobs) { if (s.shots.length >= 6) break; s.shots.push({ blob: b, url: URL.createObjectURL(b) }); n++; }
+  if (n) { s.error = ""; renderImport(); toast(s.shots.length >= 6 ? "6 bilder – det är max" : `Skärmdump inlagd (${s.shots.length} av 6)`); }
+  else if (s.shots.length >= 6) toast("Max 6 bilder per recept");
+  return n;
+}
+document.addEventListener("paste", e => {
+  if (!importState || importState.busy || !document.getElementById("imp-text")) return;
+  const imgs = [...(e.clipboardData && e.clipboardData.items || [])].filter(i => i.type.startsWith("image/")).map(i => i.getAsFile()).filter(Boolean);
+  if (!imgs.length) return;  // vanlig text klistras in som vanligt
+  e.preventDefault();
+  addImportShots(imgs);
+});
+async function pasteShotsFromClipboard(){
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.read) throw { hint: true };
+    const blobs = [];
+    for (const it of await navigator.clipboard.read()) {
+      const t = it.types.find(x => x.startsWith("image/"));
+      if (t) blobs.push(await it.getType(t));
+    }
+    if (!blobs.length) { toast("Hittade ingen bild bland det du kopierat"); return; }
+    addImportShots(blobs);
+  } catch (e) {
+    toast(e && e.hint ? "Tryck Ctrl+V (Cmd+V) i rutan i stället" : "Fick inte läsa urklippet – tryck Ctrl+V (Cmd+V) i stället");
+  }
+}
