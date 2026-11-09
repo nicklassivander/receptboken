@@ -410,6 +410,10 @@ header.top h1{font-weight:600}
 @media(min-width:901px){.tag-chips .chip.more{display:none}}
 .photo-opts{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 8px}
 .photo-opts .photo-file{cursor:pointer}
+.steps li[data-n]::before{content:attr(data-n)}
+.steps li.group{counter-increment:none;cursor:default;padding:22px 0 4px;font-family:var(--serif);font-style:italic;font-size:21px;color:var(--ink)}
+.steps li.group:first-child{padding-top:4px}
+.steps li.group::before{content:none}
 </style>
 </head>
 <body>

@@ -432,7 +432,7 @@ function renderDetail(){
     <div class="cook" id="cook" data-tab="${detailState.tab || "ing"}">
     <div class="ctabs" role="tablist">
       <button role="tab" class="${(detailState.tab || "ing") === "ing" ? "on" : ""}" data-a="ctab" data-t="ing">Ingredienser<small>${ings.filter(l => !l.startsWith("#")).length}</small></button>
-      <button role="tab" class="${detailState.tab === "steps" ? "on" : ""}" data-a="ctab" data-t="steps">Gör så här<small>${steps.length}</small></button>
+      <button role="tab" class="${detailState.tab === "steps" ? "on" : ""}" data-a="ctab" data-t="steps">Gör så här<small>${steps.filter(x => !x.startsWith("#")).length}</small></button>
     </div>
     <div class="panel cpane cp-ing">
       <h2><span>Ingredienser</span>
@@ -448,7 +448,9 @@ function renderDetail(){
 
     <div class="panel cpane cp-steps">
       <h2>Gör så här</h2>
-      ${steps.length ? `<ol class="steps">${steps.map((s, i) => `<li class="${detailState.done["s" + i] ? "done" : ""}" data-a="tick" data-k="s${i}">${esc(s)}</li>`).join("")}</ol>`
+      ${steps.length ? `<ol class="steps">${(() => { let n = 0; return steps.map((s, i) => s.startsWith("#")
+          ? (n = 0, `<li class="group">${esc(s.replace(/^#+\s*/, ""))}</li>`)
+          : `<li class="${detailState.done["s" + i] ? "done" : ""}" data-n="${++n}" data-a="tick" data-k="s${i}">${esc(s)}</li>`).join(""); })()}</ol>`
         : `<p class="meta">Inga steg ifyllda.</p>`}
     </div>
     <button class="cnext" data-a="ctab" data-t="${(detailState.tab || "ing") === "ing" ? "steps" : "ing"}">${(detailState.tab || "ing") === "ing" ? "Till Gör så här →" : "← Till ingredienserna"}</button>
@@ -521,7 +523,8 @@ function renderEdit(){
       <div class="hint">En per rad, mängden först. Rader som börjar med # blir rubriker.</div>
 
       <label>Gör så här</label>
-      <textarea name="steps" rows="8" placeholder="Ett steg per rad">${esc((d.steps || []).join("\n"))}</textarea>
+      <textarea name="steps" rows="8" placeholder="# Dagen innan&#10;Marinera köttet över natten.&#10;# Vid servering&#10;Grilla och skiva.">${esc((d.steps || []).join("\n"))}</textarea>
+      <div class="hint">Ett steg per rad. Rader som börjar med # blir rubriker, t.ex. "# Dagen innan" eller "# Vid servering".</div>
 
       <label>Mina ändringar</label>
       <textarea name="myChanges" rows="3" placeholder="t.ex. Bytte grädde mot crème fraiche, dubbel vitlök, 5 min kortare i ugnen">${esc(d.myChanges)}</textarea>
@@ -580,7 +583,7 @@ function recipeText(r){
   const lines = [r.title, ""];
   if (r.servings) lines.push(r.servings + " portioner" + (r.time ? " · " + r.time : ""));
   lines.push("", "INGREDIENSER", ...(r.ingredients || []).map(l => l.startsWith("#") ? "\n" + l.replace(/^#+\s*/, "") : "• " + l));
-  lines.push("", "GÖR SÅ HÄR", ...(r.steps || []).map((s, i) => (i + 1) + ". " + s));
+  { let n = 0; lines.push("", "GÖR SÅ HÄR", ...(r.steps || []).map(s => s.startsWith("#") ? (n = 0, "\n" + s.replace(/^#+\s*/, "")) : (++n) + ". " + s)); }
   if (r.myChanges) lines.push("", "MINA ÄNDRINGAR", r.myChanges);
   if (r.sourceUrl) lines.push("", "Källa: " + r.sourceUrl);
   return lines.join("\n");
@@ -760,7 +763,7 @@ Svara ENDAST med ett JSON-objekt, utan förklaring:
 {"title": string, "servings": number eller null, "time": string (t.ex. "45 min", tom om okänt), "tags": [string], "ingredients": [string], "steps": [string], "notes": string}
 Regler:
 - ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ".
-- steps: ett steg per element, utan numrering, korta och tydliga.
+- steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
 - tags: 2–5 korta taggar på svenska i gemener (t.ex. "pasta", "kyckling", "vegetariskt", "grill", "vardag").
 - notes: eventuella tips från källan, kort. Annars tom sträng.
 - ${s.translate ? "Skriv allt på svenska. Räkna om amerikanska mått (cups, tbsp, tsp, oz, lb, °F) till svenska metriska mått (dl, msk, tsk, g, °C)." : "Behåll originalspråket och måtten."}
@@ -1160,7 +1163,7 @@ Justera mängder, steg och tid när ändringen kräver det (t.ex. om en ingredie
 Svara ENDAST med JSON:
 {"title": string, "servings": number eller null, "time": string, "ingredients": [string], "steps": [string], "summary": string}
 - ingredients: en per rad, mängd först. Rubriker som börjar med "# " får finnas.
-- steps: ett steg per element, utan numrering.
+- steps: ett steg per element, utan numrering. Rubriker som börjar med "# " får finnas (t.ex. "# Dagen innan", "# Vid servering") – behåll befintliga och lägg till om användaren ber om det.
 - summary: en kort mening på svenska om vad du ändrade, t.ex. "Bytte grädde mot crème fraiche och tog bort koriander."
 
 NUVARANDE RECEPT:
@@ -1208,7 +1211,7 @@ function historyHtml(r){
           ${e.note ? `<div class="prewrap">${esc(e.note)}</div>` : ""}
           ${e.snapshot ? `<details class="hvar"><summary>Receptet den gången</summary>
             <ul>${(e.snapshot.ingredients || []).map(l => l.startsWith("#") ? `<li class="g">${esc(l.replace(/^#+\s*/, ""))}</li>` : `<li>${esc(l)}</li>`).join("")}</ul>
-            <ol>${(e.snapshot.steps || []).map(st => `<li>${esc(st)}</li>`).join("")}</ol>
+            <ol>${(e.snapshot.steps || []).map(st => st.startsWith("#") ? `<li class="group">${esc(st.replace(/^#+\s*/, ""))}</li>` : `<li>${esc(st)}</li>`).join("")}</ol>
             ${canEdit(r) ? `<button class="btn ghost small" data-a="histuse" data-h="${esc(e.id)}">Använd som min version</button>` : ""}
           </details>` : ""}
           ${can("contributor") && (canEdit(r) || (e.by || OWNER) === me) ? `<div class="hacts"><button class="linkbtn" data-a="histedit" data-h="${esc(e.id)}">Ändra</button><button class="linkbtn" data-a="histdel" data-h="${esc(e.id)}">Ta bort</button></div>` : ""}
