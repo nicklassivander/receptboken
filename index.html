@@ -414,6 +414,11 @@ header.top h1{font-weight:600}
 .steps li.group{counter-increment:none;cursor:default;padding:22px 0 4px;font-family:var(--serif);font-style:italic;font-size:21px;color:var(--ink)}
 .steps li.group:first-child{padding-top:4px}
 .steps li.group::before{content:none}
+.wakerow{display:flex;justify-content:flex-end;margin:14px 0 -8px}
+.wakebtn{display:inline-flex;align-items:center;gap:8px;background:none;border:1px solid var(--line);border-radius:999px;padding:6px 13px;font:inherit;font-size:12px;letter-spacing:.06em;color:var(--muted);cursor:pointer}
+.wakebtn .wdot{width:8px;height:8px;border-radius:50%;background:#c9c2b8}
+.wakebtn.on{color:var(--ink);border-color:var(--brass)}
+.wakebtn.on .wdot{background:var(--brass);box-shadow:0 0 0 3px rgba(156,122,60,.2)}
 </style>
 </head>
 <body>

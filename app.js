@@ -429,6 +429,7 @@ function renderDetail(){
 
     ${r.myChanges ? `<div class="panel changes"><h2>Mina ändringar</h2><div class="prewrap">${esc(r.myChanges)}</div></div>` : ""}
 
+    ${"wakeLock" in navigator ? `<div class="wakerow"><button class="wakebtn" id="wakebtn" data-a="wake" aria-pressed="false"><span class="wdot"></span><span class="wtxt">Håll skärmen tänd</span></button></div>` : ""}
     <div class="cook" id="cook" data-tab="${detailState.tab || "ing"}">
     <div class="ctabs" role="tablist">
       <button role="tab" class="${(detailState.tab || "ing") === "ing" ? "on" : ""}" data-a="ctab" data-t="ing">Ingredienser<small>${ings.filter(l => !l.startsWith("#")).length}</small></button>
@@ -863,6 +864,12 @@ document.addEventListener("click", async e => {
       if (await patch(cur.id, { notes: val })) { detailState.notesEdit = false; detailState.notesDraft = null; render(); toast("Anteckningarna är sparade"); }
       else el.disabled = false;
       break; }
+    case "wake":
+      wakeWanted = !wakeLock;
+      try { localStorage.setItem("wake", wakeWanted ? "on" : "off"); } catch {}
+      await syncWakeLock();
+      toast(wakeLock ? "Skärmen hålls tänd medan receptet är öppet" : wakeWanted ? "Telefonen tillät inte att skärmen hålls tänd" : "Skärmen släcks som vanligt");
+      break;
     case "ctab": {
       detailState.tab = el.dataset.t; render();
       const c = document.getElementById("cook");
@@ -1294,14 +1301,22 @@ window.addEventListener("offline", () => { if (started) { loadNote = "Du är off
 
 // ---------- skärmen tänd medan ett recept är öppet ----------
 let wakeLock = null;
+let wakeWanted = (() => { try { return localStorage.getItem("wake") !== "off"; } catch { return true; } })();
+function showWake(){
+  const b = document.getElementById("wakebtn"); if (!b) return;
+  const on = !!wakeLock;
+  b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+  b.querySelector(".wtxt").textContent = on ? "Skärmen hålls tänd" : wakeWanted ? "Håll skärmen tänd" : "Skärmen kan släckas";
+}
 async function syncWakeLock(){
-  const want = view.name === "detail" && document.visibilityState === "visible";
+  const want = wakeWanted && view.name === "detail" && document.visibilityState === "visible";
   try {
     if (want && !wakeLock && "wakeLock" in navigator) {
       wakeLock = await navigator.wakeLock.request("screen");
-      wakeLock.addEventListener("release", () => { wakeLock = null; });
+      wakeLock.addEventListener("release", () => { wakeLock = null; showWake(); });
     } else if (!want && wakeLock) { await wakeLock.release(); wakeLock = null; }
   } catch { wakeLock = null; }
+  setTimeout(showWake, 0);
 }
 document.addEventListener("visibilitychange", syncWakeLock);
 
