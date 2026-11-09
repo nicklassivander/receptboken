@@ -866,9 +866,8 @@ document.addEventListener("click", async e => {
       break; }
     case "wake":
       wakeWanted = !wakeLock;
-      try { localStorage.setItem("wake", wakeWanted ? "on" : "off"); } catch {}
       await syncWakeLock();
-      toast(wakeLock ? "Skärmen hålls tänd medan receptet är öppet" : wakeWanted ? "Telefonen tillät inte att skärmen hålls tänd" : "Skärmen släcks som vanligt");
+      toast(wakeLock ? "Skärmen hålls tänd medan du lagar" : wakeWanted ? (wakeWanted = false, "Telefonen tillät inte att skärmen hålls tänd") : "Skärmen släcks som vanligt igen");
       break;
     case "ctab": {
       detailState.tab = el.dataset.t; render();
@@ -1301,12 +1300,12 @@ window.addEventListener("offline", () => { if (started) { loadNote = "Du är off
 
 // ---------- skärmen tänd medan ett recept är öppet ----------
 let wakeLock = null;
-let wakeWanted = (() => { try { return localStorage.getItem("wake") !== "off"; } catch { return true; } })();
+let wakeWanted = false;  // användaren slår på själv; gäller tills appen stängs
 function showWake(){
   const b = document.getElementById("wakebtn"); if (!b) return;
   const on = !!wakeLock;
   b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
-  b.querySelector(".wtxt").textContent = on ? "Skärmen hålls tänd" : wakeWanted ? "Håll skärmen tänd" : "Skärmen kan släckas";
+  b.querySelector(".wtxt").textContent = on ? "Skärmen hålls tänd" : "Håll skärmen tänd";
 }
 async function syncWakeLock(){
   const want = wakeWanted && view.name === "detail" && document.visibilityState === "visible";
