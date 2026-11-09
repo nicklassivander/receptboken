@@ -5,6 +5,7 @@ let recipes = [], loaded = false, loadNote = "", storageOk = true;
 let view = { name: "list" };              // list | detail | edit
 let filter = { q: "", tag: null, fav: false, mine: false, cookedMe: false, sort: "new" };
 let showAllTags = false;
+let pendingReqs = 0;  // förfrågningar om tillgång (bara superanvändare)
 let layout = "grid";
 try { layout = localStorage.getItem("layout") === "list" ? "list" : "grid"; } catch {}
 let draft = null;                          // recipe being edited
@@ -300,7 +301,7 @@ function renderList(){
 
   let body;
   if (!storageOk) {
-    body = `<div class="empty"><h2>Ingen behörighet än</h2><p>Ditt konto har inte tillgång till Receptboken. Be Nicklas lägga till dig.</p></div>`;
+    body = `<div class="empty"><h2>Ingen behörighet än</h2><p>Ditt konto (${esc(me || "")}) har inte tillgång till receptboken än.</p><button class="btn accent" data-a="reqaccess" style="margin-top:14px">Begär tillgång</button></div>`;
   } else if (!loaded) {
     body = `<div class="empty"><p>Hämtar dina recept …</p></div>`;
   } else if (!recipes.length) {
@@ -332,7 +333,7 @@ function renderList(){
 
   $app.innerHTML = `
     <header class="top"><a class="brand" href="#" data-a="home" aria-label="Till alla recept"><img src="logo.svg" alt="" class="logo"><h1>Sivander's Recept</h1></a>
-      <span class="row"><span class="meta">${recipes.length ? recipes.length + " recept" : ""}</span><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto</button></span></header>
+      <span class="row"><span class="meta">${recipes.length ? recipes.length + " recept" : ""}</span><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button></span></header>
     ${loadNote ? `<div class="notice">${esc(loadNote)}</div>` : ""}
     ${recipes.length ? `
     <div class="search">
@@ -874,6 +875,12 @@ document.addEventListener("click", async e => {
       await syncWakeLock();
       toast(wakeLock ? "Skärmen hålls tänd medan du lagar" : wakeWanted ? (wakeWanted = false, "Telefonen tillät inte att skärmen hålls tänd") : "Skärmen släcks som vanligt igen");
       break;
+    case "reqaccess": {
+      el.disabled = true;
+      const { data, error } = await sb.rpc("recipe_request_access", { p_email: me, p_name: nameOf(me), p_message: "" });
+      if (error) { el.disabled = false; toast("Kunde inte skicka: " + error.message); break; }
+      el.outerHTML = `<p class="meta" style="margin-top:14px">${data === "har_tillgang" ? "Du har redan tillgång – ladda om sidan." : "Förfrågan är skickad. Ladda om sidan när du fått klartecken."}</p>`;
+      break; }
     case "ctab": {
       detailState.tab = el.dataset.t; render();
       const c = document.getElementById("cook");
@@ -963,7 +970,7 @@ function openSettings(){
   openSheet(`<h2>Inställningar</h2>
     <p class="sub">Inloggad som ${esc(me || "")} · ${esc(ROLE_LABEL[role] || "Ingen behörighet")}</p>
     <div class="actions" style="flex-direction:column">
-      ${can("admin") ? `<button class="btn ghost" id="usersBtn">Hantera användare</button>
+      ${can("admin") ? `<button class="btn ghost" id="usersBtn">Hantera användare${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button>
       <button class="btn ghost" id="importBtn">Importera recept från fil</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>` : ""}
       <button class="btn ghost" id="pwBtn">Byt lösenord</button>
@@ -983,6 +990,7 @@ function openSettings(){
 async function openUsers(){
   openSheet(`<h2>Användare</h2>
     <p class="sub">Inloggningen delas med Munkholmsvägen, men behörigheten här gäller bara Receptboken.</p>
+    <div id="uReqs"></div>
     <div id="uList" class="panel" style="padding:8px 14px"><p class="meta">Laddar …</p></div>
     <form id="uf">
       <h3 style="margin-top:18px;font-size:18px">Lägg till</h3>
@@ -1032,7 +1040,8 @@ async function openUsers(){
     toast(`${name || email} är tillagd${$id("uInvite").checked ? " och har fått en inloggningslänk" : ""}`);
     load();
   };
-  load();
+  window.__reloadUsers = load;
+  load(); renderRequests();
 }
 
 function pwProblem(pw, pw2){
@@ -1081,7 +1090,7 @@ async function showApp(session){
   try { const { data: r, error } = await sb.rpc("recipe_my_role"); roleErr = error; if (!error) role = r || null; } catch (e) { roleErr = e; }
   if (roleErr && cache && cache.me === me && (navigator.onLine === false || /fetch|network|load failed/i.test(String(roleErr.message || roleErr)))) { role = cache.role; loadNote = "Du är offline – visar senast sparade recept."; loaded = true; render(); subscribe(); handleShare(); return; }
   if (!role) { storageOk = false; loaded = true; render(); return; }
-  await loadAll(); subscribe(); handleShare();
+  await loadAll(); subscribe(); handleShare(); refreshRequests();
   const md = (session.user && session.user.user_metadata) || {};
   if (!md.has_password) openPasswordSheet(true);
 }
@@ -1419,3 +1428,69 @@ function openPhotoSheet(onDone){
   };
   $id("ps-urlform").onsubmit = e => { e.preventDefault(); fromUrl(); };
 }
+
+// ---------- förfrågningar om tillgång ----------
+async function refreshRequests(){
+  if (!can("admin")) return [];
+  try {
+    const { data, error } = await sb.rpc("recipe_admin_list_requests");
+    if (error) return [];
+    const before = pendingReqs; pendingReqs = (data || []).length;
+    if (pendingReqs && !before && view.name === "list") toast(pendingReqs === 1 ? "1 ny förfrågan om tillgång – se Konto" : pendingReqs + " nya förfrågningar om tillgång – se Konto");
+    if (before !== pendingReqs && view.name !== "edit") render();
+    return data || [];
+  } catch { return []; }
+}
+async function renderRequests(){
+  const box = $id("uReqs"); if (!box) return;
+  const list = await refreshRequests();
+  if (!list.length) { box.innerHTML = ""; return; }
+  box.innerHTML = `<h3 style="margin:4px 0 6px;font-size:18px">Vill ha tillgång</h3><div class="panel reqs" style="padding:4px 14px">${list.map(r => `
+    <div class="req">
+      <div><strong>${esc(r.name || r.email.split("@")[0])}</strong> <span class="meta">${esc(r.email)} · ${esc(fmtDate((r.created_at || "").slice(0, 10)))}</span></div>
+      ${r.message ? `<div class="msg">${esc(r.message)}</div>` : ""}
+      <div class="row" style="margin-top:6px">
+        <select data-rrole="${r.id}" style="width:auto;padding:6px 8px;font-size:13px"><option value="viewer">Läsa</option><option value="contributor" selected>Egna recept</option><option value="admin">Superanvändare</option></select>
+        <button class="btn accent small" type="button" data-rok="${r.id}">Godkänn</button>
+        <button class="btn ghost small" type="button" data-rno="${r.id}">Avvisa</button>
+      </div>
+    </div>`).join("")}</div>`;
+  const resolve = async (id, roleVal, label) => {
+    const req = list.find(x => String(x.id) === String(id));
+    const { error } = await sb.rpc("recipe_admin_resolve_request", { p_id: +id, p_role: roleVal });
+    if (!error && roleVal && req) { try { await sb.auth.signInWithOtp({ email: req.email, options: { emailRedirectTo: location.origin } }); } catch {} }
+    toast(error ? error.message : label);
+    renderRequests(); if (window.__reloadUsers) window.__reloadUsers();
+  };
+  box.querySelectorAll("[data-rok]").forEach(b => b.onclick = () => resolve(b.dataset.rok, box.querySelector(`[data-rrole="${b.dataset.rok}"]`).value, "Godkänd – personen har fått en inloggningslänk i mejlen"));
+  box.querySelectorAll("[data-rno]").forEach(b => { let armed = false; b.onclick = () => {
+    if (!armed) { armed = true; b.textContent = "Säker?"; b.classList.add("armed"); return; }
+    resolve(b.dataset.rno, null, "Förfrågan avvisad");
+  }; });
+}
+
+// inloggningssidan: begär tillgång
+$id("reqToggle").onclick = e => {
+  e.preventDefault();
+  $id("reqForm").classList.toggle("hidden");
+  if (!$id("reqForm").classList.contains("hidden")) {
+    if (!$id("reqEmail").value) $id("reqEmail").value = $id("loginEmail").value.trim();
+    $id("reqName").focus();
+  }
+};
+$id("reqForm").onsubmit = async e => {
+  e.preventDefault(); $id("reqErr").textContent = "";
+  const btn = $id("reqBtn"); btn.disabled = true;
+  try {
+    const { data, error } = await sb.rpc("recipe_request_access", { p_email: $id("reqEmail").value.trim(), p_name: $id("reqName").value.trim(), p_message: $id("reqMsg").value.trim() });
+    if (error) throw error;
+    $id("reqForm").classList.add("hidden");
+    $id("reqToggle").parentElement.classList.add("hidden");
+    $id("reqDone").classList.remove("hidden");
+    $id("reqDone").innerHTML = data === "har_tillgang"
+      ? "Du har redan tillgång! Skriv din e-post ovan och tryck <b>Skicka en inloggningslänk</b>."
+      : "Tack! Din förfrågan är skickad till Nicklas.<br>När du har godkänts får du en inloggningslänk i mejlen.";
+  } catch (err) {
+    $id("reqErr").textContent = /function|schema cache|does not exist/i.test(err.message || "") ? "Det går inte att begära tillgång just nu." : (err.message || "Något gick fel");
+  } finally { btn.disabled = false; }
+};

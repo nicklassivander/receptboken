@@ -431,6 +431,11 @@ header.top h1{font-weight:600}
 .roles-help{margin-top:16px;font-size:13px;line-height:1.55;color:var(--muted)}
 .roles-help p{margin:0 0 8px}
 .roles-help b{color:var(--ink);font-weight:500}
+.req-wrap{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+#reqForm{margin-top:10px}
+.reqs .req{padding:10px 0;border-bottom:1px solid #f0e8da}
+.reqs .req .msg{font-style:italic;margin:4px 0 8px;color:var(--ink)}
+.dotcount{display:inline-block;min-width:17px;height:17px;line-height:17px;border-radius:9px;background:var(--accent,#5c1a24);color:#fff;font-size:10px;text-align:center;margin-left:6px;padding:0 4px;vertical-align:2px}
 </style>
 </head>
 <body>
@@ -445,6 +450,17 @@ header.top h1{font-weight:600}
       <div class="err" id="loginErr"></div>
     </form>
     <p class="meta" id="loginSub" style="margin:16px 0 0;text-align:center;display:block">Första gången, eller glömt lösenordet?<br><a href="#" id="magicLink" style="font-weight:600">Skicka en inloggningslänk till mejlen</a></p>
+    <div class="req-wrap">
+      <p class="meta" style="text-align:center;display:block;margin:0">Ny här? <a href="#" id="reqToggle" style="font-weight:600">Begär tillgång</a></p>
+      <form id="reqForm" class="hidden">
+        <label>Namn</label><input type="text" id="reqName" maxlength="80" autocomplete="name" required>
+        <label>E-post</label><input type="email" id="reqEmail" maxlength="200" autocomplete="email" required>
+        <label>Meddelande <span style="font-weight:400;text-transform:none;letter-spacing:0">(valfritt)</span></label><textarea id="reqMsg" rows="2" maxlength="500" placeholder="T.ex. vem du är"></textarea>
+        <button class="btn accent" id="reqBtn">Skicka förfrågan</button>
+        <div class="err" id="reqErr"></div>
+      </form>
+      <p class="meta hidden" id="reqDone" style="text-align:center;display:block;margin:0"></p>
+    </div>
   </div>
 </div>
 <div class="wrap hidden" id="app"></div>
