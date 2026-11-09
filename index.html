@@ -436,6 +436,28 @@ header.top h1{font-weight:600}
 .reqs .req{padding:10px 0;border-bottom:1px solid #f0e8da}
 .reqs .req .msg{font-style:italic;margin:4px 0 8px;color:var(--ink)}
 .dotcount{display:inline-block;min-width:17px;height:17px;line-height:17px;border-radius:9px;background:var(--accent,#5c1a24);color:#fff;font-size:10px;text-align:center;margin-left:6px;padding:0 4px;vertical-align:2px}
+/* hjälp */
+@media(max-width:620px){header.top > .row .meta{display:inline;font-size:12px}header.top > .row{gap:12px}}
+.help{max-width:720px;margin:0 auto;padding:70px 4px 0}
+.help-head{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+.help-logo{width:64px;height:64px}
+.help h1{font-family:var(--serif);font-weight:400;font-size:40px;margin:0;line-height:1}
+.hsec{border-top:1px solid var(--line);padding:4px 0}
+.hsec:last-of-type{border-bottom:1px solid var(--line)}
+.hsec>summary{list-style:none;cursor:pointer;font-family:var(--serif);font-size:23px;padding:14px 30px 14px 0;position:relative}
+.hsec>summary::-webkit-details-marker{display:none}
+.hsec>summary::after{content:"+";position:absolute;right:4px;top:12px;font-family:var(--sans,inherit);font-size:22px;color:var(--brass)}
+.hsec[open]>summary::after{content:"–"}
+.hbody{padding:0 0 16px;line-height:1.65}
+.hbody p{margin:0 0 10px}
+.hbody ul{margin:0 0 10px;padding-left:20px}
+.hbody li{margin:0 0 7px}
+.hbody .ok{color:#3d6b3d}
+.hmini{margin:0 0 12px;font-size:14px}
+.hmini summary{cursor:pointer;color:var(--accent);margin-bottom:6px}
+.k{display:inline-block;border:1px solid #cfc6b8;border-radius:4px;padding:0 5px;font-size:.85em;line-height:1.5;background:#fff}
+.help-pdf{text-align:center;margin:26px 0 0}
+.help-pdf a{color:var(--accent);font-weight:500}
 </style>
 </head>
 <body>

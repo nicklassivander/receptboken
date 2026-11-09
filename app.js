@@ -237,6 +237,7 @@ const viewKey = v => v.name + ":" + (v.id || "");
 function viewHash(v){
   if (v.name === "detail") return "#r=" + v.id;
   if (v.name === "edit") return v.id ? "#e=" + v.id : "#ny";
+  if (v.name === "help") return "#hjalp";
   return " ";
 }
 function syncHistory(){
@@ -271,6 +272,7 @@ function render(){
   syncWakeLock();
   if (view.name === "detail") return renderDetail();
   if (view.name === "edit") return renderEdit();
+  if (view.name === "help") return renderHelp();
   renderList();
 }
 
@@ -335,7 +337,7 @@ function renderList(){
 
   $app.innerHTML = `
     <header class="top"><a class="brand" href="#" data-a="home" aria-label="Till alla recept"><img src="logo.svg" alt="" class="logo"><h1>Sivander's Recept</h1></a>
-      <span class="row"><span class="meta">${recipes.length ? recipes.length + " recept" : ""}</span><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button></span></header>
+      <span class="row"><span class="meta">${recipes.length ? recipes.length + " recept" : ""}</span><button class="iconbtn" data-a="help" aria-label="Hjälp och instruktioner">Hjälp</button><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button></span></header>
     ${loadNote ? `<div class="notice">${esc(loadNote)}</div>` : ""}
     ${recipes.length ? `
     <div class="search">
@@ -854,6 +856,7 @@ document.addEventListener("click", async e => {
       detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
     case "home": e.preventDefault(); if (view.name === "list") break; goBack(); break;
+    case "help": view = { name: "help" }; render(); window.scrollTo(0, 0); break;
     case "fav": filter.fav = !filter.fav; render(); break;
     case "moretags": showAllTags = !showAllTags; render(); break;
     case "mine": filter.mine = !filter.mine; render(); break;
@@ -1090,6 +1093,7 @@ async function showApp(session){
   me = (session.user.email || "").toLowerCase();
   $id("loginView").classList.add("hidden"); $id("app").classList.remove("hidden");
   // Vid omladdning: stanna kvar på receptet som var öppet
+  if (location.hash === "#hjalp") view = { name: "help" };
   const hm = location.hash.match(/^#[re]=([^&]+)$/);
   if (hm) view = { name: "detail", id: decodeURIComponent(hm[1]) };
   // Visa sparade recept direkt, hämta färska i bakgrunden
@@ -1545,4 +1549,99 @@ function takePhoto(cb){
   inp.style.display = "none"; document.body.appendChild(inp);
   inp.onchange = () => { const f = inp.files && inp.files[0]; inp.remove(); if (f) cb(f); };
   inp.click();
+}
+
+// ---------- hjälp, anpassad efter enheten ----------
+function deviceInfo(){
+  const ua = navigator.userAgent;
+  const ios = /iphone|ipod/i.test(ua) || (/ipad/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1));
+  const android = /android/i.test(ua);
+  const mac = !ios && /macintosh|mac os x/i.test(ua);
+  const kind = ios ? "ios" : android ? "android" : mac ? "mac" : "pc";
+  const installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  return { kind, touch: ios || android, installed, mod: mac || ios ? "Cmd" : "Ctrl" };
+}
+function renderHelp(){
+  const d = deviceInfo();
+  const name = { ios: "iPhone/iPad", android: "Android", mac: "Mac", pc: "datorn" }[d.kind];
+  const install = {
+    ios: `Öppna <b>recept.sivander.com</b> i Safari (eller Chrome) → tryck <b>Dela</b> <span class="k">⬆︎</span> → <b>Lägg till på hemskärmen</b> → <b>Lägg till</b>.`,
+    android: `Öppna <b>recept.sivander.com</b> i Chrome → menyn <span class="k">⋮</span> → <b>Installera app</b>.`,
+    mac: `Öppna sidan i Chrome eller Edge → klicka på installera-ikonen i adressfältet (eller menyn → <b>Installera Sivander's Recept</b>). I Safari: Arkiv → <b>Lägg till i Dock</b>.`,
+    pc: `Öppna sidan i Chrome eller Edge → klicka på installera-ikonen i adressfältet (eller menyn → <b>Installera Sivander's Recept</b>).`,
+  };
+  const shot = {
+    ios: "sidoknappen + volym upp",
+    android: "strömknappen + volym ned",
+    mac: `<span class="k">Cmd</span>+<span class="k">Ctrl</span>+<span class="k">Shift</span>+<span class="k">4</span> (hamnar direkt i urklippet)`,
+    pc: `<span class="k">Win</span>+<span class="k">Shift</span>+<span class="k">S</span>`,
+  }[d.kind];
+  const others = Object.keys(install).filter(k => k !== d.kind);
+  const lbl = { ios: "iPhone/iPad", android: "Android", mac: "Mac", pc: "Windows" };
+  const sec = (title, body, open) => `<details class="hsec" ${open ? "open" : ""}><summary>${title}</summary><div class="hbody">${body}</div></details>`;
+
+  $app.innerHTML = `
+  <div class="help">
+    <button class="fback" data-a="home" aria-label="Tillbaka"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+    <div class="help-head">
+      <img src="logo.svg" alt="" class="help-logo">
+      <div><h1>Hjälp</h1><p class="meta">Instruktionen är anpassad för ${esc(name)}.</p></div>
+    </div>
+
+    ${sec("Kom igång", `
+      ${d.installed ? `<p class="ok">✓ Appen är installerad på den här enheten.</p>` : `<p><b>Lägg appen på ${d.touch ? "hemskärmen" : "datorn"}</b> så startar den som en vanlig app:</p><p>${install[d.kind]}</p>`}
+      <details class="hmini"><summary>Andra enheter</summary>${others.map(k => `<p><b>${lbl[k]}:</b> ${install[k]}</p>`).join("")}</details>
+      <p><b>Ny användare?</b> Tryck <b>Begär tillgång</b> på inloggningssidan. När du är godkänd får du en inloggningslänk i mejlen.</p>
+      <p><b>Glömt lösenordet?</b> Skriv din e-post och tryck <b>Skicka en inloggningslänk</b>.</p>`, true)}
+
+    ${sec("Lägg till ett recept", `
+      <p>Tryck på <b>+</b> nere till höger:</p>
+      <ul>
+        ${d.touch ? `<li><b>Ta foto</b> – kameran öppnas direkt. Fota en kokbokssida eller lapp; tryck <b>Ta foto</b> igen för fler sidor (upp till 6).</li>` : ""}
+        <li><b>Välj bilder</b> – skärmdumpar eller foton du redan har. Flera bilder blir ett recept.</li>
+        <li><b>Länk eller text</b> – klistra in länken till en receptsida, så hämtar appen receptet och bilden själv. Eller klistra in texten.</li>
+        <li><b>Skriv eget recept</b> – fyll i själv.</li>
+      </ul>
+      <p><b>Skärmdumpar från ett annat fönster:</b> öppna importrutan, ta en skärmdump med ${shot}, ${d.touch ? `gå tillbaka till appen och tryck <b>Klistra in skärmdump</b>` : `byt tillbaka och tryck <span class="k">${d.mod}</span>+<span class="k">V</span>`}. Upprepa – rutan väntar.</p>
+      <p><b>Instagram och Facebook</b> släpper inte in appen via länk. Kopiera bildtexten eller ta skärmdumpar i stället.${d.kind === "android" ? ` Från Instagram kan du också trycka <b>Dela</b> → <b>Sivander's Recept</b> (när appen är installerad).` : ""}</p>
+      <p>AI:n plockar ut ingredienser och steg – granska och tryck <b>Spara</b>.</p>`)}
+
+    ${sec("När du lagar mat", `
+      <ul>
+        ${d.touch ? `<li>Växla mellan <b>Ingredienser</b> och <b>Gör så här</b> med flikarna eller genom att <b>svepa</b> åt sidan.</li>` : `<li>Ingredienser och steg står bredvid varandra (i ett smalt fönster blir det flikar).</li>`}
+        <li>Tryck på en rad för att <b>bocka av</b> den.</li>
+        <li>Ändra antalet <b>portioner</b> med − och + – mängderna räknas om.</li>
+        <li>Tryck på <b>telefonikonen</b> bredvid hjärtat för att hålla skärmen tänd. Guld = på.</li>
+        <li>Tryck <b>Lagad idag</b> när du är klar, eller <b>Ny tillagning</b> för att spara datum, betyg, anteckning och bild.</li>
+      </ul>`)}
+
+    ${sec("Bild på rätten", `
+      <p>Tryck <b>Byt bild</b> i receptet: ${d.touch ? "<b>Ta foto</b>, " : ""}välj från enheten, <b>klistra in</b> en kopierad bild${d.touch ? "" : ` (eller <span class="k">${d.mod}</span>+<span class="k">V</span>)`} eller <b>hämta från en länk</b>.</p>`)}
+
+    ${sec("Rubriker, anteckningar och AI", `
+      <ul>
+        <li>Rader som börjar med <b>#</b> blir rubriker – bland ingredienserna (<i># Till såsen</i>) och i stegen (<i># Dagen innan</i>, <i># Vid servering</i>).</li>
+        <li><b>Anteckningar:</b> tryck <i>Redigera</i> och skriv direkt i receptet.</li>
+        <li><b>Ändra receptet:</b> skriv vad du vill ändra, t.ex. <i>"byt grädde mot crème fraiche"</i> eller <i>"dela upp stegen i dagen innan och vid servering"</i>.</li>
+        <li><b>Fråga sommelieren och kocken:</b> vin, alternativ, tillbehör, liknande recept.</li>
+      </ul>`)}
+
+    ${sec("Ditt och andras", `
+      <ul>
+        <li>Du kan ändra och radera <b>dina egna</b> recept.</li>
+        <li>Vill du ändra någon annans: tryck <b>Gör min egen variant</b> – du får en egen kopia.</li>
+        <li>Hjärtat är <b>dina</b> favoriter. Filtren <b>Mina favoriter</b>, <b>Tillagda av mig</b> och <b>Lagade av mig</b> finns överst i listan.</li>
+      </ul>`)}
+
+    ${sec("Bra att veta", `
+      <ul>
+        <li>Recepten sparas på enheten och går att läsa <b>utan nät</b>.</li>
+        <li>Det andra sparar syns direkt hos dig.</li>
+        <li>Länken till ett öppet recept kan delas – mottagaren hamnar på just det receptet.</li>
+        <li><b>Behörigheter:</b> Läsa – ser allt. Egna recept – lägger till och ändrar sina egna. Superanvändare – ändrar allt och godkänner nya.</li>
+      </ul>`)}
+
+    <p class="help-pdf"><a href="/hjalp.pdf" target="_blank" rel="noopener">Ladda ner instruktionen som PDF</a> – för utskrift eller att skicka vidare.</p>
+    <p class="meta" style="text-align:center;margin:8px 0 60px">Något som krånglar? Säg till Nicklas.</p>
+  </div>`;
 }
