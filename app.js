@@ -12,8 +12,7 @@ let draft = null;                          // recipe being edited
 let menuOpen = false;
 let detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
 let importState = null;
-let SHARE_Q = new URLSearchParams(location.search);
-let OPEN_USERS = location.hash === "#anvandare";  // från en pushnotis  // läses innan historiken skriver om adressen
+let SHARE_Q = new URLSearchParams(location.search);  // läses innan historiken skriver om adressen
 
 const $app = document.getElementById("app");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -878,8 +877,8 @@ document.addEventListener("click", async e => {
       break;
     case "reqaccess": {
       el.disabled = true;
-      let data;
-      try { data = await sendAccessRequest(me, nameOf(me), ""); } catch (err) { el.disabled = false; toast("Kunde inte skicka: " + (err.message || err)); break; }
+      const { data, error } = await sb.rpc("recipe_request_access", { p_email: me, p_name: nameOf(me), p_message: "" });
+      if (error) { el.disabled = false; toast("Kunde inte skicka: " + error.message); break; }
       el.outerHTML = `<p class="meta" style="margin-top:14px">${data === "har_tillgang" ? "Du har redan tillgång – ladda om sidan." : "Förfrågan är skickad. Ladda om sidan när du fått klartecken."}</p>`;
       break; }
     case "ctab": {
@@ -972,8 +971,6 @@ function openSettings(){
     <p class="sub">Inloggad som ${esc(me || "")} · ${esc(ROLE_LABEL[role] || "Ingen behörighet")}</p>
     <div class="actions" style="flex-direction:column">
       ${can("admin") ? `<button class="btn ghost" id="usersBtn">Hantera användare${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button>
-      <button class="btn ghost" id="pushBtn">Notiser …</button>
-      <div class="hint" id="pushHint" style="text-align:center;margin:-4px 0 4px"></div>
       <button class="btn ghost" id="importBtn">Importera recept från fil</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>` : ""}
       <button class="btn ghost" id="pwBtn">Byt lösenord</button>
@@ -983,7 +980,6 @@ function openSettings(){
   $id("closeSheetBtn").onclick = closeSheet;
   $id("pwBtn").onclick = () => openPasswordSheet(false);
   if ($id("usersBtn")) $id("usersBtn").onclick = openUsers;
-  if ($id("pushBtn")) setupPushButton();
   if ($id("importBtn")) {
     $id("importBtn").onclick = () => $id("importFile").click();
     $id("importFile").onchange = e => { const f = e.target.files[0]; if (f) importFile(f, $id("importBtn")); };
@@ -1095,7 +1091,6 @@ async function showApp(session){
   if (roleErr && cache && cache.me === me && (navigator.onLine === false || /fetch|network|load failed/i.test(String(roleErr.message || roleErr)))) { role = cache.role; loadNote = "Du är offline – visar senast sparade recept."; loaded = true; render(); subscribe(); handleShare(); return; }
   if (!role) { storageOk = false; loaded = true; render(); return; }
   await loadAll(); subscribe(); handleShare(); refreshRequests();
-  if (OPEN_USERS && can("admin")) { OPEN_USERS = false; openUsers(); }
   const md = (session.user && session.user.user_metadata) || {};
   if (!md.has_password) openPasswordSheet(true);
 }
@@ -1487,7 +1482,8 @@ $id("reqForm").onsubmit = async e => {
   e.preventDefault(); $id("reqErr").textContent = "";
   const btn = $id("reqBtn"); btn.disabled = true;
   try {
-    const data = await sendAccessRequest($id("reqEmail").value.trim(), $id("reqName").value.trim(), $id("reqMsg").value.trim());
+    const { data, error } = await sb.rpc("recipe_request_access", { p_email: $id("reqEmail").value.trim(), p_name: $id("reqName").value.trim(), p_message: $id("reqMsg").value.trim() });
+    if (error) throw error;
     $id("reqForm").classList.add("hidden");
     $id("reqToggle").parentElement.classList.add("hidden");
     $id("reqDone").classList.remove("hidden");
@@ -1498,64 +1494,3 @@ $id("reqForm").onsubmit = async e => {
     $id("reqErr").textContent = /function|schema cache|does not exist/i.test(err.message || "") ? "Det går inte att begära tillgång just nu." : (err.message || "Något gick fel");
   } finally { btn.disabled = false; }
 };
-
-// Skickas via servern (som också mejlar Nicklas); faller tillbaka på databasen direkt
-async function sendAccessRequest(email, name, message){
-  try {
-    const { data: { session } } = await sb.auth.getSession();
-    const r = await fetch("/api/request-access", { method: "POST", headers: { "content-type": "application/json", ...(session ? { authorization: "Bearer " + session.access_token } : {}) }, body: JSON.stringify({ email, name, message }) });
-    const j = await r.json().catch(() => null);
-    if (r.ok && j) return j.result;
-    if (r.status === 400 && j && j.error) throw new Error(j.error);
-  } catch (e) { if (e instanceof Error && e.message && !/fetch|network/i.test(e.message)) throw e; }
-  const { data, error } = await sb.rpc("recipe_request_access", { p_email: email, p_name: name, p_message: message });
-  if (error) throw error;
-  return data;
-}
-
-// ---------- pushnotiser (superanvändare) ----------
-const b64ToU8 = b => { const p = "=".repeat((4 - b.length % 4) % 4); const r = atob((b + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(r, c => c.charCodeAt(0)); };
-async function pushState(){
-  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return { state: "unsupported" };
-  if (Notification.permission === "denied") return { state: "denied" };
-  const reg = await navigator.serviceWorker.ready;
-  const sub = await reg.pushManager.getSubscription();
-  return { state: sub ? "on" : "off", reg, sub };
-}
-async function setupPushButton(){
-  const btn = $id("pushBtn"), hint = $id("pushHint");
-  const paint = async () => {
-    const st = await pushState();
-    const ios = /iphone|ipad/i.test(navigator.userAgent), standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-    if (st.state === "unsupported") { btn.textContent = "Notiser"; btn.disabled = true; hint.textContent = ios && !standalone ? "På iPhone: lägg appen på hemskärmen och öppna den därifrån, så går notiser att slå på." : "Den här webbläsaren stöder inte notiser."; return st; }
-    if (st.state === "denied") { btn.textContent = "Notiser är blockerade"; btn.disabled = true; hint.textContent = "Tillåt notiser för recept.sivander.com i webbläsarens eller telefonens inställningar."; return st; }
-    btn.disabled = false;
-    btn.textContent = st.state === "on" ? "Notiser på den här enheten: PÅ" : "Slå på notiser på den här enheten";
-    hint.textContent = st.state === "on" ? "Du får en notis när någon begär tillgång. Tryck för att stänga av." : "Få en notis när någon begär tillgång.";
-    return st;
-  };
-  let st = await paint();
-  btn.onclick = async () => {
-    btn.disabled = true;
-    try {
-      if (st.state === "on") {
-        await sb.rpc("recipe_push_delete", { p_endpoint: st.sub.endpoint });
-        await st.sub.unsubscribe();
-        toast("Notiser avstängda på den här enheten");
-      } else {
-        if (await Notification.requestPermission() !== "granted") throw new Error("Du behöver tillåta notiser");
-        const key = (window.APP_CONFIG || {}).vapidPublicKey;
-        const sub = await st.reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(key) });
-        const { error } = await sb.rpc("recipe_push_save", { p_sub: sub.toJSON() });
-        if (error) { await sub.unsubscribe(); throw new Error(/function|schema cache/i.test(error.message) ? "Databasen saknar notisdelen (push.sql) än" : error.message); }
-        toast("Klart! Du får en notis när någon begär tillgång.");
-      }
-    } catch (e) { toast(e.message || "Kunde inte ändra notiser"); }
-    st = await paint();
-  };
-}
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.addEventListener("message", e => {
-    if (e.data && e.data.type === "open" && /#anvandare/.test(e.data.url || "") && can("admin")) { refreshRequests(); openUsers(); }
-  });
-}
