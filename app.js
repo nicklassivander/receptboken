@@ -877,8 +877,8 @@ document.addEventListener("click", async e => {
       break;
     case "reqaccess": {
       el.disabled = true;
-      const { data, error } = await sb.rpc("recipe_request_access", { p_email: me, p_name: nameOf(me), p_message: "" });
-      if (error) { el.disabled = false; toast("Kunde inte skicka: " + error.message); break; }
+      let data;
+      try { data = await sendAccessRequest(me, nameOf(me), ""); } catch (err) { el.disabled = false; toast("Kunde inte skicka: " + (err.message || err)); break; }
       el.outerHTML = `<p class="meta" style="margin-top:14px">${data === "har_tillgang" ? "Du har redan tillgång – ladda om sidan." : "Förfrågan är skickad. Ladda om sidan när du fått klartecken."}</p>`;
       break; }
     case "ctab": {
@@ -1482,8 +1482,7 @@ $id("reqForm").onsubmit = async e => {
   e.preventDefault(); $id("reqErr").textContent = "";
   const btn = $id("reqBtn"); btn.disabled = true;
   try {
-    const { data, error } = await sb.rpc("recipe_request_access", { p_email: $id("reqEmail").value.trim(), p_name: $id("reqName").value.trim(), p_message: $id("reqMsg").value.trim() });
-    if (error) throw error;
+    const data = await sendAccessRequest($id("reqEmail").value.trim(), $id("reqName").value.trim(), $id("reqMsg").value.trim());
     $id("reqForm").classList.add("hidden");
     $id("reqToggle").parentElement.classList.add("hidden");
     $id("reqDone").classList.remove("hidden");
@@ -1494,3 +1493,17 @@ $id("reqForm").onsubmit = async e => {
     $id("reqErr").textContent = /function|schema cache|does not exist/i.test(err.message || "") ? "Det går inte att begära tillgång just nu." : (err.message || "Något gick fel");
   } finally { btn.disabled = false; }
 };
+
+// Skickas via servern (som också mejlar Nicklas); faller tillbaka på databasen direkt
+async function sendAccessRequest(email, name, message){
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch("/api/request-access", { method: "POST", headers: { "content-type": "application/json", ...(session ? { authorization: "Bearer " + session.access_token } : {}) }, body: JSON.stringify({ email, name, message }) });
+    const j = await r.json().catch(() => null);
+    if (r.ok && j) return j.result;
+    if (r.status === 400 && j && j.error) throw new Error(j.error);
+  } catch (e) { if (e instanceof Error && e.message && !/fetch|network/i.test(e.message)) throw e; }
+  const { data, error } = await sb.rpc("recipe_request_access", { p_email: email, p_name: name, p_message: message });
+  if (error) throw error;
+  return data;
+}
