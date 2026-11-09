@@ -5,6 +5,8 @@ let recipes = [], loaded = false, loadNote = "", storageOk = true;
 let view = { name: "list" };              // list | detail | edit
 let filter = { q: "", tag: null, fav: false, mine: false, cookedMe: false, sort: "new" };
 let showAllTags = false;
+// Telefon/surfplatta med kamera: visa "Ta foto" (öppnar kameran direkt)
+const HAS_CAMERA = matchMedia("(pointer: coarse)").matches && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? " ipad" : ""));
 let pendingReqs = 0;  // förfrågningar om tillgång (bara superanvändare)
 let layout = "grid";
 try { layout = localStorage.getItem("layout") === "list" ? "list" : "grid"; } catch {}
@@ -366,8 +368,9 @@ function renderList(){
     ${body}
     ${storageOk && loaded && can("contributor") ? `<button class="fab" data-a="menu" aria-label="Lägg till">${menuOpen ? "×" : "+"}</button>` : ""}
     ${menuOpen ? `<div class="menu">
-      ${sample && sampleImages ? `<button data-a="pickimport">Foto eller skärmdump<small>Fota en kokbok eller välj skärmdumpar</small></button>` : ""}
-      ${sample ? `<button data-a="import">Klistra in text<small>Från en receptsida eller Instagram</small></button>` : ""}
+      ${sample && sampleImages && HAS_CAMERA ? `<button data-a="camimport">Ta foto<small>Fota en kokbokssida eller lapp – flera bilder går bra</small></button>` : ""}
+      ${sample && sampleImages ? `<button data-a="pickimport">${HAS_CAMERA ? "Välj bilder" : "Foto eller skärmdump"}<small>${HAS_CAMERA ? "Skärmdumpar eller foton du redan har" : "Fota en kokbok eller välj skärmdumpar"}</small></button>` : ""}
+      ${sample ? `<button data-a="import">Länk eller text<small>Från en receptsida, Instagram-bildtext eller liknande</small></button>` : ""}
       <button data-a="new">Skriv eget recept<small>Fyll i själv från början</small></button>
     </div>` : ""}
   `;
@@ -716,6 +719,7 @@ function renderImport(){
       <label>Foton och skärmdumpar (upp till 6)</label>
       <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
         <input type="file" id="imp-shots" accept="image/*" multiple style="flex:1;min-width:200px">
+        ${HAS_CAMERA ? `<button type="button" class="btn accent small" data-a="impcam" ${s.shots.length >= 6 ? "disabled" : ""}>Ta foto</button>` : ""}
         <button type="button" class="btn ghost small" data-a="imppaste" ${s.shots.length >= 6 ? "disabled" : ""}>Klistra in skärmdump</button>
       </div>
       <div class="hint">Fota en kokbokssida, välj skärmdumpar – eller ta en skärmdump i ett annat fönster och tryck Ctrl+V (Cmd+V på Mac) här. Upprepa så många gånger du vill, rutan väntar. ${s.shots.length ? `<b>${s.shots.length} av 6</b> bilder.` : ""}</div>
@@ -885,6 +889,8 @@ document.addEventListener("click", async e => {
       el.outerHTML = `<p class="meta" style="margin-top:14px">${data === "har_tillgang" ? "Du har redan tillgång – ladda om sidan." : "Förfrågan är skickad. Ladda om sidan när du fått klartecken."}</p>`;
       break; }
     case "imppaste": await pasteShotsFromClipboard(); break;
+    case "camimport": menuOpen = false; render(); openImport([]); takePhoto(b => addImportShots([b])); break;
+    case "impcam": takePhoto(b => addImportShots([b])); break;
     case "ctab": {
       detailState.tab = el.dataset.t; render();
       const c = document.getElementById("cook");
@@ -1371,7 +1377,8 @@ function openPhotoSheet(onDone){
   openSheet(`
     <h2>Bild på rätten</h2>
     <div class="photo-opts">
-      <label class="btn accent photo-file">Välj från enheten<input type="file" accept="image/*" id="ps-file" hidden></label>
+      ${HAS_CAMERA ? `<label class="btn accent photo-file">Ta foto<input type="file" accept="image/*" capture="environment" id="ps-cam" hidden></label>` : ""}
+      <label class="btn ${HAS_CAMERA ? "ghost" : "accent"} photo-file">Välj från enheten<input type="file" accept="image/*" id="ps-file" hidden></label>
       <button type="button" class="btn ghost" id="ps-paste">Klistra in kopierad bild</button>
     </div>
     <div class="hint" id="ps-pastehint">Har du kopierat en bild kan du också trycka Ctrl+V (Cmd+V på Mac) när den här rutan är öppen.</div>
@@ -1401,6 +1408,7 @@ function openPhotoSheet(onDone){
   document.addEventListener("paste", onPaste);
   $id("ps-close").onclick = () => { document.removeEventListener("paste", onPaste); closeSheet(); };
   $id("ps-file").onchange = e => { const f = e.target.files[0]; if (f) finish(f); };
+  if ($id("ps-cam")) $id("ps-cam").onchange = e => { const f = e.target.files[0]; if (f) finish(f); };
   $id("ps-paste").onclick = async () => {
     try {
       if (!navigator.clipboard || !navigator.clipboard.read) throw { hint: true };
@@ -1504,7 +1512,7 @@ function addImportShots(blobs){
   const s = importState; if (!s || s.busy) return 0;
   let n = 0;
   for (const b of blobs) { if (s.shots.length >= 6) break; s.shots.push({ blob: b, url: URL.createObjectURL(b) }); n++; }
-  if (n) { s.error = ""; renderImport(); toast(s.shots.length >= 6 ? "6 bilder – det är max" : `Skärmdump inlagd (${s.shots.length} av 6)`); }
+  if (n) { s.error = ""; renderImport(); toast(s.shots.length >= 6 ? "6 bilder – det är max" : `Bild inlagd (${s.shots.length} av 6) – lägg till fler eller läs in`); }
   else if (s.shots.length >= 6) toast("Max 6 bilder per recept");
   return n;
 }
@@ -1528,4 +1536,13 @@ async function pasteShotsFromClipboard(){
   } catch (e) {
     toast(e && e.hint ? "Tryck Ctrl+V (Cmd+V) i rutan i stället" : "Fick inte läsa urklippet – tryck Ctrl+V (Cmd+V) i stället");
   }
+}
+
+// Öppna kameran direkt (på telefon/surfplatta)
+function takePhoto(cb){
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment");
+  inp.style.display = "none"; document.body.appendChild(inp);
+  inp.onchange = () => { const f = inp.files && inp.files[0]; inp.remove(); if (f) cb(f); };
+  inp.click();
 }
