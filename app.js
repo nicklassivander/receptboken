@@ -1658,7 +1658,7 @@ function renderHelp(){
         <li><b>Fråga sommelieren och kocken:</b> vin, alternativ, tillbehör, liknande recept.</li>
       </ul>`)}
 
-    ${sec("Ditt och andras", `
+    ${sec("Dina och andras recept", `
       <ul>
         <li>Du kan ändra och radera <b>dina egna</b> recept.</li>
         <li>Vill du ändra någon annans: tryck <b>Gör min egen variant</b> – du får en egen kopia.</li>
