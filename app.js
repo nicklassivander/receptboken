@@ -1552,6 +1552,7 @@ function takePhoto(cb){
 }
 
 // ---------- hjälp, anpassad efter enheten ----------
+const WAKE_SVG = `<svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect class="ph" x="10.5" y="5" width="11" height="22" rx="2.4"/><path d="M14.5 23.6h3"/><g class="rays"><path d="M5.5 10.5l-2.4-1.4M5 16H2.3M5.5 21.5l-2.4 1.4M26.5 10.5l2.4-1.4M27 16h2.7M26.5 21.5l2.4 1.4"/></g><path class="zz" d="M24.2 6.2h3.4l-3.4 3.6h3.4"/></svg>`;
 function deviceInfo(){
   const ua = navigator.userAgent;
   const ios = /iphone|ipod/i.test(ua) || (/ipad/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1));
@@ -1570,6 +1571,12 @@ function renderHelp(){
     mac: `Öppna sidan i Chrome eller Edge → klicka på installera-ikonen i adressfältet (eller menyn → <b>Installera Sivander's Recept</b>). I Safari: Arkiv → <b>Lägg till i Dock</b>.`,
     pc: `Öppna sidan i Chrome eller Edge → klicka på installera-ikonen i adressfältet (eller menyn → <b>Installera Sivander's Recept</b>).`,
   };
+  const installSteps = {
+    ios: `<ol><li>Öppna <b>recept.sivander.com</b> i <b>Safari</b> (Chrome går också).</li><li>Tryck på <b>Dela</b>-knappen <span class="k">⬆︎</span> – i Safari längst ner, i Chrome uppe i adressfältet.</li><li>Scrolla och välj <b>Lägg till på hemskärmen</b>.</li><li>Kontrollera namnet och tryck <b>Lägg till</b>.</li></ol>`,
+    android: `<ol><li>Öppna <b>recept.sivander.com</b> i <b>Chrome</b>.</li><li>Tryck på menyn <span class="k">⋮</span> uppe till höger.</li><li>Välj <b>Installera app</b> (ibland <i>Lägg till på startskärmen</i>) och bekräfta.</li></ol><p class="hnote">Installerad dyker appen också upp i <b>Dela</b>-menyn, så du kan dela recept från andra appar direkt hit.</p>`,
+    mac: `<ol><li>Öppna sidan i <b>Chrome</b> eller <b>Edge</b>.</li><li>Klicka på installera-ikonen till höger i adressfältet, eller menyn → <b>Casta, spara och dela → Installera sidan som app</b>.</li><li>Klicka <b>Installera</b>.</li></ol><p class="hnote">I Safari: menyn Arkiv → <b>Lägg till i Dock</b>.</p>`,
+    pc: `<ol><li>Öppna sidan i <b>Chrome</b> eller <b>Edge</b>.</li><li>Klicka på installera-ikonen till höger i adressfältet, eller menyn <span class="k">⋮</span> → <b>Casta, spara och dela → Installera sidan som app</b> (Edge: <b>Appar → Installera den här webbplatsen som en app</b>).</li><li>Klicka <b>Installera</b>. Appen hamnar i Start-menyn och kan fästas i aktivitetsfältet.</li></ol>`,
+  };
   const shot = {
     ios: "sidoknappen + volym upp",
     android: "strömknappen + volym ned",
@@ -1585,14 +1592,20 @@ function renderHelp(){
     <button class="fback" data-a="home" aria-label="Tillbaka"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <div class="help-head">
       <img src="logo.svg" alt="" class="help-logo">
-      <div><h1>Hjälp</h1><p class="meta">Instruktionen är anpassad för ${esc(name)}.</p></div>
+      <div><h1>Hjälp</h1><p class="hnote">Instruktionen är anpassad för ${esc(name)}.</p></div>
     </div>
 
     ${sec("Kom igång", `
-      ${d.installed ? `<p class="ok">✓ Appen är installerad på den här enheten.</p>` : `<p><b>Lägg appen på ${d.touch ? "hemskärmen" : "datorn"}</b> så startar den som en vanlig app:</p><p>${install[d.kind]}</p>`}
-      <details class="hmini"><summary>Andra enheter</summary>${others.map(k => `<p><b>${lbl[k]}:</b> ${install[k]}</p>`).join("")}</details>
+      <p>Appen finns på <b>recept.sivander.com</b> och fungerar på telefon, surfplatta och dator.</p>
       <p><b>Ny användare?</b> Tryck <b>Begär tillgång</b> på inloggningssidan. När du är godkänd får du en inloggningslänk i mejlen.</p>
       <p><b>Glömt lösenordet?</b> Skriv din e-post och tryck <b>Skicka en inloggningslänk</b>.</p>`, true)}
+
+    ${sec("Installera appen", `
+      ${d.installed ? `<p class="ok">✓ Appen är redan installerad på den här enheten.</p>` : ""}
+      <p>Installerad startar appen från en egen ikon, i helskärm utan webbläsarens adressfält – och den fungerar även utan nät. Det kostar inget och tar nästan ingen plats.</p>
+      <div class="hdev on"><div class="hdev-t">${lbl[d.kind] === "Windows" ? "Windows-dator" : lbl[d.kind]} <span class="hnote">– din enhet</span></div>${installSteps[d.kind]}</div>
+      ${others.map(k => `<details class="hmini"><summary>${k === "pc" ? "Windows-dator" : lbl[k]}</summary>${installSteps[k]}</details>`).join("")}
+      <p class="hnote" style="margin-top:10px">Appen uppdateras av sig själv – ladda om om du vill ha det senaste direkt. Vill du ta bort den: håll fingret på ikonen och välj ta bort/avinstallera (på datorn: appens meny → Avinstallera). Recepten ligger kvar.</p>`)}
 
     ${sec("Lägg till ett recept", `
       <p>Tryck på <b>+</b> nere till höger:</p>
@@ -1611,9 +1624,28 @@ function renderHelp(){
         ${d.touch ? `<li>Växla mellan <b>Ingredienser</b> och <b>Gör så här</b> med flikarna eller genom att <b>svepa</b> åt sidan.</li>` : `<li>Ingredienser och steg står bredvid varandra (i ett smalt fönster blir det flikar).</li>`}
         <li>Tryck på en rad för att <b>bocka av</b> den.</li>
         <li>Ändra antalet <b>portioner</b> med − och + – mängderna räknas om.</li>
-        <li>Tryck på <b>telefonikonen</b> bredvid hjärtat för att hålla skärmen tänd. Guld = på.</li>
+        <li>Håll skärmen tänd med <b>telefonikonen</b> – se nedan.</li>
         <li>Tryck <b>Lagad idag</b> när du är klar, eller <b>Ny tillagning</b> för att spara datum, betyg, anteckning och bild.</li>
       </ul>`)}
+
+    ${sec("Favoriter", `
+      <ul>
+        <li>Tryck på <b>hjärtat</b> <span style="color:var(--accent)">♡</span> i ett recept för att spara det bland dina favoriter – det fylls i <span style="color:var(--accent)">♥</span>. Tryck igen för att ta bort.</li>
+        <li>Favoriterna är <b>personliga</b>: dina hjärtan syns bara för dig, och alla andra har sina egna.</li>
+        <li>Visa bara dina favoriter med filtret <b>Mina favoriter</b> överst i receptlistan. Favoriter har ett litet hjärta på bilden i listan.</li>
+        <li><b>Betyget</b> (stjärnorna bredvid hjärtat) är däremot gemensamt för receptet.</li>
+      </ul>`)}
+
+    ${sec("Hålla skärmen tänd", `
+      <p>Bra när du lagar mat och inte vill att ${d.touch ? "telefonen" : "skärmen"} släcks eller låser sig.</p>
+      <ul>
+        <li>Tryck på <b>telefonikonen</b> på samma rad som stjärnorna och hjärtat.</li>
+        <li><span class="wk off">${WAKE_SVG}</span> <b>Grå med z</b> = av, skärmen släcks som vanligt.</li>
+        <li><span class="wk on">${WAKE_SVG}</span> <b>Guld med strålar</b> = på, skärmen hålls tänd medan receptet är öppet.</li>
+        <li>Den är <b>av</b> varje gång du öppnar appen – du slår på den när du behöver. Valet gäller alla recept tills du stänger appen.</li>
+        <li>Byter du app eller släcker skärmen själv släpps låset; det kommer tillbaka när du öppnar receptet igen.</li>
+      </ul>
+      ${d.kind === "ios" ? `<p class="hnote">På iPhone kräver det iOS 16.4 eller senare, och strömsparläge kan stoppa det.</p>` : `<p class="hnote">Strömsparläge kan stoppa det. Syns ingen ikon stöder webbläsaren inte funktionen.</p>`}`)}
 
     ${sec("Bild på rätten", `
       <p>Tryck <b>Byt bild</b> i receptet: ${d.touch ? "<b>Ta foto</b>, " : ""}välj från enheten, <b>klistra in</b> en kopierad bild${d.touch ? "" : ` (eller <span class="k">${d.mod}</span>+<span class="k">V</span>)`} eller <b>hämta från en länk</b>.</p>`)}
@@ -1630,7 +1662,7 @@ function renderHelp(){
       <ul>
         <li>Du kan ändra och radera <b>dina egna</b> recept.</li>
         <li>Vill du ändra någon annans: tryck <b>Gör min egen variant</b> – du får en egen kopia.</li>
-        <li>Hjärtat är <b>dina</b> favoriter. Filtren <b>Mina favoriter</b>, <b>Tillagda av mig</b> och <b>Lagade av mig</b> finns överst i listan.</li>
+        <li>Filtren <b>Tillagda av mig</b> och <b>Lagade av mig</b> överst i listan visar dina egna recept och det du har lagat.</li>
       </ul>`)}
 
     ${sec("Bra att veta", `
@@ -1642,6 +1674,6 @@ function renderHelp(){
       </ul>`)}
 
     <p class="help-pdf"><a href="/hjalp.pdf" target="_blank" rel="noopener">Ladda ner instruktionen som PDF</a> – för utskrift eller att skicka vidare.</p>
-    <p class="meta" style="text-align:center;margin:8px 0 60px">Något som krånglar? Säg till Nicklas.</p>
+    <p class="hnote" style="text-align:center;margin:8px 0 60px">Något som krånglar? Säg till Nicklas.</p>
   </div>`;
 }
