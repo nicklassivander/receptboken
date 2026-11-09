@@ -405,6 +405,12 @@ function renderDetail(){
     <div class="row" style="justify-content:center;gap:18px">
       <div class="stars" ${can("contributor") ? "" : 'style="pointer-events:none"'}>${[1,2,3,4,5].map(n => `<button class="${(r.rating || 0) >= n ? "on" : ""}" data-a="rate" data-n="${n}" aria-label="${n} stjärnor">★</button>`).join("")}</div>
       <button class="iconbtn" data-a="togglefav" aria-label="Favorit" style="font-size:20px;color:var(--accent)" ${can("contributor") ? "" : "disabled"}>${isFav(r) ? "♥" : "♡"}</button>
+      ${"wakeLock" in navigator ? `<button class="iconbtn wakeicon" id="wakebtn" data-a="wake" aria-pressed="false" aria-label="Håll skärmen tänd" title="Håll skärmen tänd">
+        <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect class="ph" x="10.5" y="5" width="11" height="22" rx="2.4"/><path d="M14.5 23.6h3"/>
+          <g class="rays"><path d="M5.5 10.5l-2.4-1.4M5 16H2.3M5.5 21.5l-2.4 1.4M26.5 10.5l2.4-1.4M27 16h2.7M26.5 21.5l2.4 1.4"/></g>
+          <path class="zz" d="M24.2 6.2h3.4l-3.4 3.6h3.4"/>
+        </svg></button>` : ""}
     </div>
     <div class="meta" style="margin-top:6px">
       ${r.time ? `<span>${esc(r.time)}</span>` : ""}
@@ -429,7 +435,6 @@ function renderDetail(){
 
     ${r.myChanges ? `<div class="panel changes"><h2>Mina ändringar</h2><div class="prewrap">${esc(r.myChanges)}</div></div>` : ""}
 
-    ${"wakeLock" in navigator ? `<div class="wakerow"><button class="wakebtn" id="wakebtn" data-a="wake" aria-pressed="false"><span class="wdot"></span><span class="wtxt">Håll skärmen tänd</span></button></div>` : ""}
     <div class="cook" id="cook" data-tab="${detailState.tab || "ing"}">
     <div class="ctabs" role="tablist">
       <button role="tab" class="${(detailState.tab || "ing") === "ing" ? "on" : ""}" data-a="ctab" data-t="ing">Ingredienser<small>${ings.filter(l => !l.startsWith("#")).length}</small></button>
@@ -1305,7 +1310,8 @@ function showWake(){
   const b = document.getElementById("wakebtn"); if (!b) return;
   const on = !!wakeLock;
   b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
-  b.querySelector(".wtxt").textContent = on ? "Skärmen hålls tänd" : "Håll skärmen tänd";
+  const t = on ? "Skärmen hålls tänd – tryck för att stänga av" : "Håll skärmen tänd medan du lagar";
+  b.title = t; b.setAttribute("aria-label", t);
 }
 async function syncWakeLock(){
   const want = wakeWanted && view.name === "detail" && document.visibilityState === "visible";
