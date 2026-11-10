@@ -322,6 +322,7 @@ function renderList(){
   } else {
     body = layout === "list" ? listRows(list) : `<div class="grid">${list.map(r => `
       <div class="card" data-a="open" data-id="${esc(r.id)}">
+        ${isNewForMe(r) ? `<span class="newdot">Nytt</span>` : ""}
         <div class="thumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '<svg class="plate" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="32" cy="32" r="15" fill="none" stroke="currentColor" stroke-width=".6"/><path d="M6 14v14M3 14v8a3 3 0 006 0v-8M6 28v24M58 14c-4 2-4 14 0 16v22" fill="none" stroke="currentColor" stroke-width="1"/></svg>'}${isFav(r) ? `<span class="fav" aria-label="Favorit">♥</span>` : ""}</div>
         <div class="body">
           <h3>${esc(r.title || "Namnlöst recept")}</h3>
@@ -356,6 +357,7 @@ function renderList(){
         <button class="${layout === "list" ? "on" : ""}" data-a="layout" data-l="list" aria-pressed="${layout === "list"}">Lista</button>
       </div>
     </div>
+    ${activityHtml()}
     <div class="filters">
       <div class="chips mine-chips">
         <button class="chip ${!filter.fav && !filter.mine && !filter.cookedMe && !filter.tag ? "on" : ""}" data-a="allrecipes">Alla</button>
@@ -854,6 +856,7 @@ document.addEventListener("click", async e => {
       menuOpen = false; draft = { title: "", sourceUrl: "", servings: 4, time: "", tags: [], ingredients: [], steps: [], myChanges: "", notes: "", photo: null };
       view = { name: "edit" }; render(); window.scrollTo(0, 0); break;
     case "open":
+      markOpened(el.dataset.id);
       detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
     case "home": e.preventDefault(); if (view.name === "list") break; goBack(); break;
@@ -896,6 +899,11 @@ document.addEventListener("click", async e => {
     case "imppaste": await pasteShotsFromClipboard(); break;
     case "camimport": menuOpen = false; render(); openImport([]); takePhoto(b => addImportShots([b])); break;
     case "impcam": takePhoto(b => addImportShots([b])); break;
+    case "actmore": activityOpen = "all"; render(); break;
+    case "acttoggle":
+      activityOpen = !activityOpen;
+      if (activityOpen) { activitySeenBefore = seenAt(); setSeen(Date.now()); }
+      render(); break;
     case "ctab": {
       detailState.tab = el.dataset.t; render();
       const c = document.getElementById("cook");
@@ -931,7 +939,7 @@ document.addEventListener("click", async e => {
       view = { name: "edit", id: cur.id }; render(); window.scrollTo(0, 0); toast("Granska och spara"); break;
     }
     case "cooked":
-      await patch(cur.id, { timesCooked: (cur.timesCooked || 0) + 1, lastCooked: today(), cookLog: cookLogOf(cur).concat({ by: me, date: today() }) });
+      await patch(cur.id, { timesCooked: (cur.timesCooked || 0) + 1, lastCooked: today(), cookLog: cookLogOf(cur).concat({ by: me, date: today(), at: new Date().toISOString() }) });
       toast("Noterat: lagad idag"); break;
     case "copy":
       try { await navigator.clipboard.writeText(recipeText(cur)); toast("Receptet kopierat"); } catch { toast("Kunde inte kopiera"); }
@@ -1190,7 +1198,7 @@ function listRows(list){
     <li class="rrow" data-a="open" data-id="${esc(r.id)}">
       <div class="rthumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : ""}</div>
       <div class="rmain">
-        <h3>${esc(r.title || "Namnlöst recept")}${isFav(r) ? ` <span class="rfav" aria-label="Favorit">♥</span>` : ""}</h3>
+        <h3>${isNewForMe(r) ? `<span class="newtag">Nytt</span> ` : ""}${esc(r.title || "Namnlöst recept")}${isFav(r) ? ` <span class="rfav" aria-label="Favorit">♥</span>` : ""}</h3>
         <div class="rmeta">${sourceBadge(r)}${r.variantOf ? `<span class="badge mod">${esc(genitive(nameOf(addedByOf(r))))} variant</span>` : isModified(r) ? `<span class="badge mod">Min version</span>` : ""}${(r.tags || []).slice(0, 3).map(t => `<span>${esc(t)}</span>`).join("")}</div>
       </div>
       <div class="rside">
@@ -1304,7 +1312,7 @@ function openHistory(r, entryId){
     if (!entryId) {
       data.timesCooked = (r.timesCooked || 0) + 1;
       if (!r.lastCooked || date > r.lastCooked) data.lastCooked = date;
-      data.cookLog = cookLogOf(r).concat({ by: me, date });
+      data.cookLog = cookLogOf(r).concat({ by: me, date, at: new Date().toISOString() });
     }
     $id("hsave").disabled = true;
     if (await patch(r.id, data)) { closeSheet(); toast(entryId ? "Tillagningen är ändrad" : "Tillagningen är sparad"); }
@@ -1686,6 +1694,7 @@ function renderHelp(){
     ${sec("Bra att veta", `
       <ul>
         <li>Recepten sparas på enheten och går att läsa <b>utan nät</b>.</li>
+        <li><b>Senaste i köket</b> överst i receptlistan visar vem som har lagt till, lagat eller gjort en variant av ett recept. Tryck på raden för att fälla ut den. Röda prickar och <b>Nytt</b> visar vad som har hänt sedan du var här sist.</li>
         <li>Det andra sparar syns direkt hos dig.</li>
         <li>Länken till ett öppet recept kan delas – mottagaren hamnar på just det receptet.</li>
         <li><b>Behörigheter:</b> Läsa – ser allt. Egna recept – lägger till och ändrar sina egna. Superanvändare – ändrar allt och godkänner nya.</li>
@@ -1706,4 +1715,80 @@ async function sendLoginLink(email){
     if (/signups not allowed|not allowed/i.test(m)) return "nya konton är avstängda i Supabase – bjud in via Authentication → Users → Invite user.";
     return m;
   } catch (e) { return e.message || "okänt fel"; }
+}
+
+// ---------- Senaste i köket (aktivitet) och "Nytt" ----------
+let activityOpen = false, activitySeenBefore = null;
+const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } };
+function seenAt(){ const v = +LS("seen:" + me); if (v) return v; const now = Date.now(); LS("seen:" + me, String(now)); return now; }
+function setSeen(t){ LS("seen:" + me, String(t)); }
+function firstUse(){ const v = +LS("first:" + me); if (v) return v; const now = Date.now(); LS("first:" + me, String(now)); return now; }
+function openedSet(){ try { return new Set(JSON.parse(LS("opened:" + me) || "[]")); } catch { return new Set(); } }
+function markOpened(id){ const s = openedSet(); if (s.has(id)) return; s.add(id); LS("opened:" + me, JSON.stringify([...s].slice(-500))); }
+function isNewForMe(r){
+  if (!me || addedByOf(r) === me) return false;
+  const t = Date.parse(r.createdAt || "") || 0;
+  return t > firstUse() && !openedSet().has(r.id);
+}
+const AV_COLORS = ["#5c1a24", "#9c7a3c", "#2f4a3c", "#3d4f6b", "#6b3d5c", "#7a5a2f", "#365e63"];
+function avColor(email){ let h = 0; for (const c of String(email)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return AV_COLORS[h % AV_COLORS.length]; }
+const avHtml = (email, cls = "av") => `<span class="${cls}" style="background:${avColor(email)}" title="${esc(nameOf(email))}">${esc((nameOf(email) || "?")[0].toUpperCase())}</span>`;
+function relDay(ts){
+  const d = new Date(ts), now = new Date();
+  const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 864e5);
+  if (diff <= 0) return "idag";
+  if (diff === 1) return "igår";
+  if (diff < 7) return ["sön", "mån", "tis", "ons", "tors", "fre", "lör"][d.getDay()];
+  return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" }).replace(".", "");
+}
+function activityEvents(){
+  const ev = [];
+  for (const r of recipes) {
+    const by = addedByOf(r), t = Date.parse(r.createdAt || "");
+    if (t) {
+      const base = r.variantOf ? recipes.find(x => x.id === r.variantOf) : null;
+      ev.push({ ts: t, by, r, kind: r.variantOf ? "variant" : "added", base });
+    }
+    const hist = histOf(r);
+    for (const c of cookLogOf(r)) {
+      const ts = Date.parse(c.at || "") || Date.parse((c.date || "") + "T18:00:00") || 0;
+      if (!ts) continue;
+      const h = hist.find(x => x.date === c.date && (x.by || OWNER).toLowerCase() === (c.by || "").toLowerCase());
+      ev.push({ ts, by: (c.by || "").toLowerCase(), r, kind: "cooked", rating: h && h.rating, note: h && h.note });
+    }
+  }
+  return ev.sort((a, b) => b.ts - a.ts);
+}
+function activityHtml(){
+  if (!me || filter.q || filter.tag || filter.fav || filter.mine || filter.cookedMe) return "";
+  const ev = activityEvents();
+  if (!ev.length) return "";
+  const seen = activityOpen && activitySeenBefore != null ? activitySeenBefore : seenAt();
+  const isNew = e => e.by !== me && e.ts > seen;
+  const newCount = activityOpen ? 0 : ev.filter(isNew).length;
+  const who = []; for (const e of ev) { if (!who.includes(e.by)) who.push(e.by); if (who.length === 3) break; }
+  const verb = e => e.kind === "added" ? "lade till" : e.kind === "variant" ? "gjorde en variant av" : "lagade";
+  const nm = e => e.by === me ? "Du" : esc(nameOf(e.by));
+  const title = e => esc(e.kind === "variant" && e.base ? e.base.title : e.r.title || "Namnlöst recept");
+  const latest = ev[0];
+  const items = ev.slice(0, activityOpen === "all" ? 25 : 6);
+  return `<div class="act ${activityOpen ? "open" : ""}">
+    <button class="act-row" data-a="acttoggle" aria-expanded="${!!activityOpen}">
+      <span class="avs">${who.map(e => avHtml(e)).join("")}</span>
+      <span class="lab">Senaste i köket</span>
+      <span class="latest">– <b>${nm(latest)}</b> ${verb(latest)} ${title(latest)} · ${relDay(latest.ts)}</span>
+      ${newCount ? `<span class="new">${newCount} ${newCount === 1 ? "ny" : "nya"}</span>` : ""}
+      <span class="chev" aria-hidden="true">▼</span>
+    </button>
+    ${activityOpen ? `<div class="act-list">${items.map(e => `
+      <div class="fitem" data-a="open" data-id="${esc(e.r.id)}">
+        <span class="nd ${isNew(e) ? "" : "old"}"></span>${avHtml(e.by)}
+        <span class="tx"><i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
+        <span class="when">${relDay(e.ts)}</span>
+        ${e.r.photo ? `<img src="${esc(e.r.photo)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
+      </div>`).join("")}
+      ${ev.length > items.length ? `<button class="linkbtn act-more" data-a="actmore">Visa fler</button>` : ""}
+    </div>` : ""}
+  </div>`;
 }
