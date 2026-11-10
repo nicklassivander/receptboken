@@ -1368,14 +1368,22 @@ async function handleShare(){
       await inbox.delete(req);
     }
   } catch {}
-  const text = [q.get("title"), q.get("text")].filter(Boolean).join("\n");
+  const raw = [q.get("title"), q.get("text")].filter(Boolean).join("\n");
   let url = q.get("url") || "";
-  if (!url) { const m = text.match(/https?:\/\/\S+/); if (m) url = m[0]; }
+  if (!url) { const m = raw.match(/https?:\/\/\S+/); if (m) url = m[0]; }
+  // Webbläsare skickar ofta bara sidans titel och adressen som "text" – det är ingen recepttext.
+  // Behåll texten bara om det finns riktigt innehåll utöver länken och titeln.
+  let text = raw.replace(/https?:\/\/\S+/g, "").replace(q.get("title") || "\u0000", "").trim();
+  text = text.length > 120 ? raw.replace(/https?:\/\/\S+/g, "").trim() : "";
   view = { name: "list" }; render();
   openImport(files);
-  if (importState && !files.length) {
-    importState.text = text; importState.url = url; renderImport();
-  } else if (importState) { importState.url = url; }
+  if (!importState) return;
+  importState.url = url;
+  if (!files.length) {
+    importState.text = text; renderImport();
+    // Bara en länk: hämta receptet direkt
+    if (url && !text && !/instagram\.com|facebook\.com|fb\.watch|tiktok\.com/i.test(url)) runImport();
+  }
 }
 
 // ---------- bild: från enheten, urklipp eller länk ----------
