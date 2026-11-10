@@ -2226,15 +2226,58 @@ setInterval(() => {
     }
   }
   if (rang) { saveCook(); renderCookBar(); }
+  showAlarm();
   document.querySelectorAll("#cookbar [data-end]").forEach(el => { const left = +el.dataset.end - Date.now(); el.textContent = left <= 0 ? "Klar!" : "⏱ " + fmtLeft(left); el.parentElement.classList.toggle("ring", left <= 0); });
 }, 1000);
 document.addEventListener("click", () => { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === "suspended") audioCtx.resume(); } catch {} }, { once: true });
+
+// Larmruta när en timer är klar: kvittera, bocka av steget och se nästa
+let alarmBeeps = 0, alarmLastBeep = 0;
+function showAlarm(){
+  const box = document.getElementById("alarm");
+  const due = cookSession && document.visibilityState === "visible" ? (cookSession.timers || []).filter(t => t.end <= Date.now()).sort((a, b) => a.end - b.end)[0] : null;
+  if (!due) { if (box) box.remove(); alarmBeeps = 0; return; }
+  if (box && box.dataset.id === due.id) {   // redan uppe: påminn med ljud var 6:e sekund en stund
+    if (Date.now() - alarmLastBeep > 6000 && alarmBeeps < 15) { alarmLastBeep = Date.now(); alarmBeeps++; beep(); }
+    return;
+  }
+  if (box) box.remove();
+  const r = recipes.find(x => x.id === cookSession.recipeId);
+  const steps = (r && r.steps) || [];
+  const idx = due.k && /^s\d+$/.test(due.k) ? +due.k.slice(1) : -1;
+  const numOf = i => steps.slice(0, i + 1).filter(x => !x.startsWith("#")).length;
+  let next = -1;
+  for (let j = (idx >= 0 ? idx : -1) + 1; j < steps.length; j++) if (!steps[j].startsWith("#") && !(cookSession.done || {})["s" + j] && j !== idx) { next = j; break; }
+  if (idx < 0) next = steps.findIndex((x, j) => !x.startsWith("#") && !(cookSession.done || {})["s" + j]);
+  const el = document.createElement("div");
+  el.id = "alarm"; el.className = "alarm-bg"; el.dataset.id = due.id;
+  el.innerHTML = `<div class="alarm" role="alertdialog" aria-labelledby="alarmT">
+    <div class="alarm-ico" aria-hidden="true">⏰</div>
+    <h2 id="alarmT">Timern är klar</h2>
+    <p class="alarm-what">${idx >= 0 ? `<small>Steg ${numOf(idx)}</small>${esc(steps[idx])}` : esc(due.label || "Egen timer")}</p>
+    ${next >= 0 ? `<div class="alarm-next"><small>Nästa · steg ${numOf(next)}</small>${esc(steps[next])}</div>` : (r ? `<div class="alarm-next"><small>Nästa</small>Alla steg är klara – smaklig måltid!</div>` : "")}
+    <div class="alarm-btns">
+      ${idx >= 0 ? `<button class="btn accent" data-al="next">✓ Steget klart – visa nästa</button>` : `<button class="btn accent" data-al="show">Visa receptet</button>`}
+      <button class="btn ghost" data-al="ok">OK</button>
+    </div></div>`;
+  document.body.appendChild(el);
+  alarmLastBeep = Date.now(); alarmBeeps = 0;
+  el.querySelectorAll("[data-al]").forEach(b => b.onclick = () => {
+    const a = b.dataset.al;
+    el.remove();
+    if (a === "next" && idx >= 0 && cookSession) { cookSession.done = { ...(cookSession.done || {}), ["s" + idx]: true }; if (view.name === "detail" && view.id === cookSession.recipeId) detailState.done = cookSession.done; }
+    stopTimer(due.id);
+    if (a !== "ok") openCookRecipe(); else if (view.name === "detail") render();
+    try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch {}
+  });
+}
 
 // Kommer man tillbaka till appen efter att timern ringt: sluta påminna via notiser
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !cookSession) return;
   (cookSession.timers || []).filter(t => t.end <= Date.now()).forEach(t => sb.rpc("recipe_timer_cancel", { p_id: t.id }).then(() => {}, () => {}));
   try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch {}
+  showAlarm();
 });
 
 // ---------- verktyg: lägg in tidsangivelser i befintliga recept ----------
