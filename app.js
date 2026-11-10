@@ -469,7 +469,7 @@ function renderDetail(){
       ${baseServ ? `<div class="stepper" style="margin-bottom:8px"><button data-a="serv" data-d="-1">−</button><span>${serv} portioner</span><button data-a="serv" data-d="1">+</button></div>` : ""}
       ${ings.length ? `<ul class="ings">${ings.map((l, i) => l.startsWith("#")
           ? `<li class="group">${esc(l.replace(/^#+\s*/, ""))}</li>`
-          : `<li class="${detailState.done["i" + i] ? "done" : ""}" data-a="tick" data-k="i${i}"><span class="box"></span><span>${esc(scaleLine(l, f))}</span></li>`).join("")}</ul>`
+          : `<li><span>${esc(scaleLine(l, f))}</span></li>`).join("")}</ul>`
         : `<p class="meta">Inga ingredienser ifyllda.</p>`}
     </div>
 
@@ -477,7 +477,7 @@ function renderDetail(){
       <h2>Gör så här</h2>
       ${steps.length ? `<ol class="steps">${(() => { let n = 0; return steps.map((s, i) => s.startsWith("#")
           ? (n = 0, `<li class="group">${esc(s.replace(/^#+\s*/, ""))}</li>`)
-          : `<li class="${detailState.done["s" + i] ? "done" : ""}${cs && i === nextIdx ? " nextstep" : ""}" data-n="${++n}" data-a="tick" data-k="s${i}">${esc(s)}${cs ? timerButtons(s, i, n) : ""}</li>`).join(""); })()}</ol>`
+          : `<li class="${detailState.done["s" + i] ? "done" : ""}${cs && i === nextIdx ? " nextstep" : ""}" data-n="${++n}" data-a="tick" data-k="s${i}"><span class="sbox" role="checkbox" aria-checked="${!!detailState.done["s" + i]}" aria-label="Steg ${n} klart"></span>${esc(s)}${cs ? timerButtons(s, i, n) : ""}</li>`).join(""); })()}</ol>`
         : `<p class="meta">Inga steg ifyllda.</p>`}
     </div>
     <button class="cnext" data-a="ctab" data-t="${(detailState.tab || "ing") === "ing" ? "steps" : "ing"}">${(detailState.tab || "ing") === "ing" ? "Till Gör så här →" : "← Till ingredienserna"}</button>

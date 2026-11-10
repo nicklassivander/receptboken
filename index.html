@@ -653,19 +653,21 @@ body.has-cookbar .toast{bottom:calc(96px + env(safe-area-inset-bottom));z-index:
 .ts-name{display:flex;flex-direction:column;gap:4px;font-size:13px;color:#666;margin-top:12px}
 .ts-name input{font:inherit;font-size:15px;padding:7px 9px;border:1px solid #cdc4b6;color:var(--ink)}
 .modal-bg{z-index:60}
-/* Tydliga bockar: ingredienser och steg */
-.ings li .box{width:20px;height:20px;border:1.5px solid #b9b0a4;border-radius:6px;margin-top:2px;background:#fff center/14px no-repeat;transition:background-color .15s,border-color .15s}
-.ings li:hover .box{border-color:var(--brass)}
-.ings li.done .box{background-color:#4f7a4a;border-color:#4f7a4a;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");animation:tickpop .22s ease-out}
-.ings li.done{color:#a39c94;text-decoration:line-through;text-decoration-color:#cfc8bf}
+/* Bockar på stegen – jobba dig framåt i receptet */
+.steps li[data-k]{padding-right:44px}
+.steps li .sbox{position:absolute;right:4px;top:10px;width:26px;height:26px;border:1.5px solid #b9b0a4;border-radius:7px;background:#fff center/17px no-repeat;transition:background-color .15s,border-color .15s}
+.steps li:hover .sbox{border-color:var(--brass)}
+.steps li.done .sbox{background-color:#4f7a4a;border-color:#4f7a4a;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");animation:tickpop .22s ease-out}
 .steps li{transition:color .15s}
 .steps li.done{color:#a39c94;text-decoration:line-through;text-decoration-color:#d8d2c9;text-decoration-thickness:1px}
-.steps li.done::before{content:"";left:12px;top:9px;width:28px;height:28px;border-radius:50%;background:#4f7a4a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/18px no-repeat;animation:tickpop .22s ease-out}
+.steps li.done::before{color:#cfc6b8}
 .steps li.done .timerbtn{display:none}
+.steps li.nextstep::after{right:auto;left:0;top:44px;width:40px;text-align:right;font-size:9px;letter-spacing:.1em}
 @keyframes tickpop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
 .cookprog{height:4px;background:#e6e0d6;border-radius:4px;overflow:hidden;margin:6px 0 0;flex-basis:100%}
 .cookprog i{display:block;height:100%;background:#4f7a4a;border-radius:4px;transition:width .3s}
 .cooking-head{flex-wrap:wrap}
+.ings li{cursor:default}
 </style>
 </head>
 <body>
