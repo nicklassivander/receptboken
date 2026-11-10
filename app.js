@@ -2284,7 +2284,7 @@ function filterPanelHtml(list){
   return `<div class="fpanel" role="dialog" aria-label="Filtrera">
     <div class="fp-head"><h3>Filtrera</h3><button class="iconbtn fp-x" data-a="fclose" aria-label="Stäng">×</button></div>
     ${groups.map(([g, ts]) => [g, ts.filter(t => used.has(t) || filter.tags.includes(t))]).filter(([, ts]) => ts.length).map(([g, ts]) => `<div class="fgrp"><div class="fgt">${esc(g)}</div><div class="ftags">${ts.map(btn).join("")}</div></div>`).join("") || `<p class="hnote" style="padding:12px 0">Inga nyckelord än. Kör Konto → Städa nyckelord, så sorteras recepten in.</p>`}
-    ${other.length ? (() => { const open = filterMore || other.some(t => filter.tags.includes(t)); return `<div class="fmore"><button class="fmore-btn" data-a="fmore" aria-expanded="${open}">Övrigt <small>${other.length}</small><span class="chev" aria-hidden="true">${open ? "▴" : "▾"}</span></button>${open ? `<div class="ftags">${other.map(btn).join("")}</div>` : ""}</div>`; })() : ""}
+    ${other.length ? (() => { const open = filterMore || other.some(t => filter.tags.includes(t)); return `<div class="fmore"><button class="fmore-btn" data-a="fmore" aria-expanded="${open}">Övrigt <small>${other.length}</small><svg class="chev${open ? " up" : ""}" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${open ? `<div class="ftags">${other.map(btn).join("")}</div>` : ""}</div>`; })() : ""}
     <div class="fp-foot"><button class="linkbtn" data-a="tagclear">Rensa allt</button><button class="btn accent small" data-a="fclose">Visa ${list.length} recept</button></div>
   </div>`;
 }
