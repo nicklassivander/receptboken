@@ -668,6 +668,14 @@ body.has-cookbar .toast{bottom:calc(96px + env(safe-area-inset-bottom));z-index:
 .cookprog i{display:block;height:100%;background:#4f7a4a;border-radius:4px;transition:width .3s}
 .cooking-head{flex-wrap:wrap}
 .ings li{cursor:default}
+/* Lagar nu – uppe i högra hörnet */
+.cookbar{top:calc(10px + env(safe-area-inset-top));bottom:auto;left:auto;right:12px;transform:none;width:auto;max-width:min(380px,calc(100vw - 76px));padding:6px 8px 6px 12px;border-radius:999px}
+.cookbar .t b{font-size:14.5px}
+.cookbar .t span{font-size:11px}
+body.has-cookbar #app{padding-bottom:0}
+body.has-cookbar .toast{bottom:calc(18px + env(safe-area-inset-bottom))}
+body.has-cookbar .masthead .nav, body.has-cookbar header nav{visibility:visible}
+.cookbar.inflow{position:sticky;top:calc(10px + env(safe-area-inset-top));right:auto;width:fit-content;max-width:100%;margin:14px 0 4px auto}
 </style>
 </head>
 <body>

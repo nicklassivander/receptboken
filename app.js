@@ -2159,6 +2159,10 @@ function renderCookBar(){
   if (!show) { if (bar) bar.remove(); document.body.classList.remove("has-cookbar"); return; }
   const r = recipes.find(x => x.id === cookSession.recipeId); if (!r) { if (bar) bar.remove(); return; }
   if (!bar) { bar = document.createElement("div"); bar.id = "cookbar"; bar.className = "cookbar"; document.body.appendChild(bar); }
+  // I receptlistan ligger den direkt under sidhuvudet och följer med uppåt när man scrollar; annars uppe i högra hörnet
+  const hdr = view.name === "list" ? $app.querySelector("header.top") : null;
+  if (hdr) { if (bar.previousElementSibling !== hdr) hdr.after(bar); bar.classList.add("inflow"); }
+  else { if (bar.parentNode !== document.body) document.body.appendChild(bar); bar.classList.remove("inflow"); }
   document.body.classList.add("has-cookbar");
   const steps = r.steps || [], real = steps.filter(x => !x.startsWith("#"));
   const done = steps.filter((x, i) => !x.startsWith("#") && (cookSession.done || {})["s" + i]).length;
