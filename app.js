@@ -3,8 +3,17 @@
 const sample = true, sampleImages = true;   // AI finns alltid i webbversionen
 let recipes = [], loaded = false, loadNote = "", storageOk = true;
 let view = { name: "list" };              // list | detail | edit
-let filter = { q: "", tag: null, fav: false, mine: false, cookedMe: false, sort: "new" };
-let showAllTags = false;
+let filter = { q: "", tags: [], fav: false, mine: false, cookedMe: false, sort: "new" };
+let filterOpen = false;
+// Fasta nyckelord i grupper – håller listan kort och sökbar
+const TAG_GROUPS = [
+  ["Rätt", ["förrätt", "varmrätt", "efterrätt", "tillbehör", "sås", "tilltugg", "soppa", "sallad", "bröd", "dryck"]],
+  ["Råvara", ["kött", "fläsk", "kyckling", "vilt", "fisk", "skaldjur", "vegetariskt"]],
+  ["Kök", ["svenskt", "italienskt", "franskt", "asiatiskt", "mexikanskt", "medelhavet"]],
+  ["Tillfälle", ["vardag", "helg", "fest", "jul", "påsk", "midsommar", "sommar"]],
+  ["Metod", ["grill", "ugn", "gryta", "långkok", "snabbt", "inläggning"]],
+];
+const TAG_VOCAB = TAG_GROUPS.flatMap(g => g[1]);
 // Telefon/surfplatta med kamera: visa "Ta foto" (öppnar kameran direkt)
 const HAS_CAMERA = matchMedia("(pointer: coarse)").matches && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? " ipad" : ""));
 let pendingReqs = 0;  // förfrågningar om tillgång (bara superanvändare)
@@ -283,7 +292,7 @@ function filtered(){
     if (filter.fav && !isFav(r)) return false;
     if (filter.mine && addedByOf(r) !== me) return false;
     if (filter.cookedMe && !cooksOf(r).some(x => (x.by || "").toLowerCase() === me)) return false;
-    if (filter.tag && !(r.tags || []).includes(filter.tag)) return false;
+    if (filter.tags.length && !filter.tags.every(t => (r.tags || []).includes(t))) return false;
     if (!q) return true;
     const hay = [r.title, (r.tags || []).join(" "), (r.ingredients || []).join(" "), r.myChanges, r.notes].join(" ").toLowerCase();
     return q.split(/\s+/).every(w => hay.includes(w));
@@ -299,9 +308,6 @@ function filtered(){
 }
 
 function renderList(){
-  const tags = {};
-  recipes.forEach(r => (r.tags || []).forEach(t => tags[t] = (tags[t] || 0) + 1));
-  const tagList = Object.keys(tags).sort((a, b) => tags[b] - tags[a]);
   const list = filtered();
 
   let body;
@@ -353,6 +359,7 @@ function renderList(){
       </select>
     </div>
     <div class="filterbar">
+      ${filterBtn("fbtn-mob")}
       <div class="seg layout-seg" role="group" aria-label="Visa som">
         <button class="${layout === "grid" ? "on" : ""}" data-a="layout" data-l="grid" aria-pressed="${layout === "grid"}">Bilder</button>
         <button class="${layout === "list" ? "on" : ""}" data-a="layout" data-l="list" aria-pressed="${layout === "list"}">Lista</button>
@@ -361,16 +368,15 @@ function renderList(){
     ${activityHtml()}
     <div class="filters">
       <div class="chips mine-chips">
-        <button class="chip ${!filter.fav && !filter.mine && !filter.cookedMe && !filter.tag ? "on" : ""}" data-a="allrecipes">Alla</button>
+        <button class="chip ${!filter.fav && !filter.mine && !filter.cookedMe && !filter.tags.length ? "on" : ""}" data-a="allrecipes">Alla</button>
         <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">Mina favoriter</button>
         <button class="chip ${filter.mine ? "on" : ""}" data-a="mine">Tillagda av mig</button>
         <button class="chip ${filter.cookedMe ? "on" : ""}" data-a="cookedme">Lagade av mig</button>
+        ${filterBtn("fbtn-desk")}
       </div>
-      ${tagList.length ? `<div class="chips tag-chips ${showAllTags ? "all" : ""}">
-        ${tagList.map((t, i) => `<button class="chip ${filter.tag === t ? "on" : ""} ${i >= 8 && filter.tag !== t ? "extra" : ""}" data-a="tag" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
-        ${tagList.length > 8 ? `<button class="chip more" data-a="moretags">${showAllTags ? "Färre" : `Fler (${tagList.length - 8})`}</button>` : ""}
-      </div>` : ""}
-    </div>` : ""}
+    </div>
+    ${filterOpen ? filterPanelHtml(list) : ""}
+    ${filter.tags.length ? `<div class="activetags">${filter.tags.map(t => `<button data-a="tag" data-t="${esc(t)}">${esc(t)} <b aria-hidden="true">×</b></button>`).join("")}<button class="linkbtn" data-a="tagclear">Rensa</button></div>` : ""}` : ""}
     ${body}
     ${storageOk && loaded && can("contributor") ? `<button class="fab" data-a="menu" aria-label="Lägg till">${menuOpen ? "×" : "+"}</button>` : ""}
     ${menuOpen ? `<div class="menu">
@@ -793,7 +799,7 @@ Svara ENDAST med ett JSON-objekt, utan förklaring:
 Regler:
 - ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ". Behåll ALLA tidsangivelser från källan (koktid, stektid, ugnstid, vila, marinering, jäsning) i det steg där de hör hemma och skriv dem med siffror och enhet, t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek" – aldrig bara "en stund" om källan anger en tid. Står tiden bara i receptets inledning eller i en totaltid, för in den i rätt steg om det framgår vilket.
 - steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
-- tags: 2–5 korta taggar på svenska i gemener (t.ex. "pasta", "kyckling", "vegetariskt", "grill", "vardag").
+- tags: 2–5 taggar, ENBART från denna lista (gemener, exakt stavning): ${TAG_VOCAB.join(", ")}. Välj det som stämmer – typ av rätt, huvudråvara, kök, tillfälle och metod.
 - notes: eventuella tips från källan, kort. Annars tom sträng.
 - ${s.translate ? "Skriv allt på svenska. Räkna om amerikanska mått (cups, tbsp, tsp, oz, lb, °F) till svenska metriska mått (dl, msk, tsk, g, °C)." : "Behåll originalspråket och måtten."}
 - Hitta inte på något. Saknas receptinnehåll helt, svara {"error": "kort förklaring på svenska"}.
@@ -870,14 +876,16 @@ document.addEventListener("click", async e => {
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
     case "home": e.preventDefault(); if (view.name === "list") break; goBack(); break;
     case "help": view = { name: "help" }; render(); window.scrollTo(0, 0); break;
-    case "allrecipes": filter = { ...filter, tag: null, fav: false, mine: false, cookedMe: false }; render(); break;
+    case "allrecipes": filter = { ...filter, tags: [], fav: false, mine: false, cookedMe: false }; render(); break;
+    case "ftoggle": filterOpen = !filterOpen; render(); break;
+    case "fclose": filterOpen = false; render(); break;
+    case "tagclear": filter.tags = []; render(); break;
     case "fav": filter = { ...filter, fav: !filter.fav, mine: false, cookedMe: false }; render(); break;
-    case "moretags": showAllTags = !showAllTags; render(); break;
     case "mine": filter = { ...filter, mine: !filter.mine, fav: false, cookedMe: false }; render(); break;
     case "cookedme": filter = { ...filter, cookedMe: !filter.cookedMe, fav: false, mine: false }; render(); break;
     case "layout": layout = el.dataset.l; try { localStorage.setItem("layout", layout); } catch {} render(); break;
-    case "tag": filter.tag = filter.tag === el.dataset.t ? null : el.dataset.t; render(); break;
-    case "clear": filter = { ...filter, q: "", tag: null, fav: false, mine: false, cookedMe: false }; render(); break;
+    case "tag": { const t = el.dataset.t; filter.tags = filter.tags.includes(t) ? filter.tags.filter(x => x !== t) : filter.tags.concat(t); if (view.name !== "list") { view = { name: "list" }; } render(); break; }
+    case "clear": filter = { ...filter, q: "", tags: [], fav: false, mine: false, cookedMe: false }; render(); break;
     case "mode": detailState.mode = el.dataset.m; detailState.servings = null; detailState.done = {}; render(); break;
     case "serv": {
       const base = (detailState.mode === "orig" ? cur.original.servings : cur.servings) || 1;
@@ -1068,6 +1076,7 @@ function openSettings(){
     <div class="actions" style="flex-direction:column">
       ${can("admin") ? `<button class="btn ghost" id="usersBtn">Hantera användare${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button>
       <button class="btn ghost" id="timesBtn">Lägg in tider i gamla recept</button>
+      <button class="btn ghost" id="tagsBtn">Städa nyckelord</button>
       <button class="btn ghost" id="importBtn">Importera recept från fil</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>` : ""}
       <button class="btn ghost" id="pwBtn">Byt lösenord</button>
@@ -1078,6 +1087,7 @@ function openSettings(){
   $id("pwBtn").onclick = () => openPasswordSheet(false);
   if ($id("usersBtn")) $id("usersBtn").onclick = openUsers;
   if ($id("timesBtn")) $id("timesBtn").onclick = openTimesTool;
+  if ($id("tagsBtn")) $id("tagsBtn").onclick = openTagsTool;
   if ($id("importBtn")) {
     $id("importBtn").onclick = () => $id("importFile").click();
     $id("importFile").onchange = e => { const f = e.target.files[0]; if (f) importFile(f, $id("importBtn")); };
@@ -1770,6 +1780,7 @@ function renderHelp(){
         <li>Är grundreceptet ditt kan du föra över en variant till det med <b>Uppdatera grundreceptet</b> längst ner i varianten.</li>
         <li>Ändrar du ingredienser, steg eller portioner i ett recept frågar appen om det ska bli en <b>ny variant</b> (originalet lämnas orört) eller om du vill <b>ändra originalet</b> – det senare är för rättelser.</li>
         <li>Filtren <b>Tillagda av mig</b> och <b>Lagade av mig</b> överst i listan visar dina egna recept och det du har lagat.</li>
+        <li><b>Filtrera</b> (till höger i filterraden, på mobilen bredvid Bilder/Lista) öppnar nyckelorden i grupper: Rätt, Råvara, Kök, Tillfälle och Metod. Välj flera för att smalna av, t.ex. <i>fisk + vardag</i>. Valda filter syns som brickor som du tar bort med ×.</li>
       </ul>`)}
 
     ${sec("Bra att veta", `
@@ -1844,7 +1855,7 @@ function activityEvents(){
   return ev.sort((a, b) => b.ts - a.ts);
 }
 function activityHtml(){
-  if (!me || filter.q || filter.tag || filter.fav || filter.mine || filter.cookedMe) return "";
+  if (!me || filter.q || filter.tags.length || filter.fav || filter.mine || filter.cookedMe || filterOpen) return "";
   const ev = activityEvents();
   if (!ev.length) return "";
   const seen = activityOpen && activitySeenBefore != null ? activitySeenBefore : seenAt();
@@ -2242,4 +2253,72 @@ function variantChangesHtml(r){
     ${!nothing ? (sum && sum.length ? `<details class="vd-more"><summary>Visa alla ändringar</summary>${details}</details>` : details) : ""}
     ${r.myChanges ? `<p class="vd-h">Anteckning</p><div class="prewrap">${esc(r.myChanges)}</div>` : ""}
   </div>`;
+}
+
+// ---------- filtrering på nyckelord ----------
+function filterBtn(cls){
+  return `<button class="fbtn ${cls} ${filterOpen ? "open" : ""}" data-a="ftoggle" aria-expanded="${filterOpen}">Filtrera${filter.tags.length ? `<span class="n">${filter.tags.length}</span>` : ""}<span class="chev" aria-hidden="true">▾</span></button>`;
+}
+function filterPanelHtml(list){
+  const count = t => filter.tags.includes(t) ? list.length : list.filter(r => (r.tags || []).includes(t)).length;
+  const used = new Set(recipes.flatMap(r => r.tags || []));
+  const other = [...used].filter(t => !TAG_VOCAB.includes(t)).sort((a, b) => a.localeCompare(b, "sv"));
+  const groups = TAG_GROUPS.concat(other.length ? [["Övrigt", other]] : []);
+  const btn = t => { const n = count(t), on = filter.tags.includes(t); return `<button class="ftag ${on ? "on" : ""} ${!n && !on ? "dim" : ""}" data-a="tag" data-t="${esc(t)}" ${!n && !on ? "disabled" : ""}>${esc(t)}<small>${n}</small></button>`; };
+  return `<div class="fpanel" role="dialog" aria-label="Filtrera">
+    <div class="fp-head"><h3>Filtrera</h3><button class="iconbtn fp-x" data-a="fclose" aria-label="Stäng">×</button></div>
+    ${groups.map(([g, ts]) => [g, ts.filter(t => used.has(t) || filter.tags.includes(t))]).filter(([, ts]) => ts.length).map(([g, ts]) => `<div class="fgrp"><div class="fgt">${esc(g)}</div><div class="ftags">${ts.map(btn).join("")}</div></div>`).join("") || `<p class="hnote" style="padding:12px 0">Inga nyckelord än. Kör Konto → Städa nyckelord, så sorteras recepten in.</p>`}
+    <div class="fp-foot"><button class="linkbtn" data-a="tagclear">Rensa allt</button><button class="btn accent small" data-a="fclose">Visa ${list.length} recept</button></div>
+  </div>`;
+}
+
+// ---------- verktyg: sortera in recepten i de fasta nyckelorden ----------
+function openTagsTool(){
+  const list = recipes.filter(r => canEdit(r));
+  const used = new Set(recipes.flatMap(r => r.tags || []));
+  const odd = [...used].filter(t => !TAG_VOCAB.includes(t));
+  openSheet(`<h2>Städa nyckelord</h2>
+    <p>Claude går igenom ${list.length} recept och ger vart och ett 2–5 nyckelord från de fasta grupperna (Rätt, Råvara, Kök, Tillfälle, Metod). Dubbletter och udda ord försvinner.</p>
+    <p class="hnote">I dag finns ${used.size} olika nyckelord, varav ${odd.length} utanför listan${odd.length ? `: ${esc(odd.slice(0, 14).join(", "))}${odd.length > 14 ? " …" : ""}` : ""}. Taggen "att komplettera" behålls. Allt kan ångras.</p>
+    <div id="tgList" class="ttlist"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn ghost" id="tgClose">Stäng</button><button class="btn accent" id="tgGo">Starta</button></div>`);
+  let stop = false; const done = [];
+  $id("tgClose").onclick = () => { stop = true; closeSheet(); };
+  $id("tgGo").onclick = async () => {
+    const go = $id("tgGo"); go.disabled = true; go.textContent = "Arbetar …";
+    const box = $id("tgList");
+    for (let i = 0; i < list.length; i += 8) {
+      if (stop || !$id("tgList")) return;
+      const batch = list.slice(i, i + 8);
+      const row = document.createElement("div"); row.className = "ttrow"; row.innerHTML = `<span class="spinner"></span> Recept ${i + 1}–${i + batch.length} av ${list.length}`; box.prepend(row);
+      try {
+        const prompt = `Ge varje recept 2–5 nyckelord, ENBART från listan nedan (exakt stavning, gemener). Välj typ av rätt, huvudråvara, kök, tillfälle och metod när det passar. Använd "snabbt" bara om receptet tar under 30 min, "vardag" för enkla vardagsrätter, "fest" för bjudmat. Hitta inte på nya ord.
+Lista: ${TAG_VOCAB.join(", ")}
+Svara bara med JSON: {"<id>": ["...", "..."], ...}
+
+Recept:
+${JSON.stringify(batch.map(r => ({ id: r.id, titel: r.title, tid: r.time || "", nuvarande: r.tags || [], ingredienser: (r.ingredients || []).filter(x => !x.startsWith("#")).slice(0, 10) })))}`;
+        const out = parseJson(await ai(prompt, { mode: "json" }));
+        const lines = [];
+        for (const r of batch) {
+          let tags = Array.isArray(out[r.id]) ? out[r.id].map(x => String(x).toLowerCase().trim()).filter(x => TAG_VOCAB.includes(x)) : null;
+          if (!tags || !tags.length) { lines.push(`– ${esc(r.title || "")}: oförändrad`); continue; }
+          tags = [...new Set(tags)].slice(0, 5);
+          if ((r.tags || []).includes("att komplettera")) tags.push("att komplettera");
+          if (sameList(tags, r.tags || [])) { lines.push(`– ${esc(r.title || "")}: redan rätt`); continue; }
+          if (await patch(r.id, { tags, tagsBefore: r.tags || [] })) { done.push(r.id); lines.push(`✓ <b>${esc(r.title || "")}</b> <span class="hnote">${esc(tags.join(", "))}</span>`); }
+        }
+        row.innerHTML = lines.join("<br>");
+      } catch (e) { row.innerHTML = `<span class="err">! ${esc(aiErr(e))}</span>`; }
+    }
+    if ($id("tgGo")) {
+      go.textContent = `Klart – ${done.length} recept uppdaterade`;
+      if (done.length) box.insertAdjacentHTML("afterbegin", `<div class="ttrow"><button class="linkbtn" id="tgUndo">Ångra alla ändringar</button></div>`);
+      const u = $id("tgUndo"); if (u) u.onclick = async () => {
+        u.disabled = true; u.textContent = "Ångrar …";
+        for (const id of done) { const r = recipes.find(x => x.id === id); if (r && Array.isArray(r.tagsBefore)) await patch(id, { tags: r.tagsBefore, tagsBefore: null }); }
+        u.textContent = "Ångrat";
+      };
+    }
+  };
 }
