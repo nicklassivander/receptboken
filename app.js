@@ -467,9 +467,8 @@ function renderDetail(){
     <button class="cnext" data-a="ctab" data-t="${(detailState.tab || "ing") === "ing" ? "steps" : "ing"}">${(detailState.tab || "ing") === "ing" ? "Till Gör så här →" : "← Till ingredienserna"}</button>
     </div>
 
-    ${r.myChanges || (canEdit(r) && r.original && isModified(r)) ? `<div class="panel mychanges"><h2>${r.variantOf ? "Ändringar i varianten" : "Mina ändringar"}</h2>
-      ${r.myChanges ? `<div class="prewrap">${esc(r.myChanges)}</div>` : `<p class="hnote">Receptet skiljer sig från originalet – växla mellan Min och Original vid ingredienserna för att jämföra.</p>`}
-    </div>` : ""}
+    ${r.variantOf ? variantChangesHtml(r)
+      : r.myChanges ? `<div class="panel mychanges"><h2>Mina ändringar</h2><div class="prewrap">${esc(r.myChanges)}</div></div>` : ""}
     ${(() => { const base = r.variantOf ? recipes.find(x => x.id === r.variantOf) : null;
       return base && canEdit(base) ? `<div class="panel mychanges"><h2>Uppdatera grundreceptet</h2>
         <p style="margin:0 0 12px">Ersätt ingredienser och steg i <b>${esc(base.title || "grundreceptet")}</b> med den här varianten.</p>
@@ -1029,6 +1028,7 @@ document.addEventListener("click", async e => {
       delete draft._fillIn;
       const needName = draft.variantOf && (!draft.variantName || draft.variantNameAuto);
       const id = await saveRecipe(draft);
+      if (id && draft.variantOf) namingTried.delete(id);
       if (id && needName) nameVariant(id, true);
       if (id) {
         toast("Receptet sparat"); detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
@@ -1904,7 +1904,7 @@ function variantSwitcher(r){
   const { root, kids } = familyOf(r);
   if (!kids.length) return r.variantOf ? `<div class="vswitch"><span class="hnote">Variant av ett borttaget recept</span></div>` : "";
   // namnge äldre varianter utan namn (bara den som får ändra dem)
-  kids.forEach(k => { if (!k.variantName && canEdit(k)) nameVariant(k.id); });
+  kids.forEach(k => { if (canEdit(k) && (!k.variantName || !Array.isArray(k.variantSummary) || k.variantSummaryFor !== variantSig(k))) nameVariant(k.id); });
   const chip = (x, label, who) => `<button class="vchip ${x.id === r.id ? "on" : ""}" ${x.id === r.id ? 'aria-current="true"' : `data-a="open" data-id="${esc(x.id)}"`}>${esc(label)}${who ? `<small>${esc(who)}</small>` : ""}</button>`;
   return `<div class="vswitch" role="tablist" aria-label="Varianter">
     <span class="vlab">Varianter</span>
@@ -1915,25 +1915,33 @@ function variantSwitcher(r){
 const namingNow = new Set(), namingTried = new Set();
 async function nameVariant(id, force){
   const v = recipes.find(x => x.id === id);
-  if (!v || !v.variantOf || namingNow.has(id) || (!force && (v.variantName || namingTried.has(id))) || !canEdit(v)) return;
+  const needsSummary = v && v.variantOf && (!Array.isArray(v.variantSummary) || v.variantSummaryFor !== variantSig(v));
+  if (!v || !v.variantOf || namingNow.has(id) || (!force && ((v.variantName && !needsSummary) || namingTried.has(id))) || !canEdit(v)) return;
   namingTried.add(id);
   namingNow.add(id);
   const { root, kids } = familyOf(v);
   if (!root || root.id === v.id) return;
+  const base = v.original && ((v.original.ingredients || []).length || (v.original.steps || []).length) ? v.original : root;
   try {
     const others = kids.filter(k => k.id !== id && k.variantName).map(k => k.variantName);
     const fmt = x => `Portioner: ${x.servings || "-"}\nIngredienser:\n${(x.ingredients || []).join("\n")}\nSteg:\n${(x.steps || []).join("\n")}`;
-    const prompt = `Två versioner av samma recept, "${root.title}". Ge VARIANTEN ett kort svenskt namn (1–3 ord, högst 24 tecken) som beskriver den viktigaste skillnaden mot GRUNDRECEPTET, t.ex. "Extra stark", "Utan grädde", "Med lax", "Dubbel sats", "Vegetarisk". Svara bara med namnet, utan citattecken eller punkt.${others.length ? ` Andra varianter heter redan: ${others.join(", ")} – välj ett namn som skiljer sig.` : ""} Om det inte finns någon tydlig skillnad, svara "Egen version".
+    const prompt = `Två versioner av samma recept, "${root.title}". Jämför VARIANTEN med GRUNDRECEPTET.
+1) "name": ett kort svenskt namn på varianten (1–3 ord, högst 24 tecken) som beskriver den viktigaste skillnaden, t.ex. "Extra stark", "Utan grädde", "Med lax", "Dubbel sats", "Vegetarisk".${others.length ? ` Andra varianter heter redan: ${others.join(", ")} – välj ett namn som skiljer sig.` : ""} Om det inte finns någon tydlig skillnad: "Egen version".
+2) "summary": 1–4 korta punkter på svenska med de VIKTIGASTE skillnaderna som påverkar smak, resultat eller arbetsgång, t.ex. "Crème fraiche i stället för grädde", "Dubbelt så mycket vitlök", "Ugnen 200° i stället för 175°", "Marinera över natten". Hoppa över småsaker som stavning och ordval.
+Svara bara med JSON: {"name": "...", "summary": ["...", "..."]}
 
 GRUNDRECEPTET:
-${fmt(root)}
+${fmt(base)}
 
 VARIANTEN:
 ${fmt(v)}`;
-    let name = String(await ai(prompt) || "").split("\n")[0].replace(/["”“'.*]/g, "").trim();
+    const out = parseJson(await ai(prompt, { mode: "json" }));
+    let name = String(out.name || "").replace(/["”“'.*]/g, "").trim();
     name = name.charAt(0).toUpperCase() + name.slice(1);
-    if (!name || name.length > 30) return;
-    if (await patch(id, { variantName: name, variantNameAuto: true })) { if (view.name === "detail" || view.name === "list") render(); }
+    const summary = (Array.isArray(out.summary) ? out.summary : []).map(x => String(x).trim()).filter(Boolean).slice(0, 4);
+    const upd = { variantSummary: summary, variantSummaryFor: variantSig(v) };
+    if (name && name.length <= 30 && (force || !v.variantName || v.variantNameAuto)) { upd.variantName = name; upd.variantNameAuto = true; }
+    if (await patch(id, upd)) { if (view.name === "detail" || view.name === "list") render(); }
   } catch {} finally { namingNow.delete(id); }
 }
 
@@ -2194,4 +2202,44 @@ ${JSON.stringify(before)}`;
   if (sameList(steps, before) || added <= 0) return { changed: false, added: 0 };
   const ok = await patch(r.id, { steps, stepsBeforeTimes: before });
   return { changed: !!ok, added };
+}
+
+// ---------- ändringar i en variant: AI-sammanfattning + exakt jämförelse ----------
+const variantSig = v => { const t = JSON.stringify([v.servings || null, v.ingredients || [], v.steps || []]); let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return String(h); };
+const ingKey = l => String(l).toLowerCase().replace(/^[\d\s.,½¼¾\/–-]+/, "").replace(/^(ca|cirka|ungefär)\s+/, "").replace(/^(st|g|kg|hg|ml|cl|dl|l|msk|tsk|krm|nypa|knippe|klyftor|klyfta|burk|paket|förp|skivor|skiva|port)\.?\s+/, "").replace(/[(),].*$/, "").trim();
+function variantDiff(v){
+  const root = familyRoot(v);
+  const base = v.original && ((v.original.ingredients || []).length || (v.original.steps || []).length) ? v.original : root;
+  const bi = (base.ingredients || []).filter(x => !x.startsWith("#")), vi = (v.ingredients || []).filter(x => !x.startsWith("#"));
+  let removed = bi.filter(x => !vi.includes(x)), added = vi.filter(x => !bi.includes(x));
+  const changed = [];
+  for (const a of added.slice()) {
+    const k = ingKey(a); const m = removed.find(r => ingKey(r) === k && k);
+    if (m) { changed.push([m, a]); removed = removed.filter(r => r !== m); added = added.filter(x => x !== a); }
+  }
+  const bs = (base.steps || []).filter(x => !x.startsWith("#")), vs = (v.steps || []).filter(x => !x.startsWith("#"));
+  const stepsAdded = vs.filter(x => !bs.includes(x)), stepsRemoved = bs.filter(x => !vs.includes(x));
+  const serv = (base.servings || null) !== (v.servings || null) && base.servings && v.servings ? [base.servings, v.servings] : null;
+  return { added, removed, changed, stepsAdded, stepsRemoved, serv };
+}
+function variantChangesHtml(r){
+  const d = variantDiff(r);
+  const sum = Array.isArray(r.variantSummary) && r.variantSummaryFor === variantSig(r) ? r.variantSummary : null;
+  const nothing = !d.added.length && !d.removed.length && !d.changed.length && !d.stepsAdded.length && !d.stepsRemoved.length && !d.serv;
+  if (nothing && !r.myChanges) return "";
+  const li = (cls, sign, txt) => `<li class="${cls}"><span class="sg">${sign}</span>${txt}</li>`;
+  const details = `
+    ${d.serv ? `<p class="vd-h">Portioner</p><ul class="vdiff">${li("chg", "↺", `${d.serv[0]} → ${d.serv[1]}`)}</ul>` : ""}
+    ${d.changed.length || d.added.length || d.removed.length ? `<p class="vd-h">Ingredienser</p><ul class="vdiff">
+      ${d.changed.map(([a, b]) => li("chg", "↺", `<s>${esc(a)}</s> → ${esc(b)}`)).join("")}
+      ${d.added.map(x => li("add", "+", esc(x))).join("")}
+      ${d.removed.map(x => li("rem", "−", `<s>${esc(x)}</s>`)).join("")}</ul>` : ""}
+    ${d.stepsAdded.length || d.stepsRemoved.length ? `<p class="vd-h">Gör så här</p><ul class="vdiff">
+      ${d.stepsAdded.map(x => li("add", "+", esc(x))).join("")}
+      ${d.stepsRemoved.map(x => li("rem", "−", `<s>${esc(x)}</s>`)).join("")}</ul>` : ""}`;
+  return `<div class="panel mychanges vchanges"><h2>Ändringar i varianten</h2>
+    ${sum && sum.length ? `<ul class="vsum">${sum.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : !nothing ? `<p class="hnote">${canEdit(r) ? "Sammanfattar ändringarna …" : "Jämfört med originalet:"}</p>` : ""}
+    ${!nothing ? (sum && sum.length ? `<details class="vd-more"><summary>Visa alla ändringar</summary>${details}</details>` : details) : ""}
+    ${r.myChanges ? `<p class="vd-h">Anteckning</p><div class="prewrap">${esc(r.myChanges)}</div>` : ""}
+  </div>`;
 }

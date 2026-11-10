@@ -577,6 +577,17 @@ body.has-cookbar .toast{bottom:calc(96px + env(safe-area-inset-bottom));z-index:
 .cookbtn{border-radius:999px}
 .ttlist{max-height:46vh;overflow:auto;margin-top:12px;border-top:1px solid var(--line)}
 .ttrow{padding:8px 0;border-bottom:1px solid #eee6da;font-size:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.vsum{margin:0 0 6px;padding:0;list-style:none}
+.vsum li{position:relative;padding:4px 0 4px 22px;font-size:16px;line-height:1.45}
+.vsum li::before{content:"";position:absolute;left:4px;top:13px;width:7px;height:7px;transform:rotate(45deg);background:var(--brass,#9c7a3c)}
+.vd-more{margin-top:8px}
+.vd-more summary{cursor:pointer;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.vd-h{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px}
+.vdiff{list-style:none;margin:0;padding:0}
+.vdiff li{display:flex;gap:10px;padding:3px 0;font-size:14.5px}
+.vdiff .sg{width:14px;flex:none;text-align:center;font-weight:600}
+.vdiff .add .sg{color:#3d6b3d}.vdiff .rem .sg{color:#a33}.vdiff .chg .sg{color:var(--brass,#9c7a3c)}
+.vdiff s{color:var(--muted)}
 </style>
 </head>
 <body>
