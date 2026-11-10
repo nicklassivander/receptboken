@@ -1741,8 +1741,10 @@ function relDay(ts){
   const diff = Math.round((day(now) - day(d)) / 864e5);
   if (diff <= 0) return "idag";
   if (diff === 1) return "igår";
-  if (diff < 7) return ["sön", "mån", "tis", "ons", "tors", "fre", "lör"][d.getDay()];
-  return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" }).replace(".", "");
+  const wd = ["sön", "mån", "tis", "ons", "tors", "fre", "lör"][d.getDay()];
+  if (diff < 7) return wd;
+  const dm = d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" }).replace(".", "");
+  return `${wd} ${dm}${d.getFullYear() !== now.getFullYear() ? " " + d.getFullYear() : ""}`;
 }
 function activityEvents(){
   const ev = [];
