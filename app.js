@@ -8,12 +8,12 @@ let filterOpen = false; let filterMore = false;
 // Fasta nyckelord i grupper – håller listan kort och sökbar
 const TAG_GROUPS = [
   ["Rätt", ["förrätt", "varmrätt", "efterrätt", "tilltugg", "tillbehör", "dryck"]],
-  ["Råvara", ["kött", "kyckling", "fisk", "vegetariskt"]],
+  ["Mattyp", ["kött", "fläsk", "kyckling", "fisk", "skaldjur", "vegetariskt"]],
   ["Tillfälle", ["vardag", "fest", "jul"]],
   ["Metod", ["grill", "långkok"]],
 ];
 // Hur ord utanför listan ska sorteras in
-const TAG_HINTS = 'sås, dressing, bröd och sallad räknas som "tillbehör"; soppa som "förrätt" eller "varmrätt"; fläsk, vilt, lamm och nöt som "kött"; skaldjur som "fisk"; helg och bjudmat som "fest"; påsk och midsommar som "fest"; gryta och ugn utan lång tid räknas inte som metod.';
+const TAG_HINTS = 'sås, dressing, bröd och sallad räknas som "tillbehör"; soppa som "förrätt" eller "varmrätt"; nöt, vilt, lamm och färs som "kött"; skinka, bacon och gris som "fläsk"; räkor, musslor och hummer som "skaldjur"; varje varmrätt eller förrätt ska ha exakt en mattyp (kött, fläsk, kyckling, fisk, skaldjur eller vegetariskt); helg och bjudmat som "fest"; påsk och midsommar som "fest"; gryta och ugn utan lång tid räknas inte som metod.';
 let customTagGroups = null;   // sparas i databasen (rad "_settings_tags"), annars standardlistan
 const SETTINGS_ID = "_settings_tags";
 const tagGroups = () => (customTagGroups && customTagGroups.length ? customTagGroups : TAG_GROUPS);
@@ -811,7 +811,7 @@ Svara ENDAST med ett JSON-objekt, utan förklaring:
 Regler:
 - ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ". Behåll ALLA tidsangivelser från källan (koktid, stektid, ugnstid, vila, marinering, jäsning) i det steg där de hör hemma och skriv dem med siffror och enhet, t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek" – aldrig bara "en stund" om källan anger en tid. Står tiden bara i receptets inledning eller i en totaltid, för in den i rätt steg om det framgår vilket.
 - steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
-- tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${tagVocab().join(", ")}. Välj det som stämmer – typ av rätt, huvudråvara, tillfälle och metod. ${TAG_HINTS}
+- tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${tagVocab().join(", ")}. Välj det som stämmer – typ av rätt, mattyp, tillfälle och metod. ${TAG_HINTS}
 - notes: eventuella tips från källan, kort. Annars tom sträng.
 - ${s.translate ? "Skriv allt på svenska. Räkna om amerikanska mått (cups, tbsp, tsp, oz, lb, °F) till svenska metriska mått (dl, msk, tsk, g, °C)." : "Behåll originalspråket och måtten."}
 - Hitta inte på något. Saknas receptinnehåll helt, svara {"error": "kort förklaring på svenska"}.
@@ -2295,7 +2295,7 @@ function openTagsTool(){
   const used = new Set(recipes.flatMap(r => r.tags || []));
   const odd = [...used].filter(t => !tagVocab().includes(t));
   openSheet(`<h2>Städa nyckelord</h2>
-    <p>Claude går igenom ${list.length} recept och ger vart och ett 2–4 nyckelord från de 15 fasta orden (Rätt, Råvara, Tillfälle, Metod). Dubbletter och udda ord försvinner.</p>
+    <p>Claude går igenom ${list.length} recept och ger vart och ett 2–4 nyckelord från de fasta orden (Rätt, Mattyp, Tillfälle, Metod). Dubbletter och udda ord försvinner.</p>
     <p class="hnote">I dag finns ${used.size} olika nyckelord, varav ${odd.length} utanför listan${odd.length ? `: ${esc(odd.slice(0, 14).join(", "))}${odd.length > 14 ? " …" : ""}` : ""}. Taggen "att komplettera" behålls. Allt kan ångras.</p>
     <div id="tgList" class="ttlist"></div>
     <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn ghost" id="tgClose">Stäng</button><button class="btn accent" id="tgGo">Starta</button></div>`);
@@ -2309,7 +2309,7 @@ function openTagsTool(){
       const batch = list.slice(i, i + 8);
       const row = document.createElement("div"); row.className = "ttrow"; row.innerHTML = `<span class="spinner"></span> Recept ${i + 1}–${i + batch.length} av ${list.length}`; box.prepend(row);
       try {
-        const prompt = `Ge varje recept 2–4 nyckelord, ENBART från listan nedan (exakt stavning, gemener). Välj typ av rätt, huvudråvara, tillfälle och metod när det passar. ${TAG_HINTS} "vardag" för enkla vardagsrätter, "långkok" för sådant som tar flera timmar. Hitta inte på nya ord.
+        const prompt = `Ge varje recept 2–4 nyckelord, ENBART från listan nedan (exakt stavning, gemener). Välj typ av rätt, mattyp, tillfälle och metod när det passar. ${TAG_HINTS} "vardag" för enkla vardagsrätter, "långkok" för sådant som tar flera timmar. Hitta inte på nya ord.
 Lista: ${tagVocab().join(", ")}
 Svara bara med JSON: {"<id>": ["...", "..."], ...}
 
@@ -2421,7 +2421,7 @@ function openMergeTool(){
     if (plan) return applyMerge(plan, go);
     go.disabled = true; go.textContent = "Tänker …";
     try {
-      const prompt = `Här är nyckelorden i en familjs receptbok, med antal recept per ord. Slå ihop dem till ungefär ${target} nyckelord (högst ${target + 2}) som är lätta att filtrera på, och sortera dem i 3–5 grupper med korta svenska gruppnamn (t.ex. "Rätt", "Råvara", "Tillfälle", "Metod"). Slå ihop synonymer och närliggande ord (t.ex. nötkött → kött, snacks → tilltugg). Välj vanliga, tydliga ord i gemener. Varje gammalt ord ska mappas till ETT nytt ord, eller till null om det inte passar alls.
+      const prompt = `Här är nyckelorden i en familjs receptbok, med antal recept per ord. Slå ihop dem till ungefär ${target} nyckelord (högst ${target + 2}) som är lätta att filtrera på, och sortera dem i 3–5 grupper med korta svenska gruppnamn (t.ex. "Rätt", "Mattyp", "Tillfälle", "Metod"). Slå ihop synonymer och närliggande ord (t.ex. nötkött → kött, snacks → tilltugg). Välj vanliga, tydliga ord i gemener. Varje gammalt ord ska mappas till ETT nytt ord, eller till null om det inte passar alls.
 Svara bara med JSON: {"groups": [{"name": "...", "tags": ["..."]}], "map": {"<gammalt ord>": "<nytt ord eller null>"}}
 
 Nyckelord: ${JSON.stringify(used)}`;
