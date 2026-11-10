@@ -449,7 +449,7 @@ function renderDetail(){
       ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
     </div>
     ${variantSwitcher(r)}
-    ${cs ? `<div class="cooking-head"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="ct"><b>Du lagar det här</b><small>sedan ${new Date(cs.startedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}${detailState.servings ? ` · ${detailState.servings} portioner` : ""}</small></span><span class="cr"><button class="linkbtn" data-a="cookdone">Klar!</button><button class="linkbtn muted" data-a="cookstop">Avbryt</button></span></div>`
+    ${cs ? `<div class="cooking-head"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="ct"><b>Du lagar det här</b><small>sedan ${new Date(cs.startedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}${detailState.servings ? ` · ${detailState.servings} portioner` : ""}</small></span><span class="cr"><button class="timeradd" data-a="timernew" aria-label="Sätt timer">⏱ Timer</button><button class="linkbtn" data-a="cookdone">Klar!</button><button class="linkbtn muted" data-a="cookstop">Avbryt</button></span></div>`
       : `<div class="startcook"><button class="cookbtn" data-a="cookstart">${PAN_SVG}<span>Börja laga</span></button></div>`}
 
     ${(!ings.length || !steps.length || (r.tags || []).includes("att komplettera")) && canEdit(r) ? `<div class="panel changes"><h2>Receptet är inte komplett</h2>
@@ -945,6 +945,7 @@ document.addEventListener("click", async e => {
     case "cookdone": { const r0 = cur; endCooking(); render(); openHistory(r0); toast("Snyggt! Sätt betyg och spara tillagningen"); break; }
     case "timer": startTimer(+el.dataset.ms, el.dataset.label, el.dataset.k); break;
     case "timerstop": stopTimer(el.dataset.id); break;
+    case "timernew": openTimerSheet(); break;
     case "cookbar": openCookRecipe(); break;
     case "ctab": {
       detailState.tab = el.dataset.t; render();
@@ -2076,6 +2077,32 @@ function startTimer(ms, label, k){
   const r = recipes.find(x => x.id === cookSession.recipeId);
   pushTimer(t, r);
 }
+// Sätt timer: förslag från receptets tider, snabbval eller egen tid
+function openTimerSheet(){
+  if (!cookSession) return;
+  const r = recipes.find(x => x.id === cookSession.recipeId); if (!r) return;
+  const steps = r.steps || []; let n = 0; const sugg = [];
+  steps.forEach((x, i) => { if (x.startsWith("#")) return; n++; parseDurations(x).forEach(d => sugg.push({ ms: d.ms, k: "s" + i, label: `Steg ${n}: ${d.label}`, step: n, text: x.replace(/\s+/g, " ").trim() })); });
+  const fmt = ms => { const m = Math.round(ms / 6e4); return ms < 6e4 ? Math.round(ms / 1e3) + " sek" : m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) + " min" : ""}` : m + " min"; };
+  const short = x => x.length > 90 ? x.slice(0, 88) + "…" : x;
+  openSheet(`<h2>Sätt timer</h2>
+    ${sugg.length ? `<h3 class="ts-h">Från receptet</h3><div class="ts-list">${sugg.map((t, j) => `<button class="ts-sugg" data-j="${j}"><b>${esc(fmt(t.ms))}</b><span><small>Steg ${t.step}</small>${esc(short(t.text))}</span></button>`).join("")}</div>` : `<p class="hnote">Receptet anger inga tider – välj eller skriv in en egen.</p>`}
+    <h3 class="ts-h">Egen tid</h3>
+    <div class="ts-quick">${[1, 3, 5, 10, 15, 20, 30, 45, 60].map(m => `<button class="ftag" data-m="${m}">${m < 60 ? m + " min" : "1 h"}</button>`).join("")}</div>
+    <div class="ts-own"><label><input id="tsH" type="number" inputmode="numeric" min="0" max="48" placeholder="0"> tim</label><label><input id="tsM" type="number" inputmode="numeric" min="0" max="59" placeholder="0"> min</label></div>
+    <label class="ts-name">Vad gäller det? <input id="tsName" type="text" placeholder="t.ex. Ugnen, Potatisen"></label>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn ghost" id="tsClose">Avbryt</button><button class="btn accent" id="tsGo">Starta timer</button></div>`);
+  const start = (ms, label, k) => { closeSheet(); startTimer(ms, label, k); };
+  document.querySelectorAll(".ts-sugg").forEach(b => b.onclick = () => { const t = sugg[+b.dataset.j]; start(t.ms, t.label, t.k); });
+  document.querySelectorAll(".ts-quick [data-m]").forEach(b => b.onclick = () => { const m = +b.dataset.m; $id("tsH").value = m >= 60 ? Math.floor(m / 60) : ""; $id("tsM").value = m % 60 || ""; document.querySelectorAll(".ts-quick .ftag").forEach(x => x.classList.toggle("on", x === b)); });
+  $id("tsClose").onclick = closeSheet;
+  $id("tsGo").onclick = () => {
+    const ms = ((+$id("tsH").value || 0) * 60 + (+$id("tsM").value || 0)) * 6e4;
+    if (ms < 6e4) { toast("Ange en tid först"); $id("tsM").focus(); return; }
+    const name = $id("tsName").value.trim();
+    start(ms, `${name || "Egen timer"}: ${fmt(ms)}`, "");
+  };
+}
 function stopTimer(id){
   if (!cookSession) return;
   cookSession.timers = (cookSession.timers || []).filter(t => t.id !== id); saveCook(); renderCookBar();
@@ -2135,6 +2162,7 @@ function renderCookBar(){
   const done = steps.filter((x, i) => !x.startsWith("#") && (cookSession.done || {})["s" + i]).length;
   const timers = (cookSession.timers || []).slice().sort((a, b) => a.end - b.end);
   bar.innerHTML = `<button class="cb-main" data-a="cookbar"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="t"><span>Lagar nu${real.length ? ` · steg ${Math.min(done + 1, real.length)}/${real.length}` : ""}</span><b>${esc(r.title || "")}</b></span></button>
+    <button class="tm tm-add" data-a="timernew" aria-label="Sätt timer">+ ⏱</button>
     ${timers.map(t => `<button class="tm ${t.end <= Date.now() ? "ring" : ""}" data-a="timerstop" data-id="${t.id}" title="${esc(t.label)} – tryck för att stänga av"><span data-end="${t.end}">${t.end <= Date.now() ? "Klar!" : "⏱ " + fmtLeft(t.end - Date.now())}</span></button>`).join("")}`;
 }
 let audioCtx = null;
