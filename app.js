@@ -2022,12 +2022,12 @@ function writeCookLocal(at){ try { cookSession ? localStorage.setItem(COOK_KEY()
 const cookLocalAt = () => { try { return +localStorage.getItem("cookAt:" + (me || "")) || 0; } catch { return 0; } };
 // Synk mellan enheter: matlagningen sparas också i en egen rad i databasen (_cook_<e-post>)
 const COOK_ROW = () => "_cook_" + String(me || "").toLowerCase();
-let cookPushT = null;
+let cookPushT = null, cookSyncWarned = false;
 function pushCook(){
   if (!me || !sb) return;
   clearTimeout(cookPushT);
   cookPushT = setTimeout(() => {
-    sb.from("recipes").upsert({ id: COOK_ROW(), data: { cook: true, addedBy: me, session: cookSession, updatedAt: cookLocalAt() } }).then(({ error }) => { if (error) console.warn("cook sync", error.message); }, () => {});
+    sb.from("recipes").upsert({ id: COOK_ROW(), data: { cook: true, addedBy: me, session: cookSession, updatedAt: cookLocalAt() } }).then(({ error }) => { if (error && !cookSyncWarned) { cookSyncWarned = true; toast("Kunde inte synka matlagningen till dina andra enheter: " + error.message); } }, () => {});
   }, 400);
 }
 function applyRemoteCook(d){
