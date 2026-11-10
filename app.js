@@ -792,7 +792,7 @@ async function runImport(){
 Svara ENDAST med ett JSON-objekt, utan förklaring:
 {"title": string, "servings": number eller null, "time": string (t.ex. "45 min", tom om okänt), "tags": [string], "ingredients": [string], "steps": [string], "notes": string}
 Regler:
-- ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ".
+- ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ". Behåll ALLA tidsangivelser från källan (koktid, stektid, ugnstid, vila, marinering, jäsning) i det steg där de hör hemma och skriv dem med siffror och enhet, t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek" – aldrig bara "en stund" om källan anger en tid. Står tiden bara i receptets inledning eller i en totaltid, för in den i rätt steg om det framgår vilket.
 - steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
 - tags: 2–5 korta taggar på svenska i gemener (t.ex. "pasta", "kyckling", "vegetariskt", "grill", "vardag").
 - notes: eventuella tips från källan, kort. Annars tom sträng.
@@ -1292,7 +1292,7 @@ Justera mängder, steg och tid när ändringen kräver det (t.ex. om en ingredie
 Svara ENDAST med JSON:
 {"title": string, "servings": number eller null, "time": string, "ingredients": [string], "steps": [string], "summary": string}
 - ingredients: en per rad, mängd först. Rubriker som börjar med "# " får finnas.
-- steps: ett steg per element, utan numrering. Rubriker som börjar med "# " får finnas (t.ex. "# Dagen innan", "# Vid servering") – behåll befintliga och lägg till om användaren ber om det.
+- steps: ett steg per element, utan numrering. Rubriker som börjar med "# " får finnas (t.ex. "# Dagen innan", "# Vid servering") – behåll befintliga och lägg till om användaren ber om det. Behåll alla tidsangivelser i stegen och skriv dem med siffror och enhet, t.ex. "15 min", "1 h".
 - summary: en kort mening på svenska om vad du ändrade, t.ex. "Bytte grädde mot crème fraiche och tog bort koriander."
 
 NUVARANDE RECEPT:
