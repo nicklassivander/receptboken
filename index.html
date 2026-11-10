@@ -700,6 +700,22 @@ body.has-cookbar .masthead .nav, body.has-cookbar header nav{visibility:visible}
 @keyframes ringshake{0%,100%{transform:rotate(0)}10%,30%{transform:rotate(-14deg)}20%,40%{transform:rotate(14deg)}50%{transform:rotate(0)}}
 @keyframes fadein{from{opacity:0}to{opacity:1}}
 .alarm-btns .btn{white-space:normal;line-height:1.3}
+/* Aktivitet (superanvändare) */
+.aa-period{display:flex;gap:6px;margin:0 0 12px}
+.aa-users{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:12px}
+.aa-user{text-align:left;background:#fff;border:1px solid #ddd4c6;padding:9px 11px;font:inherit;cursor:pointer;color:var(--ink);display:flex;flex-direction:column;gap:2px}
+.aa-user:hover{border-color:var(--brass)}
+.aa-user.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.aa-user b{font-family:var(--serif);font-weight:500;font-size:17px}
+.aa-user span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass)}
+.aa-user small{font-size:12px;color:#7d766e;line-height:1.45;margin-top:3px}
+.aa-filter{font-size:14px;margin:4px 0 8px}
+.aa-day h4{font-family:var(--serif);font-weight:400;font-size:18px;margin:14px 0 4px;text-transform:capitalize;border-bottom:1px solid #e6dfd4;padding-bottom:3px}
+.aa-ev{display:grid;grid-template-columns:46px 1fr;gap:8px;padding:5px 0;font-size:14px;line-height:1.45}
+.aa-ev time{color:#8a837b;font-variant-numeric:tabular-nums}
+.aa-ev small{display:block;color:#8a837b;font-size:12px}
+.aa-ev .aa-dev{display:inline;margin-left:6px}
+.aa-ev .aa-r{font-size:14px;text-transform:none;letter-spacing:0;padding:0;text-decoration:underline;color:var(--ink)}
 </style>
 </head>
 <body>

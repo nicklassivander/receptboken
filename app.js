@@ -199,9 +199,11 @@ async function patch(id, data){
   try { await p; return true; } catch { toast("Kunde inte spara"); loadAll(); return false; }
 }
 async function deleteRecipe(id){
+  const gone = recipes.find(r => r.id === id);
   const { error } = await sb.from("recipes").delete().eq("id", id);
   if (error) { toast("Kunde inte radera"); return false; }
   recipes = recipes.filter(r => r.id !== id);
+  logEvent("delete", gone || { id });
   return true;
 }
 
@@ -296,7 +298,7 @@ function render(){
   $app.classList.toggle("wide", view.name === "list");
   syncHistory();
   syncWakeLock();
-  if (view.name === "detail") return renderDetail();
+  if (view.name === "detail") { logView(view.id); return renderDetail(); }
   if (view.name === "edit") return renderEdit();
   if (view.name === "help") return renderHelp();
   renderList();
@@ -790,6 +792,7 @@ async function runImport(){
   s.translate = document.getElementById("imp-tr").checked;
   if (!s.text && !s.shots.length && !s.url) { s.error = "Klistra in en länk, recepttexten" + (sampleImages ? " eller en skärmdump." : "."); return renderImport(); }
   s.busy = true; s.error = ""; renderImport();
+  logEvent("import", null, { url: s.url ? (() => { try { return new URL(s.url).host; } catch { return s.url.slice(0, 60); } })() : null, bilder: s.shots.length || 0, text: !!s.text });
 
   // Bara en länk: hämta sidan via servern
   let pageImage = null;
@@ -947,8 +950,8 @@ document.addEventListener("click", async e => {
     case "cookstart": startCooking(cur); break;
     case "cookstop":
       if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Säker?"; break; }
-      endCooking(); toast("Tillagningen avbruten"); render(); break;
-    case "cookdone": { const r0 = cur; endCooking(); render(); openHistory(r0); toast("Snyggt! Sätt betyg och spara tillagningen"); break; }
+      logEvent("cook_cancel", cur); endCooking(); toast("Tillagningen avbruten"); render(); break;
+    case "cookdone": { const r0 = cur; logEvent("cook_done", r0); endCooking(); render(); openHistory(r0); toast("Snyggt! Sätt betyg och spara tillagningen"); break; }
     case "timer": startTimer(+el.dataset.ms, el.dataset.label, el.dataset.k); break;
     case "timerstop": stopTimer(el.dataset.id); break;
     case "timernew": openTimerSheet(); break;
@@ -968,7 +971,7 @@ document.addEventListener("click", async e => {
     }
     case "togglefav": {
       const f = favsOf(cur); const nf = f.includes(me) ? f.filter(x => x !== me) : f.concat(me);
-      await patch(cur.id, { favBy: nf }); toast(nf.includes(me) ? "Sparad bland dina favoriter" : "Borttagen från dina favoriter"); break; }
+      await patch(cur.id, { favBy: nf }); logEvent(nf.includes(me) ? "fav" : "unfav", cur); toast(nf.includes(me) ? "Sparad bland dina favoriter" : "Borttagen från dina favoriter"); break; }
     case "histadd": openHistory(cur); break;
     case "histedit": openHistory(cur, el.dataset.h); break;
     case "histdel":
@@ -1055,7 +1058,9 @@ document.addEventListener("click", async e => {
       if (!draft.variantOf) { delete draft.original; if (!draft.id) draft.myChanges = ""; }
       delete draft._fillIn;
       const needName = draft.variantOf && (!draft.variantName || draft.variantNameAuto);
+      const isNew = !draft.id;
       const id = await saveRecipe(draft);
+      if (id) logEvent(isNew ? (draft.variantOf ? "variant" : "add") : "edit", { id, title: draft.title });
       if (id && draft.variantOf) namingTried.delete(id);
       if (id && needName) nameVariant(id, true);
       if (id) {
@@ -1095,6 +1100,7 @@ function openSettings(){
     <p class="sub">Inloggad som ${esc(me || "")} · ${esc(ROLE_LABEL[role] || "Ingen behörighet")}</p>
     <div class="actions" style="flex-direction:column">
       ${can("admin") ? `<button class="btn ghost" id="usersBtn">Hantera användare${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button>
+      <button class="btn ghost" id="actBtn">Aktivitet</button>
       <button class="btn ghost" id="timesBtn">Lägg in tider i gamla recept</button>
       <button class="btn ghost" id="tagEdBtn">Nyckelord</button>
       <button class="btn ghost" id="tagsBtn">Slå ihop nyckelord</button>
@@ -1108,6 +1114,7 @@ function openSettings(){
   $id("pwBtn").onclick = () => openPasswordSheet(false);
   if ($id("usersBtn")) $id("usersBtn").onclick = openUsers;
   if ($id("timesBtn")) $id("timesBtn").onclick = openTimesTool;
+  if ($id("actBtn")) $id("actBtn").onclick = () => openActivity();
   if ($id("tagsBtn")) $id("tagsBtn").onclick = openMergeTool;
   if ($id("tagEdBtn")) $id("tagEdBtn").onclick = openTagEditor;
   if ($id("importBtn")) {
@@ -1230,6 +1237,7 @@ async function showApp(session){
   if (!role) { storageOk = false; loaded = true; render(); return; }
   await loadAll(); subscribe(); handleShare(); refreshRequests();
   resumeCooking();
+  logOpen();
   const md = (session.user && session.user.user_metadata) || {};
   if (!md.has_password) openPasswordSheet(true);
 }
@@ -2000,6 +2008,7 @@ function askVariantOrOriginal(base){
     v.original = { servings: base.servings || null, ingredients: base.ingredients || [], steps: base.steps || [] };
     v.photo = draft.photo || base.photo || null;
     const id = await saveRecipe(v);
+    if (id) logEvent("variant", { id, title: v.title });
     closeSheet();
     if (!id) { toast("Kunde inte spara varianten"); return; }
     nameVariant(id, true);
@@ -2049,7 +2058,7 @@ function startCooking(r){
   saveCook();
   wakeWanted = true;
   detailState.tab = "ing";
-  render(); syncWakeLock();
+  render(); syncWakeLock(); logEvent("cook_start", r);
   toast("Smaklig tillagning! Skärmen hålls tänd.");
 }
 function endCooking(){
@@ -2564,4 +2573,68 @@ async function applyMerge(plan, go){
     if (!sameList(next, old) && canEdit(r)) { if (await patch(r.id, { tags: next, tagsBefore: old })) n++; }
   }
   closeSheet(); render(); toast(`Klart – ${n} recept uppdaterade med de nya nyckelorden`);
+}
+
+// ---------- aktivitetslogg (läses av superanvändare under Konto → Aktivitet) ----------
+let logOff = false;
+function logEvent(kind, r, detail){
+  if (!me || !sb || logOff) return;
+  let dev = ""; try { const d = deviceInfo(); dev = d.kind + (d.installed ? "-app" : ""); } catch {}
+  sb.rpc("recipe_log_event", { p_kind: kind, p_recipe: r && r.id || null, p_title: r && r.title || null, p_detail: detail || null, p_device: dev })
+    .then(({ error }) => { if (error && /function|schema cache|does not exist/i.test(error.message || "")) logOff = true; }, () => {});
+}
+function logOpen(){
+  try { const k = "logOpen:" + me, last = +localStorage.getItem(k) || 0; if (Date.now() - last < 30 * 6e4) return; localStorage.setItem(k, String(Date.now())); } catch {}
+  logEvent("open");
+}
+const loggedViews = {};
+function logView(id){
+  if (!id || Date.now() - (loggedViews[id] || 0) < 15 * 6e4) return;
+  loggedViews[id] = Date.now();
+  const r = recipes.find(x => x.id === id); if (r) logEvent("view", r);
+}
+
+const LOG_TEXT = { open: "öppnade appen", view: "tittade på", cook_start: "började laga", cook_done: "lagade klart", cook_cancel: "avbröt tillagningen av",
+  add: "lade till", edit: "ändrade", variant: "gjorde en variant:", delete: "tog bort", import: "importerade ett recept", fav: "favoritmarkerade", unfav: "tog bort favorit:",
+  added: "lade till", cooked: "lagade" };
+const DEV_TEXT = { ios: "iPhone/iPad", android: "Android", mac: "Mac", pc: "Dator" };
+async function openActivity(days){
+  days = days || 30;
+  openSheet(`<h2>Aktivitet</h2><div class="act-admin"><p class="meta">Laddar …</p></div>`);
+  const box = () => document.querySelector(".act-admin");
+  const { data, error } = await sb.rpc("recipe_admin_activity", { p_days: days });
+  if (!box()) return;
+  let events = [], users = [], note = "";
+  if (error) {
+    note = /function|schema cache|does not exist/i.test(error.message || "")
+      ? "Loggen är inte påslagen än. Kör filen <b>supabase/activity.sql</b> i Supabase (SQL Editor → Run). Tills dess visas bara tillagda och lagade recept."
+      : "Kunde inte hämta loggen: " + esc(error.message);
+    events = activityEvents().filter(e => e.ts > Date.now() - days * 864e5).map(e => ({ at: new Date(e.ts).toISOString(), email: e.by, kind: e.kind === "variant" ? "variant" : e.kind, recipe_id: e.r.id, title: e.r.title }));
+  } else { events = data.events || []; users = data.users || []; }
+  let who = "";
+  const draw = () => {
+    const list = who ? events.filter(e => e.email === who) : events;
+    const fmtT = t => t ? new Date(t).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).replace(".", "") : "–";
+    const byDay = []; for (const e of list.slice(0, 400)) { const d = relDay(Date.parse(e.at)); const g = byDay[byDay.length - 1]; if (g && g.d === d) g.e.push(e); else byDay.push({ d, e: [e] }); }
+    box().innerHTML = `
+      ${note ? `<p class="hnote">${note}</p>` : ""}
+      <div class="aa-period">${[7, 30, 90].map(d => `<button class="ftag ${d === days ? "on" : ""}" data-days="${d}">${d} dagar</button>`).join("")}</div>
+      ${users.length ? `<div class="aa-users">${users.map(u => `<button class="aa-user ${who === u.email ? "on" : ""}" data-who="${esc(u.email)}">
+          <b>${esc(u.name || nameOf(u.email))}</b><span>${esc(ROLE_LABEL[u.role] || u.role)}</span>
+          <small>Inloggad ${esc(fmtT(u.last_sign_in_at))}<br>Senast aktiv ${esc(fmtT(u.last_seen))} · ${u.events_30d} händelser/30 d</small></button>`).join("")}</div>` : ""}
+      ${who ? `<p class="aa-filter">Visar ${esc(nameOf(who))} <button class="linkbtn" data-who="">Visa alla</button></p>` : ""}
+      ${byDay.length ? byDay.map(g => `<div class="aa-day"><h4>${esc(g.d)}</h4>${g.e.map(e => `<div class="aa-ev">
+          <time>${new Date(e.at).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}</time>
+          <span><b>${esc(nameOf(e.email))}</b> ${esc(LOG_TEXT[e.kind] || e.kind)}
+          ${e.title ? (recipes.find(r => r.id === e.recipe_id) ? `<button class="linkbtn aa-r" data-rid="${esc(e.recipe_id)}">${esc(e.title)}</button>` : `<i>${esc(e.title)}</i>`) : ""}
+          ${e.kind === "import" && e.detail ? `<small>${esc([e.detail.url, e.detail.bilder ? e.detail.bilder + " bilder" : "", e.detail.text ? "text" : ""].filter(Boolean).join(" · "))}</small>` : ""}
+          ${e.device ? `<small class="aa-dev">${esc((DEV_TEXT[String(e.device).replace("-app", "")] || e.device) + (String(e.device).endsWith("-app") ? " · app" : ""))}</small>` : ""}</span></div>`).join("")}</div>`).join("")
+        : `<p class="meta" style="padding:14px 0">Ingen aktivitet ${who ? "för " + esc(nameOf(who)) + " " : ""}de senaste ${days} dagarna.</p>`}
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="aaClose">Stäng</button></div>`;
+    box().querySelectorAll("[data-days]").forEach(b => b.onclick = () => openActivity(+b.dataset.days));
+    box().querySelectorAll("[data-who]").forEach(b => b.onclick = () => { who = who === b.dataset.who ? "" : b.dataset.who; draw(); });
+    box().querySelectorAll("[data-rid]").forEach(b => b.onclick = () => { closeSheet(); detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null }; view = { name: "detail", id: b.dataset.rid }; render(); window.scrollTo(0, 0); });
+    $id("aaClose").onclick = closeSheet;
+  };
+  draw();
 }
