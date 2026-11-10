@@ -2278,7 +2278,7 @@ function filterPanelHtml(list){
   const count = t => filter.tags.includes(t) ? list.length : list.filter(r => (r.tags || []).includes(t)).length;
   const used = new Set(recipes.flatMap(r => r.tags || []));
   const other = [...used].filter(t => !tagVocab().includes(t)).sort((a, b) => a.localeCompare(b, "sv"));
-  const groups = tagGroups().concat(other.length ? [["Övrigt", other]] : []);
+  const groups = tagGroups();   // ord utanför listan visas inte här – de hittas via sökfältet
   const btn = t => { const n = count(t), on = filter.tags.includes(t); return `<button class="ftag ${on ? "on" : ""} ${!n && !on ? "dim" : ""}" data-a="tag" data-t="${esc(t)}" ${!n && !on ? "disabled" : ""}>${esc(t)}<small>${n}</small></button>`; };
   return `<div class="fpanel" role="dialog" aria-label="Filtrera">
     <div class="fp-head"><h3>Filtrera</h3><button class="iconbtn fp-x" data-a="fclose" aria-label="Stäng">×</button></div>
