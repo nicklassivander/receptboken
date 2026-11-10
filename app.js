@@ -259,7 +259,8 @@ async function blobToB64(blob){
 // ---------- render ----------
 // Webbläsarens historik följer appens vyer, så bakåt-knappen och svepet
 // går tillbaka i appen i stället för att lämna sidan.
-let navFromPop = false, inAppSteps = 0;
+let navFromPop = false, inAppSteps = 0, histIdx = 0;
+try { history.scrollRestoration = "manual"; } catch {}
 const viewKey = v => v.name + ":" + (v.id || "");
 function viewHash(v){
   if (v.name === "detail") return "#r=" + v.id;
@@ -271,23 +272,36 @@ function syncHistory(){
   if (navFromPop) { navFromPop = false; return; }
   const cur = history.state && history.state.v;
   const v = { name: view.name, id: view.id || null };
-  if (!cur) { history.replaceState({ v }, "", viewHash(v).trim() || location.pathname); return; }
+  if (!cur) { history.replaceState({ v, i: histIdx }, "", viewHash(v).trim() || location.pathname); return; }
   if (viewKey(cur) === viewKey(v)) return;
   // Efter att ha sparat ett recept: ersätt redigeringsläget i historiken
-  if (cur.name === "edit" && v.name === "detail") { history.replaceState({ v }, "", viewHash(v)); return; }
-  history.pushState({ v }, "", viewHash(v).trim() || location.pathname);
+  if (cur.name === "edit" && v.name === "detail") { history.replaceState({ v, i: histIdx }, "", viewHash(v)); return; }
+  // Kom ihåg var på sidan man var, så att Tillbaka hamnar på samma ställe
+  history.replaceState({ ...history.state, y: window.scrollY }, "");
+  history.pushState({ v, i: ++histIdx }, "", viewHash(v).trim() || location.pathname);
   inAppSteps++;
 }
 window.addEventListener("popstate", e => {
-  const v = (e.state && e.state.v) || { name: "list" };
-  closeSheet && closeSheet();
+  const st = e.state || {};
+  const v = st.v || { name: "list" };
+  const goingBack = (st.i ?? 0) < histIdx;
+  histIdx = st.i ?? 0;
+  const sameView = viewKey(v) === viewKey({ name: view.name, id: view.id || null });
+  // Tillbaka med en ruta öppen: stäng bara rutan
+  if (sheetIsOpen()) { closeSheet(true); if (sameView) { inAppSteps = Math.max(0, inAppSteps - 1); return; } }
+  // Överhoppad post (en ruta som stängts med ×): gå vidare i samma riktning
+  if (st.dup) { inAppSteps = Math.max(0, inAppSteps - 1); goingBack ? history.back() : history.forward(); return; }
+  if (st.sheet && sameView) return;
   if (v.name === "edit" && !draft) { view = v.id ? { name: "detail", id: v.id } : { name: "list" }; }
   else view = v.id ? { name: v.name, id: v.id } : { name: v.name };
   if (view.name !== "edit") draft = null;
   menuOpen = false;
   inAppSteps = Math.max(0, inAppSteps - 1);
   navFromPop = true;
-  render(); window.scrollTo(0, 0);
+  render();
+  const y = st.y || 0;
+  window.scrollTo(0, y);
+  if (y) setTimeout(() => window.scrollTo(0, y), 60);   // bilder kan ladda in och flytta sidan
 });
 function goBack(){
   if (inAppSteps > 0) history.back();
@@ -1088,11 +1102,23 @@ document.addEventListener("click", async e => {
 
 
 // ---------- ark (inställningar, användare, lösenord) ----------
+const sheetIsOpen = () => !!document.getElementById("sheet-bg");
 function openSheet(html){
+  // Ny ruta (inte byte av innehåll i en öppen): lägg en post i historiken så att Tillbaka stänger den
+  if (!sheetIsOpen() && history.state && !history.state.sheet) {
+    history.replaceState({ ...history.state, y: window.scrollY }, "");
+    history.pushState({ ...history.state, sheet: true, dup: false, i: ++histIdx }, "");
+    inAppSteps++;
+  }
   document.getElementById("modal-root").innerHTML = `<div class="modal-bg" id="sheet-bg"><div class="modal form" role="dialog">${html}</div></div>`;
   document.getElementById("sheet-bg").addEventListener("click", e => { if (e.target.id === "sheet-bg") closeSheet(); });
 }
-function closeSheet(){ document.getElementById("modal-root").innerHTML = ""; }
+function closeSheet(fromPop){
+  const was = sheetIsOpen();
+  document.getElementById("modal-root").innerHTML = "";
+  // Stängd med ×/knapp: markera rutans historikpost så att Tillbaka hoppar över den
+  if (was && !fromPop && history.state && history.state.sheet) history.replaceState({ ...history.state, sheet: false, dup: true }, "");
+}
 const $id = id => document.getElementById(id);
 
 function openSettings(){
