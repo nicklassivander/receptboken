@@ -326,7 +326,7 @@ function renderList(){
         <div class="thumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : '<svg class="plate" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="32" cy="32" r="15" fill="none" stroke="currentColor" stroke-width=".6"/><path d="M6 14v14M3 14v8a3 3 0 006 0v-8M6 28v24M58 14c-4 2-4 14 0 16v22" fill="none" stroke="currentColor" stroke-width="1"/></svg>'}${isFav(r) ? `<span class="fav" aria-label="Favorit">♥</span>` : ""}</div>
         <div class="body">
           <h3>${esc(r.title || "Namnlöst recept")}</h3>
-          <div class="meta">${sourceBadge(r)}${r.variantOf ? `<span class="badge mod">${esc(genitive(nameOf(addedByOf(r))))} variant</span>` : isModified(r) ? `<span class="badge mod">Min version</span>` : ""}</div>
+          <div class="meta">${sourceBadge(r)}${r.variantOf ? `<span class="badge mod">${esc(variantBadge(r))}</span>` : isModified(r) ? `<span class="badge mod">Min version</span>` : ""}</div>
           <div class="meta" style="margin-top:6px">
             ${r.rating ? `<span>${"★".repeat(r.rating)}</span>` : ""}
             ${r.time ? `<span>${esc(r.time)}</span>` : ""}
@@ -428,15 +428,7 @@ function renderDetail(){
       <span>Tillagd av ${esc(nameOf(addedByOf(r)))}</span>
       ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
     </div>
-    ${(() => {
-      const base = r.variantOf ? recipes.find(x => x.id === r.variantOf) : null;
-      const vs = variantsOf(r);
-      if (!base && !vs.length && !r.variantOf) return "";
-      return `<div class="variants">
-        ${r.variantOf ? (base ? `<span>Variant av <button class="linkbtn" data-a="open" data-id="${esc(base.id)}">${esc(genitive(nameOf(addedByOf(base))))} recept</button></span>` : `<span>Variant av ett borttaget recept</span>`) : ""}
-        ${vs.length ? `<span>Varianter: ${vs.map(v => `<button class="linkbtn" data-a="open" data-id="${esc(v.id)}">${esc(genitive(nameOf(addedByOf(v))))} variant</button>`).join(" · ")}</span>` : ""}
-      </div>`;
-    })()}
+    ${variantSwitcher(r)}
 
     ${(!ings.length || !steps.length || (r.tags || []).includes("att komplettera")) && canEdit(r) ? `<div class="panel changes"><h2>Receptet är inte komplett</h2>
       <p style="margin:0 0 12px">Ta skärmdumpar av receptet i videon eller på sidan och lägg till dem här, så fyller Claude i det som saknas.</p>
@@ -527,6 +519,8 @@ function renderEdit(){
     <form class="form" id="f" autocomplete="off">
       <label>Namn</label>
       <input type="text" name="title" value="${esc(d.title)}" placeholder="t.ex. Krämig svamppasta" required>
+      ${d.variantOf ? `<label>Variantens namn</label>
+      <input type="text" name="variantName" maxlength="30" value="${esc(d.variantNameAuto ? "" : d.variantName || "")}" placeholder="${d.variantName ? esc(d.variantName) + " (föreslaget av AI)" : "Lämna tomt så döper AI varianten efter skillnaderna"}">` : ""}
 
       <label>Länk till källan</label>
       <input type="url" name="sourceUrl" value="${esc(d.sourceUrl)}" placeholder="https://www.instagram.com/p/… eller receptsidan">
@@ -581,6 +575,11 @@ function readForm(){
   draft.steps = linesOf(v("steps")).map(s => s.replace(/^\d+[.)]\s*/, ""));
   draft.myChanges = v("myChanges").trim();
   draft.notes = v("notes").trim();
+  if (f.elements.variantName) {
+    const vn = v("variantName").trim();
+    if (vn) { draft.variantName = vn; draft.variantNameAuto = false; }
+    else if (!draft.variantNameAuto) { draft.variantName = ""; }
+  }
 }
 
 function compress(file, max = 900, maxLen = 170000){
@@ -933,7 +932,8 @@ document.addEventListener("click", async e => {
     case "variant": {
       const v = JSON.parse(JSON.stringify(cur));
       ["id", "createdAt", "updatedAt", "history", "cookLog", "favBy", "favorite", "rating", "timesCooked", "lastCooked", "addedBy", "myChanges"].forEach(k => delete v[k]);
-      v.variantOf = cur.id;
+      v.variantOf = cur.variantOf || cur.id;
+      delete v.variantName; delete v.variantNameAuto;
       v.original = { servings: cur.servings || null, ingredients: cur.ingredients || [], steps: cur.steps || [] };
       v.myChanges = "";
       draft = v; view = { name: "edit" }; render(); window.scrollTo(0, 0);
@@ -959,7 +959,7 @@ document.addEventListener("click", async e => {
       $id("mvYes").onclick = async () => {
         $id("mvYes").disabled = true;
         const v = cur;
-        const line = `${today()}: Uppdaterad med ${genitive(nameOf(addedByOf(v)))} variant.` + (v.myChanges ? "\n" + v.myChanges : "");
+        const line = `${today()}: Uppdaterad med varianten ${variantLabel(v)} (${nameOf(addedByOf(v))}).` + (v.myChanges ? "\n" + v.myChanges : "");
         const ok = await patch(base.id, {
           ingredients: v.ingredients || [], steps: v.steps || [], servings: v.servings || base.servings || null,
           original: base.original || { servings: base.servings || null, ingredients: base.ingredients || [], steps: base.steps || [] },
@@ -1002,7 +1002,9 @@ document.addEventListener("click", async e => {
       readForm();
       if (!draft.title) { toast("Ge receptet ett namn"); document.querySelector('[name=title]').focus(); return; }
       const btn = document.getElementById("savebtn"); btn.disabled = true; btn.textContent = "Sparar …";
+      const needName = draft.variantOf && (!draft.variantName || draft.variantNameAuto);
       const id = await saveRecipe(draft);
+      if (id && needName) nameVariant(id, true);
       if (id) {
         toast("Receptet sparat"); detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
         const wasExisting = !!draft.id; draft = null;
@@ -1245,7 +1247,7 @@ function listRows(list){
       <div class="rthumb">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : ""}</div>
       <div class="rmain">
         <h3>${isNewForMe(r) ? `<span class="newtag">Nytt</span> ` : ""}${esc(r.title || "Namnlöst recept")}${isFav(r) ? ` <span class="rfav" aria-label="Favorit">♥</span>` : ""}</h3>
-        <div class="rmeta">${sourceBadge(r)}${r.variantOf ? `<span class="badge mod">${esc(genitive(nameOf(addedByOf(r))))} variant</span>` : isModified(r) ? `<span class="badge mod">Min version</span>` : ""}${(r.tags || []).slice(0, 3).map(t => `<span>${esc(t)}</span>`).join("")}</div>
+        <div class="rmeta">${sourceBadge(r)}${r.variantOf ? `<span class="badge mod">${esc(variantBadge(r))}</span>` : isModified(r) ? `<span class="badge mod">Min version</span>` : ""}${(r.tags || []).slice(0, 3).map(t => `<span>${esc(t)}</span>`).join("")}</div>
       </div>
       <div class="rside">
         ${r.rating ? `<span class="rstars">${"★".repeat(r.rating)}</span>` : ""}
@@ -1734,6 +1736,7 @@ function renderHelp(){
       <ul>
         <li>Du kan ändra och radera <b>dina egna</b> recept.</li>
         <li>Vill du ändra någon annans: tryck <b>Gör min egen variant</b> – du får en egen kopia. Du kan göra hur många varianter du vill, även av dina egna recept (<b>Gör en variant</b>).</li>
+        <li>Varianter får automatiskt ett namn efter vad som skiljer dem från originalet, t.ex. <i>Extra stark</i> eller <i>Utan grädde</i>. Vill du döpa själv skriver du namnet under <b>Redigera</b>. Byt mellan originalet och varianterna med raden <b>Varianter</b> under rubriken.</li>
         <li>Är grundreceptet ditt kan du föra över en variant till det med <b>Uppdatera grundreceptet</b> längst ner i varianten.</li>
         <li><b>Gör Min version till nytt original</b> under Mina ändringar sparar dina ändringar som receptets nya original.</li>
         <li>Filtren <b>Tillagda av mig</b> och <b>Lagade av mig</b> överst i listan visar dina egna recept och det du har lagat.</li>
@@ -1849,4 +1852,57 @@ function activityHtml(){
       ${pool.length > items.length ? `<button class="linkbtn act-more" data-a="actmore">Visa fler</button>` : ""}
     </div>` : ""}
   </div>`;
+}
+
+// ---------- varianter: namn efter skillnaderna och variantrad ----------
+const familyRoot = r => { let x = r, n = 0; while (x && x.variantOf && n++ < 5) { const b = recipes.find(y => y.id === x.variantOf); if (!b) break; x = b; } return x; };
+function familyOf(r){
+  const root = familyRoot(r);
+  const kids = recipes.filter(x => x.id !== root.id && familyRoot(x) && familyRoot(x).id === root.id)
+    .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+  return { root, kids };
+}
+function variantLabel(v){
+  if (v.variantName) return v.variantName;
+  const { kids } = familyOf(v);
+  const same = kids.filter(k => !k.variantName && addedByOf(k) === addedByOf(v));
+  const n = same.length > 1 ? " " + (same.indexOf(v) + 1) : "";
+  return genitive(nameOf(addedByOf(v))) + " variant" + n;
+}
+const variantBadge = v => v.variantName ? `Variant: ${v.variantName}` : variantLabel(v);
+function variantSwitcher(r){
+  const { root, kids } = familyOf(r);
+  if (!kids.length) return r.variantOf ? `<div class="vswitch"><span class="hnote">Variant av ett borttaget recept</span></div>` : "";
+  // namnge äldre varianter utan namn (bara den som får ändra dem)
+  kids.forEach(k => { if (!k.variantName && canEdit(k)) nameVariant(k.id); });
+  const chip = (x, label, who) => `<button class="vchip ${x.id === r.id ? "on" : ""}" ${x.id === r.id ? 'aria-current="true"' : `data-a="open" data-id="${esc(x.id)}"`}>${esc(label)}${who ? `<small>${esc(who)}</small>` : ""}</button>`;
+  return `<div class="vswitch" role="tablist" aria-label="Varianter">
+    <span class="vlab">Varianter</span>
+    ${chip(root, "Original", nameOf(addedByOf(root)))}
+    ${kids.map(k => chip(k, variantLabel(k), nameOf(addedByOf(k)))).join("")}
+  </div>`;
+}
+const namingNow = new Set(), namingTried = new Set();
+async function nameVariant(id, force){
+  const v = recipes.find(x => x.id === id);
+  if (!v || !v.variantOf || namingNow.has(id) || (!force && (v.variantName || namingTried.has(id))) || !canEdit(v)) return;
+  namingTried.add(id);
+  namingNow.add(id);
+  const { root, kids } = familyOf(v);
+  if (!root || root.id === v.id) return;
+  try {
+    const others = kids.filter(k => k.id !== id && k.variantName).map(k => k.variantName);
+    const fmt = x => `Portioner: ${x.servings || "-"}\nIngredienser:\n${(x.ingredients || []).join("\n")}\nSteg:\n${(x.steps || []).join("\n")}`;
+    const prompt = `Två versioner av samma recept, "${root.title}". Ge VARIANTEN ett kort svenskt namn (1–3 ord, högst 24 tecken) som beskriver den viktigaste skillnaden mot GRUNDRECEPTET, t.ex. "Extra stark", "Utan grädde", "Med lax", "Dubbel sats", "Vegetarisk". Svara bara med namnet, utan citattecken eller punkt.${others.length ? ` Andra varianter heter redan: ${others.join(", ")} – välj ett namn som skiljer sig.` : ""} Om det inte finns någon tydlig skillnad, svara "Egen version".
+
+GRUNDRECEPTET:
+${fmt(root)}
+
+VARIANTEN:
+${fmt(v)}`;
+    let name = String(await ai(prompt) || "").split("\n")[0].replace(/["”“'.*]/g, "").trim();
+    name = name.charAt(0).toUpperCase() + name.slice(1);
+    if (!name || name.length > 30) return;
+    if (await patch(id, { variantName: name, variantNameAuto: true })) { if (view.name === "detail" || view.name === "list") render(); }
+  } catch {} finally { namingNow.delete(id); }
 }
