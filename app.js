@@ -21,8 +21,11 @@ const tagVocab = () => tagGroups().flatMap(g => g[1]);
 function splitSettings(list){
   const st = list.find(r => r.id === SETTINGS_ID);
   if (st && Array.isArray(st.groups)) customTagGroups = st.groups;
-  return list.filter(r => r.id !== SETTINGS_ID);
+  const mine = list.find(r => me && r.id === "_cook_" + String(me).toLowerCase());
+  if (mine) pendingRemoteCook = mine;
+  return list.filter(r => r.id !== SETTINGS_ID && !String(r.id).startsWith("_cook_"));
 }
+let pendingRemoteCook = null;
 // Telefon/surfplatta med kamera: visa "Ta foto" (öppnar kameran direkt)
 const HAS_CAMERA = matchMedia("(pointer: coarse)").matches && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? " ipad" : ""));
 let pendingReqs = 0;  // förfrågningar om tillgång (bara superanvändare)
@@ -118,14 +121,17 @@ async function loadAll(){
   recipes = splitSettings((rows || []).map(r => ({ ...r.data, id: r.id })));
   writeCache();
   if (view.name !== "edit") render();
+  if (pendingRemoteCook) { const d = pendingRemoteCook; pendingRemoteCook = null; applyRemoteCook(d.cook ? d : null); }
+  else if (me) { if (!cookSession) loadCook(); if (cookSession) saveCook(); }   // första gången: lägg upp pågående matlagning
 }
 let subscribed = false;
 function subscribe(){
   if (subscribed) return; subscribed = true;
   sb.channel("recept")
     .on("postgres_changes", { event: "*", schema: "public", table: "recipes" }, p => {
-      if (p.eventType === "DELETE") recipes = recipes.filter(r => r.id !== p.old.id);
+      if (p.eventType === "DELETE") { if (String(p.old.id || "").startsWith("_cook_")) return; recipes = recipes.filter(r => r.id !== p.old.id); }
       else if (p.new.id === SETTINGS_ID) { customTagGroups = (p.new.data || {}).groups || null; }
+      else if (String(p.new.id).startsWith("_cook_")) { if (me && p.new.id === "_cook_" + String(me).toLowerCase()) applyRemoteCook(p.new.data); return; }
       else {
         const r = { ...p.new.data, id: p.new.id };
         const i = recipes.findIndex(x => x.id === r.id);
@@ -2011,7 +2017,29 @@ const COOK_KEY = () => "cook:" + (me || "");
 function loadCook(){ try { cookSession = JSON.parse(localStorage.getItem(COOK_KEY()) || "null"); } catch { cookSession = null; } if (cookSession && loaded && !recipes.find(r => r.id === cookSession.recipeId)) cookSession = null;
   // Glömd matlagning: efter 12 timmar utan aktiv timer avslutas den tyst (räknas inte som lagad)
   if (cookSession && Date.now() - (cookSession.startedAt || 0) > 12 * 36e5 && !(cookSession.timers || []).some(t => t.end > Date.now())) { cookSession = null; saveCook(); } }
-function saveCook(){ try { cookSession ? localStorage.setItem(COOK_KEY(), JSON.stringify(cookSession)) : localStorage.removeItem(COOK_KEY()); } catch {} }
+function saveCook(){ writeCookLocal(Date.now()); pushCook(); }
+function writeCookLocal(at){ try { cookSession ? localStorage.setItem(COOK_KEY(), JSON.stringify(cookSession)) : localStorage.removeItem(COOK_KEY()); localStorage.setItem("cookAt:" + (me || ""), String(at)); } catch {} }
+const cookLocalAt = () => { try { return +localStorage.getItem("cookAt:" + (me || "")) || 0; } catch { return 0; } };
+// Synk mellan enheter: matlagningen sparas också i en egen rad i databasen (_cook_<e-post>)
+const COOK_ROW = () => "_cook_" + String(me || "").toLowerCase();
+let cookPushT = null;
+function pushCook(){
+  if (!me || !sb) return;
+  clearTimeout(cookPushT);
+  cookPushT = setTimeout(() => {
+    sb.from("recipes").upsert({ id: COOK_ROW(), data: { cook: true, addedBy: me, session: cookSession, updatedAt: cookLocalAt() } }).then(({ error }) => { if (error) console.warn("cook sync", error.message); }, () => {});
+  }, 400);
+}
+function applyRemoteCook(d){
+  if (!d || !me) return;
+  const at = +d.updatedAt || 0;
+  if (at === cookLocalAt()) return;          // redan i takt
+  if (at < cookLocalAt()) { pushCook(); return; }   // vi har nyare (t.ex. ändrat offline)
+  cookSession = d.session || null;
+  if (cookSession && !recipes.find(r => r.id === cookSession.recipeId)) cookSession = null;
+  writeCookLocal(at);
+  if (view.name !== "edit") render(); else renderCookBar();
+}
 function startCooking(r){
   if (cookSession && cookSession.recipeId !== r.id) {
     const other = recipes.find(x => x.id === cookSession.recipeId);
