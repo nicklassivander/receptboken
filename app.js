@@ -1033,11 +1033,16 @@ async function openUsers(){
       return `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e8da">
         <div><strong>${esc(u.name || u.email.split("@")[0])}</strong>${self ? ' <span class="meta">(du)</span>' : ""}<div class="meta">${esc(u.email)}</div></div>
         ${self ? `<span class="badge">${ROLE_LABEL[u.role]}</span>` : `<span class="row"><select data-urole="${esc(u.email)}" data-uname="${esc(u.name || "")}" style="width:auto;padding:6px 8px;font-size:13px">${opts}</select>
+        <button class="btn ghost small" data-ulink="${esc(u.email)}" type="button" title="Skicka en ny inloggningslänk">Skicka länk</button>
         <button class="btn danger small" data-udel="${esc(u.email)}" type="button">Ta bort</button></span>`}</div>`;
     }).join("");
     $id("uList").querySelectorAll("[data-urole]").forEach(sel => sel.onchange = async () => {
       const { error } = await sb.rpc("recipe_admin_upsert_user", { p_email: sel.dataset.urole, p_name: sel.dataset.uname, p_role: sel.value });
       toast(error ? error.message : "Behörigheten är ändrad"); load();
+    });
+    $id("uList").querySelectorAll("[data-ulink]").forEach(b => b.onclick = async () => {
+      b.disabled = true; const err = await sendLoginLink(b.dataset.ulink); b.disabled = false;
+      toast(err ? "Länken gick inte iväg: " + err : "Inloggningslänk skickad till " + b.dataset.ulink);
     });
     $id("uList").querySelectorAll("[data-udel]").forEach(b => { let armed = false; b.onclick = async () => {
       if (!armed) { armed = true; b.textContent = "Säker?"; b.classList.add("armed"); return; }
@@ -1050,9 +1055,11 @@ async function openUsers(){
     const email = $id("uEmail").value.trim().toLowerCase(), name = $id("uName").value.trim(), r = $id("uRole").value;
     const { error } = await sb.rpc("recipe_admin_upsert_user", { p_email: email, p_name: name, p_role: r });
     if (error) { $id("uErr").textContent = error.message; return; }
-    if ($id("uInvite").checked) await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
+    let linkErr = null;
+    if ($id("uInvite").checked) linkErr = await sendLoginLink(email);
     $id("uEmail").value = ""; $id("uName").value = "";
-    toast(`${name || email} är tillagd${$id("uInvite").checked ? " och har fått en inloggningslänk" : ""}`);
+    if (linkErr) { $id("uErr").textContent = `${name || email} är tillagd, men inloggningslänken gick inte iväg: ${linkErr}`; }
+    else toast(`${name || email} är tillagd${$id("uInvite").checked ? " och har fått en inloggningslänk" : ""}`);
     load();
   };
   window.__reloadUsers = load;
@@ -1484,8 +1491,9 @@ async function renderRequests(){
   const resolve = async (id, roleVal, label) => {
     const req = list.find(x => String(x.id) === String(id));
     const { error } = await sb.rpc("recipe_admin_resolve_request", { p_id: +id, p_role: roleVal });
-    if (!error && roleVal && req) { try { await sb.auth.signInWithOtp({ email: req.email, options: { emailRedirectTo: location.origin } }); } catch {} }
-    toast(error ? error.message : label);
+    let linkErr = null;
+    if (!error && roleVal && req) linkErr = await sendLoginLink(req.email);
+    toast(error ? error.message : linkErr ? "Godkänd, men inloggningslänken gick inte iväg: " + linkErr : label);
     renderRequests(); if (window.__reloadUsers) window.__reloadUsers();
   };
   box.querySelectorAll("[data-rok]").forEach(b => b.onclick = () => resolve(b.dataset.rok, box.querySelector(`[data-rrole="${b.dataset.rok}"]`).value, "Godkänd – personen har fått en inloggningslänk i mejlen"));
@@ -1686,4 +1694,16 @@ function renderHelp(){
     <p class="help-pdf"><a href="/hjalp.pdf" target="_blank" rel="noopener">Ladda ner instruktionen som PDF</a> – för utskrift eller att skicka vidare.</p>
     <p class="hnote" style="text-align:center;margin:8px 0 60px">Något som krånglar? Säg till Nicklas.</p>
   </div>`;
+}
+
+// Skicka inloggningslänk och berätta tydligt om det inte gick (Supabase begränsar antalet mejl)
+async function sendLoginLink(email){
+  try {
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
+    if (!error) return null;
+    const m = String(error.message || "");
+    if (error.status === 429 || /rate limit|too many|seconds/i.test(m)) return "för många mejl har skickats den senaste timmen. Vänta en stund och tryck Skicka länk igen.";
+    if (/signups not allowed|not allowed/i.test(m)) return "nya konton är avstängda i Supabase – bjud in via Authentication → Users → Invite user.";
+    return m;
+  } catch (e) { return e.message || "okänt fel"; }
 }
