@@ -1,5 +1,5 @@
 // Sivander's Recept – service worker: offline, snabb start och "Dela till" (Android)
-const VERSION = "v1";
+const VERSION = "v3";
 const SHELL = "shell-" + VERSION, RUNTIME = "runtime-" + VERSION, INBOX = "share-inbox";
 const SHELL_FILES = ["/", "/index.html", "/app.js", "/config.js", "/logo.svg", "/icon.svg", "/header.jpg", "/header-sm.jpg",
   "/manifest.webmanifest", "/icon-192.png", "/apple-touch-icon.png",
@@ -66,4 +66,23 @@ self.addEventListener("fetch", e => {
   if (url.pathname.includes("/storage/v1/object/public/") || url.host === "fonts.gstatic.com" || url.host === "fonts.googleapis.com") { e.respondWith(cacheFirst(req)); return; }
   if (url.host === "cdn.jsdelivr.net") { e.respondWith(networkFirst(req, SHELL)); return; }
   // allt annat (Supabase-data, inloggning) går direkt mot nätet
+});
+
+// ---------- pushnotiser (timers) ----------
+self.addEventListener("push", e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || "Sivander's Recept", {
+    body: d.body || "", icon: "/icon-192.png", badge: "/favicon-32.png", tag: d.tag, renotify: true,
+    requireInteraction: true, vibrate: [300, 150, 300, 150, 300], data: { url: d.url || "/" },
+  }));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin).href;
+  e.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of all) { if (c.url.startsWith(self.location.origin)) { await c.focus(); return; } }
+    await self.clients.openWindow(url);
+  })());
 });

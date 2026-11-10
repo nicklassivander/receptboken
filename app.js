@@ -1984,7 +1984,10 @@ function startCooking(r){
   render(); syncWakeLock();
   toast("Smaklig tillagning! Skärmen hålls tänd.");
 }
-function endCooking(){ cookSession = null; saveCook(); wakeWanted = false; syncWakeLock(); }
+function endCooking(){
+  (cookSession && cookSession.timers || []).forEach(t => sb.rpc("recipe_timer_cancel", { p_id: t.id }).then(() => {}, () => {}));
+  cookSession = null; saveCook(); wakeWanted = false; syncWakeLock();
+}
 function openCookRecipe(){
   if (!cookSession) return;
   const r = recipes.find(x => x.id === cookSession.recipeId); if (!r) { endCooking(); render(); return; }
@@ -2024,11 +2027,49 @@ function timerButtons(text, i, n){
 function startTimer(ms, label, k){
   if (!cookSession) return;
   cookSession.timers = (cookSession.timers || []).filter(t => !t.rung);
-  cookSession.timers.push({ id: "t" + Date.now().toString(36), label, k, end: Date.now() + ms, total: ms });
+  const t = { id: "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), label, k, end: Date.now() + ms, total: ms };
+  cookSession.timers.push(t);
   saveCook(); renderCookBar(); toast(`Timer startad: ${label}`);
-  try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch {}
+  const r = recipes.find(x => x.id === cookSession.recipeId);
+  pushTimer(t, r);
 }
-function stopTimer(id){ if (!cookSession) return; cookSession.timers = (cookSession.timers || []).filter(t => t.id !== id); saveCook(); renderCookBar(); }
+function stopTimer(id){
+  if (!cookSession) return;
+  cookSession.timers = (cookSession.timers || []).filter(t => t.id !== id); saveCook(); renderCookBar();
+  sb.rpc("recipe_timer_cancel", { p_id: id }).then(() => {}, () => {});
+}
+
+// Pushnotis när timern går ut, även om appen är stängd (servern skickar den)
+async function ensurePush(){
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return "unsupported";
+    if (Notification.permission === "denied") return "denied";
+    if (Notification.permission === "default" && await Notification.requestPermission() !== "granted") return "denied";
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    const key = (window.APP_CONFIG || {}).vapidPublicKey;
+    if (!key) return "unsupported";
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(key) });
+    const { error } = await sb.rpc("recipe_push_save", { p_sub: sub.toJSON() });
+    return error ? "error" : "ok";
+  } catch { return "error"; }
+}
+const b64ToU8 = b => { const p = "=".repeat((4 - b.length % 4) % 4); const r = atob((b + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+let pushHinted = false;
+async function pushTimer(t, r){
+  const st = await ensurePush();
+  if (st !== "ok") {
+    if (!pushHinted) {
+      pushHinted = true;
+      const d = deviceInfo();
+      if (st === "unsupported" && d.kind === "ios" && !d.installed) toast("Lägg appen på hemskärmen så kan timern ringa även när appen är stängd");
+      else if (st === "denied") toast("Tillåt notiser för appen så ringer timern även när appen är stängd");
+    }
+    return;
+  }
+  const { error } = await sb.rpc("recipe_timer_set", { p_id: t.id, p_fire_at: new Date(t.end).toISOString(), p_title: "⏰ Timern är klar", p_body: `${r ? r.title + " – " : ""}${t.label}`, p_url: "/" + (r ? "#r=" + r.id : "") });
+  if (error && !pushHinted) { pushHinted = true; console.warn("timer push", error.message); }
+}
 const fmtLeft = ms => { const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}` : `${m}:${String(ss).padStart(2, "0")}`; };
 function renderCookBar(){
   let bar = document.getElementById("cookbar");
