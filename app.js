@@ -2067,7 +2067,15 @@ async function pushTimer(t, r){
     }
     return;
   }
-  const { error } = await sb.rpc("recipe_timer_set", { p_id: t.id, p_fire_at: new Date(t.end).toISOString(), p_title: "⏰ Timern är klar", p_body: `${r ? r.title + " – " : ""}${t.label}`, p_url: "/" + (r ? "#r=" + r.id : "") });
+  // Tydlig text: vad som är klart och vad som kommer sedan
+  const steps = (r && r.steps) || [];
+  const idx = t.k ? +String(t.k).slice(1) : -1;
+  const short = x => { x = String(x || "").replace(/\s+/g, " ").trim(); return x.length > 70 ? x.slice(0, 68) + "…" : x; };
+  const stepText = idx >= 0 && steps[idx] ? short(steps[idx]) : t.label;
+  let next = ""; for (let j = idx + 1; j < steps.length; j++) if (!steps[j].startsWith("#")) { next = short(steps[j]); break; }
+  const title = `⏰ KLART: ${stepText}`;
+  const body = `${r ? r.title : ""}${next ? `\nNästa: ${next}` : ""}`;
+  const { error } = await sb.rpc("recipe_timer_set", { p_id: t.id, p_fire_at: new Date(t.end).toISOString(), p_title: title, p_body: body, p_url: "/" + (r ? "#r=" + r.id : "") });
   if (error && !pushHinted) { pushHinted = true; console.warn("timer push", error.message); }
 }
 const fmtLeft = ms => { const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}` : `${m}:${String(ss).padStart(2, "0")}`; };
@@ -2100,6 +2108,7 @@ setInterval(() => {
   for (const t of cookSession.timers) {
     if (t.end <= Date.now() && !t.rung) {
       t.rung = true; rang = true; beep(); toast(`⏰ Klart: ${t.label}`);
+      if (document.visibilityState === "visible") sb.rpc("recipe_timer_cancel", { p_id: t.id }).then(() => {}, () => {});
       try { if (document.hidden && Notification.permission === "granted") new Notification("Timern är klar", { body: t.label, icon: "/icon-192.png" }); } catch {}
     }
   }
@@ -2107,3 +2116,10 @@ setInterval(() => {
   document.querySelectorAll("#cookbar [data-end]").forEach(el => { const left = +el.dataset.end - Date.now(); el.textContent = left <= 0 ? "Klar!" : "⏱ " + fmtLeft(left); el.parentElement.classList.toggle("ring", left <= 0); });
 }, 1000);
 document.addEventListener("click", () => { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === "suspended") audioCtx.resume(); } catch {} }, { once: true });
+
+// Kommer man tillbaka till appen efter att timern ringt: sluta påminna via notiser
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !cookSession) return;
+  (cookSession.timers || []).filter(t => t.end <= Date.now()).forEach(t => sb.rpc("recipe_timer_cancel", { p_id: t.id }).then(() => {}, () => {}));
+  try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch {}
+});
