@@ -357,7 +357,7 @@ function renderList(){
         <button class="btn ${sample ? "ghost" : "accent"}" data-a="new">Skriv eget</button>
       </div></div>`;
   } else if (!list.length) {
-    body = `<div class="empty"><p>Inga recept matchar.</p><button class="btn ghost small" data-a="clear">Rensa filter</button></div>`;
+    body = aiSearch && aiSearch.q === filter.q.trim() && !aiSearch.busy && (aiSearch.items || []).length ? "" : `<div class="empty"><p>Inga recept matchar.</p><button class="btn ghost small" data-a="clear">Rensa filter</button></div>`;
   } else {
     body = layout === "list" ? listRows(list) : `<div class="grid">${list.map(r => `
       <div class="card" data-a="open" data-id="${esc(r.id)}">
