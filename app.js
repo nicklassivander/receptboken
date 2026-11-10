@@ -1067,6 +1067,7 @@ function openSettings(){
     <p class="sub">Inloggad som ${esc(me || "")} · ${esc(ROLE_LABEL[role] || "Ingen behörighet")}</p>
     <div class="actions" style="flex-direction:column">
       ${can("admin") ? `<button class="btn ghost" id="usersBtn">Hantera användare${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button>
+      <button class="btn ghost" id="timesBtn">Lägg in tider i gamla recept</button>
       <button class="btn ghost" id="importBtn">Importera recept från fil</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>` : ""}
       <button class="btn ghost" id="pwBtn">Byt lösenord</button>
@@ -1076,6 +1077,7 @@ function openSettings(){
   $id("closeSheetBtn").onclick = closeSheet;
   $id("pwBtn").onclick = () => openPasswordSheet(false);
   if ($id("usersBtn")) $id("usersBtn").onclick = openUsers;
+  if ($id("timesBtn")) $id("timesBtn").onclick = openTimesTool;
   if ($id("importBtn")) {
     $id("importBtn").onclick = () => $id("importFile").click();
     $id("importFile").onchange = e => { const f = e.target.files[0]; if (f) importFile(f, $id("importBtn")); };
@@ -2129,3 +2131,67 @@ document.addEventListener("visibilitychange", () => {
   (cookSession.timers || []).filter(t => t.end <= Date.now()).forEach(t => sb.rpc("recipe_timer_cancel", { p_id: t.id }).then(() => {}, () => {}));
   try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch {}
 });
+
+// ---------- verktyg: lägg in tidsangivelser i befintliga recept ----------
+function openTimesTool(){
+  const list = recipes.filter(r => canEdit(r) && (r.steps || []).some(x => !x.startsWith("#")));
+  const withTimer = list.filter(r => (r.steps || []).some(x => parseDurations(x).length));
+  openSheet(`<h2>Tider i stegen</h2>
+    <p>Claude går igenom dina recept och skriver in tider med siffror i stegen (t.ex. "15 min", "1 h"), så att de får timerknappar. Bara tider som redan står i receptet – i stegen, under Tid eller i anteckningarna – förs in. Inget annat ändras.</p>
+    <p class="hnote">${list.length} recept att gå igenom, varav ${withTimer.length} redan har minst en timer. Det tar ungefär ${Math.max(1, Math.round(list.length * 6 / 60))} min. Varje ändrat recept kan ångras.</p>
+    <div id="ttList" class="ttlist"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn ghost" id="ttClose">Stäng</button><button class="btn accent" id="ttGo">Starta</button></div>`);
+  let stop = false;
+  $id("ttClose").onclick = () => { stop = true; closeSheet(); };
+  $id("ttGo").onclick = async () => {
+    $id("ttGo").disabled = true; $id("ttGo").textContent = "Arbetar …";
+    const box = $id("ttList"); let changed = 0;
+    for (const r of list) {
+      if (stop || !$id("ttList")) return;
+      const row = document.createElement("div"); row.className = "ttrow";
+      row.innerHTML = `<span class="spinner"></span> ${esc(r.title || "")}`; box.prepend(row);
+      try {
+        const res = await addTimesToRecipe(r);
+        if (res.changed) {
+          changed++;
+          row.innerHTML = `<b>✓ ${esc(r.title || "")}</b> <span class="hnote">${res.added} tider inlagda</span> <button class="linkbtn" data-undo="${esc(r.id)}">Ångra</button>`;
+        } else row.innerHTML = `<span class="hnote">– ${esc(r.title || "")}: inga tider att lägga till</span>`;
+      } catch (e) { row.innerHTML = `<span class="err">! ${esc(r.title || "")}: ${esc(aiErr(e))}</span>`; }
+    }
+    if ($id("ttGo")) { $id("ttGo").textContent = `Klart – ${changed} recept fick tider`; }
+  };
+  $id("ttList").addEventListener("click", async e => {
+    const b = e.target.closest("[data-undo]"); if (!b) return;
+    const r = recipes.find(x => x.id === b.dataset.undo); if (!r || !r.stepsBeforeTimes) return;
+    if (await patch(r.id, { steps: r.stepsBeforeTimes, stepsBeforeTimes: null })) { b.replaceWith(Object.assign(document.createElement("span"), { className: "hnote", textContent: "ångrat" })); }
+  });
+}
+async function addTimesToRecipe(r){
+  const before = (r.steps || []).slice();
+  const prompt = `Här är ett recept. Uppgift: skriv in tidsangivelser i stegen så att varje tid står med siffror och enhet (t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek").
+
+Regler:
+- Ändra ENDAST tidsangivelser. Behåll varje steg ordagrant i övrigt, samma antal steg i samma ordning, rubriker som börjar med "# " oförändrade.
+- Skriv om tider i ord till siffror ("en halvtimme" → "30 min", "ett par timmar" → "2 h").
+- För in en tid i ett steg bara om receptet själv anger den (i stegen, i fältet Tid eller i anteckningarna) och det tydligt framgår vilket steg den hör till. Hitta aldrig på tider.
+- Svara bara med JSON: {"steps": [...], "changed": true/false}
+
+Titel: ${r.title || ""}
+Tid: ${r.time || "-"}
+Anteckningar: ${(r.notes || "-").slice(0, 1500)}
+Steg:
+${JSON.stringify(before)}`;
+  const out = parseJson(await ai(prompt, { mode: "json" }));
+  const steps = Array.isArray(out.steps) ? out.steps.map(x => String(x).trim()) : null;
+  if (!steps || steps.length !== before.length) return { changed: false, added: 0 };
+  // säkerhetskontroll: rubriker orörda och inga stora omskrivningar
+  for (let i = 0; i < steps.length; i++) {
+    if (before[i].startsWith("#") && steps[i] !== before[i]) return { changed: false, added: 0 };
+    if (steps[i].length > before[i].length + 40 || steps[i].length < before[i].length * 0.6) return { changed: false, added: 0 };
+  }
+  const count = arr => arr.reduce((n, x) => n + parseDurations(x).length, 0);
+  const added = count(steps) - count(before);
+  if (sameList(steps, before) || added <= 0) return { changed: false, added: 0 };
+  const ok = await patch(r.id, { steps, stepsBeforeTimes: before });
+  return { changed: !!ok, added };
+}
