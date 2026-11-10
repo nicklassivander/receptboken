@@ -1096,20 +1096,36 @@ function closeSheet(){ document.getElementById("modal-root").innerHTML = ""; }
 const $id = id => document.getElementById(id);
 
 function openSettings(){
-  openSheet(`<h2>Inställningar</h2>
-    <p class="sub">Inloggad som ${esc(me || "")} · ${esc(ROLE_LABEL[role] || "Ingen behörighet")}</p>
-    <div class="actions" style="flex-direction:column">
-      ${can("admin") ? `<button class="btn ghost" id="usersBtn">Hantera användare${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button>
-      <button class="btn ghost" id="actBtn">Aktivitet</button>
-      <button class="btn ghost" id="timesBtn">Lägg in tider i gamla recept</button>
-      <button class="btn ghost" id="tagEdBtn">Nyckelord</button>
-      <button class="btn ghost" id="tagsBtn">Slå ihop nyckelord</button>
-      <button class="btn ghost" id="importBtn">Importera recept från fil</button>
-      <input type="file" id="importFile" accept=".json,application/json" hidden>` : ""}
-      <button class="btn ghost" id="pwBtn">Byt lösenord</button>
-      <button class="btn ghost" id="logoutBtn">Logga ut</button>
-      <button class="btn" id="closeSheetBtn">Stäng</button>
-    </div>`);
+  const I = d => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const ic = {
+    users: I('<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.8 14.2c2.3.2 4 1.8 4.7 4.8"/>'),
+    act: I('<path d="M3 12h4l2.5-6 4 12 2.5-6H21"/>'),
+    tag: I('<path d="M3.5 12.5V4.5h8l9 9-8 8z"/><circle cx="8" cy="9" r="1.4"/>'),
+    merge: I('<path d="M6 4v5c0 3 6 3 6 6v5M18 4v5c0 3-6 3-6 6"/>'),
+    clock: I('<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M9.5 3h5"/>'),
+    file: I('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M12 11v6M9.5 14.5 12 17l2.5-2.5"/>'),
+    help: I('<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.5a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.4"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'),
+    key: I('<circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5 20 3M16.5 6.5l2.5 2.5M14 9l2 2"/>'),
+    out: I('<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/>'),
+  };
+  const row = (id, icon, title, desc, extra = "") => `<button class="srow" id="${id}"><span class="si">${ic[icon]}</span><span class="st"><b>${title}${extra}</b>${desc ? `<small>${desc}</small>` : ""}</span><span class="sc" aria-hidden="true">›</span></button>`;
+  const nm = nameOf(me) || (me || "").split("@")[0];
+  openSheet(`<div class="sheet-head"><h2>Konto</h2><button class="iconbtn fp-x" id="closeSheetBtn" aria-label="Stäng">×</button></div>
+    <div class="sprof"><span class="sav">${esc((nm || "?").slice(0, 1).toUpperCase())}</span><span><b>${esc(nm)} <span class="srole">${esc(ROLE_LABEL[role] || "Ingen behörighet")}</span></b><small>${esc(me || "")}</small></span></div>
+    ${can("admin") ? `<div class="sgrp"><h3>Administration</h3>
+      ${row("usersBtn", "users", "Användare", "Bjud in, ändra behörighet, förfrågningar", pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : "")}
+      ${row("actBtn", "act", "Aktivitet", "Vem som gjort vad i appen")}</div>
+    <div class="sgrp"><h3>Recepten</h3>
+      ${row("tagEdBtn", "tag", "Nyckelord", "Grupper och ord i Filtrera")}
+      ${row("tagsBtn", "merge", "Slå ihop nyckelord", "Claude rensar och slår ihop dubbletter")}
+      ${row("timesBtn", "clock", "Tider i gamla recept", "Lägg in tider så att stegen får timers")}
+      ${row("importBtn", "file", "Importera från fil", "Läs in recept från en JSON-fil")}
+      <input type="file" id="importFile" accept=".json,application/json" hidden></div>` : ""}
+    <div class="sgrp"><h3>Ditt konto</h3>
+      ${row("helpBtn", "help", "Hjälp och instruktioner", "")}
+      ${row("pwBtn", "key", "Byt lösenord", "")}
+      ${row("logoutBtn", "out", "Logga ut", "")}</div>`);
+  $id("helpBtn").onclick = () => { closeSheet(); view = { name: "help" }; render(); window.scrollTo(0, 0); };
   $id("closeSheetBtn").onclick = closeSheet;
   $id("pwBtn").onclick = () => openPasswordSheet(false);
   if ($id("usersBtn")) $id("usersBtn").onclick = openUsers;
