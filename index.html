@@ -390,7 +390,10 @@ header.top h1{font-weight:600}
   .ctabs,.cnext{display:none}
   .cook{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:36px;align-items:start}
   .cook[data-tab] .cp-steps,.cook[data-tab] .cp-ing{display:block}
-  .cook .cp-ing{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+  .cook .cp-ing{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow-y:auto;overflow-x:hidden;padding-right:18px;margin-right:-18px;scrollbar-width:thin;scrollbar-color:rgba(156,122,60,.35) transparent}
+  .cook .cp-ing::-webkit-scrollbar{width:6px}
+  .cook .cp-ing::-webkit-scrollbar-thumb{background:rgba(156,122,60,.35);border-radius:3px}
+  .cook .cp-ing::-webkit-scrollbar-track{background:transparent}
   .cook .ings{columns:1}
 }
 .hby{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
