@@ -4,7 +4,7 @@ const sample = true, sampleImages = true;   // AI finns alltid i webbversionen
 let recipes = [], loaded = false, loadNote = "", storageOk = true;
 let view = { name: "list" };              // list | detail | edit
 let filter = { q: "", tags: [], fav: false, mine: false, cookedMe: false, sort: "new" };
-let filterOpen = false;
+let filterOpen = false; let filterMore = false;
 // Fasta nyckelord i grupper – håller listan kort och sökbar
 const TAG_GROUPS = [
   ["Rätt", ["förrätt", "varmrätt", "efterrätt", "tilltugg", "tillbehör", "dryck"]],
@@ -891,6 +891,7 @@ document.addEventListener("click", async e => {
     case "allrecipes": filter = { ...filter, tags: [], fav: false, mine: false, cookedMe: false }; render(); break;
     case "ftoggle": filterOpen = !filterOpen; render(); break;
     case "fclose": filterOpen = false; render(); break;
+    case "fmore": filterMore = !filterMore; render(); break;
     case "tagclear": filter.tags = []; render(); break;
     case "fav": filter = { ...filter, fav: !filter.fav, mine: false, cookedMe: false }; render(); break;
     case "mine": filter = { ...filter, mine: !filter.mine, fav: false, cookedMe: false }; render(); break;
@@ -2278,11 +2279,12 @@ function filterPanelHtml(list){
   const count = t => filter.tags.includes(t) ? list.length : list.filter(r => (r.tags || []).includes(t)).length;
   const used = new Set(recipes.flatMap(r => r.tags || []));
   const other = [...used].filter(t => !tagVocab().includes(t)).sort((a, b) => a.localeCompare(b, "sv"));
-  const groups = tagGroups();   // ord utanför listan visas inte här – de hittas via sökfältet
+  const groups = tagGroups();   // ord utanför listan ligger hopfällt under Övrigt
   const btn = t => { const n = count(t), on = filter.tags.includes(t); return `<button class="ftag ${on ? "on" : ""} ${!n && !on ? "dim" : ""}" data-a="tag" data-t="${esc(t)}" ${!n && !on ? "disabled" : ""}>${esc(t)}<small>${n}</small></button>`; };
   return `<div class="fpanel" role="dialog" aria-label="Filtrera">
     <div class="fp-head"><h3>Filtrera</h3><button class="iconbtn fp-x" data-a="fclose" aria-label="Stäng">×</button></div>
     ${groups.map(([g, ts]) => [g, ts.filter(t => used.has(t) || filter.tags.includes(t))]).filter(([, ts]) => ts.length).map(([g, ts]) => `<div class="fgrp"><div class="fgt">${esc(g)}</div><div class="ftags">${ts.map(btn).join("")}</div></div>`).join("") || `<p class="hnote" style="padding:12px 0">Inga nyckelord än. Kör Konto → Städa nyckelord, så sorteras recepten in.</p>`}
+    ${other.length ? (() => { const open = filterMore || other.some(t => filter.tags.includes(t)); return `<div class="fmore"><button class="fmore-btn" data-a="fmore" aria-expanded="${open}">Övrigt <small>${other.length}</small><span class="chev" aria-hidden="true">${open ? "▴" : "▾"}</span></button>${open ? `<div class="ftags">${other.map(btn).join("")}</div>` : ""}</div>`; })() : ""}
     <div class="fp-foot"><button class="linkbtn" data-a="tagclear">Rensa allt</button><button class="btn accent small" data-a="fclose">Visa ${list.length} recept</button></div>
   </div>`;
 }
