@@ -358,6 +358,7 @@ function renderList(){
     </div>
     <div class="filters">
       <div class="chips mine-chips">
+        <button class="chip ${!filter.fav && !filter.mine && !filter.cookedMe && !filter.tag ? "on" : ""}" data-a="allrecipes">Alla recept</button>
         <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">Mina favoriter</button>
         <button class="chip ${filter.mine ? "on" : ""}" data-a="mine">Tillagda av mig</button>
         <button class="chip ${filter.cookedMe ? "on" : ""}" data-a="cookedme">Lagade av mig</button>
@@ -857,10 +858,11 @@ document.addEventListener("click", async e => {
       view = { name: "detail", id: el.dataset.id }; render(); window.scrollTo(0, 0); break;
     case "home": e.preventDefault(); if (view.name === "list") break; goBack(); break;
     case "help": view = { name: "help" }; render(); window.scrollTo(0, 0); break;
-    case "fav": filter.fav = !filter.fav; render(); break;
+    case "allrecipes": filter = { ...filter, tag: null, fav: false, mine: false, cookedMe: false }; render(); break;
+    case "fav": filter = { ...filter, fav: !filter.fav, mine: false, cookedMe: false }; render(); break;
     case "moretags": showAllTags = !showAllTags; render(); break;
-    case "mine": filter.mine = !filter.mine; render(); break;
-    case "cookedme": filter.cookedMe = !filter.cookedMe; render(); break;
+    case "mine": filter = { ...filter, mine: !filter.mine, fav: false, cookedMe: false }; render(); break;
+    case "cookedme": filter = { ...filter, cookedMe: !filter.cookedMe, fav: false, mine: false }; render(); break;
     case "layout": layout = el.dataset.l; try { localStorage.setItem("layout", layout); } catch {} render(); break;
     case "tag": filter.tag = filter.tag === el.dataset.t ? null : el.dataset.t; render(); break;
     case "clear": filter = { ...filter, q: "", tag: null, fav: false, mine: false, cookedMe: false }; render(); break;
