@@ -358,7 +358,7 @@ function renderList(){
     </div>
     <div class="filters">
       <div class="chips mine-chips">
-        <button class="chip ${!filter.fav && !filter.mine && !filter.cookedMe && !filter.tag ? "on" : ""}" data-a="allrecipes">Alla recept</button>
+        <button class="chip ${!filter.fav && !filter.mine && !filter.cookedMe && !filter.tag ? "on" : ""}" data-a="allrecipes">Alla</button>
         <button class="chip ${filter.fav ? "on" : ""}" data-a="fav">Mina favoriter</button>
         <button class="chip ${filter.mine ? "on" : ""}" data-a="mine">Tillagda av mig</button>
         <button class="chip ${filter.cookedMe ? "on" : ""}" data-a="cookedme">Lagade av mig</button>
