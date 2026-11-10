@@ -900,8 +900,10 @@ document.addEventListener("click", async e => {
     case "camimport": menuOpen = false; render(); openImport([]); takePhoto(b => addImportShots([b])); break;
     case "impcam": takePhoto(b => addImportShots([b])); break;
     case "actmore": activityOpen = "all"; render(); break;
+    case "acttab": activityTab = el.dataset.t; if (activityOpen === "all") activityOpen = true; render(); break;
     case "acttoggle":
       activityOpen = !activityOpen;
+      if (!activityOpen) activityTab = null;
       if (activityOpen) { activitySeenBefore = seenAt(); setSeen(Date.now()); }
       render(); break;
     case "ctab": {
@@ -1694,7 +1696,7 @@ function renderHelp(){
     ${sec("Bra att veta", `
       <ul>
         <li>Recepten sparas på enheten och går att läsa <b>utan nät</b>.</li>
-        <li><b>Senaste i köket</b> överst i receptlistan visar vem som har lagt till, lagat eller gjort en variant av ett recept. Tryck på raden för att fälla ut den. Röda prickar och <b>Nytt</b> visar vad som har hänt sedan du var här sist.</li>
+        <li><b>Senaste i köket</b> överst i receptlistan: tryck på raden för att fälla ut den. Fliken <b>Nya recept</b> visar vem som har lagt till recept eller gjort varianter, <b>Senast lagade</b> vem som har lagat vad. Röda prickar och <b>Nytt</b> visar vad som har hänt sedan du var här sist.</li>
         <li>Det andra sparar syns direkt hos dig.</li>
         <li>Länken till ett öppet recept kan delas – mottagaren hamnar på just det receptet.</li>
         <li><b>Behörigheter:</b> Läsa – ser allt. Egna recept – lägger till och ändrar sina egna. Superanvändare – ändrar allt och godkänner nya.</li>
@@ -1718,7 +1720,7 @@ async function sendLoginLink(email){
 }
 
 // ---------- Senaste i köket (aktivitet) och "Nytt" ----------
-let activityOpen = false, activitySeenBefore = null;
+let activityOpen = false, activitySeenBefore = null, activityTab = null;
 const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } };
 function seenAt(){ const v = +LS("seen:" + me); if (v) return v; const now = Date.now(); LS("seen:" + me, String(now)); return now; }
 function setSeen(t){ LS("seen:" + me, String(t)); }
@@ -1772,7 +1774,11 @@ function activityHtml(){
   const nm = e => e.by === me ? "Du" : esc(nameOf(e.by));
   const title = e => esc(e.kind === "variant" && e.base ? e.base.title : e.r.title || "Namnlöst recept");
   const latest = ev[0];
-  const items = ev.slice(0, activityOpen === "all" ? 25 : 6);
+  const added = ev.filter(e => e.kind !== "cooked"), cooked = ev.filter(e => e.kind === "cooked");
+  if (!activityTab) activityTab = !added.some(isNew) && cooked.some(isNew) ? "cooked" : "added";
+  const pool = activityTab === "cooked" ? cooked : added;
+  const items = pool.slice(0, activityOpen === "all" ? 25 : 6);
+  const nAdded = added.filter(isNew).length, nCooked = cooked.filter(isNew).length;
   return `<div class="act ${activityOpen ? "open" : ""}">
     <button class="act-row" data-a="acttoggle" aria-expanded="${!!activityOpen}">
       <span class="avs">${who.map(e => avHtml(e)).join("")}</span>
@@ -1781,14 +1787,18 @@ function activityHtml(){
       ${newCount ? `<span class="new">${newCount} ${newCount === 1 ? "ny" : "nya"}</span>` : ""}
       <span class="chev" aria-hidden="true">▼</span>
     </button>
-    ${activityOpen ? `<div class="act-list">${items.map(e => `
+    ${activityOpen ? `<div class="act-tabs" role="tablist">
+        <button role="tab" class="${activityTab === "added" ? "on" : ""}" data-a="acttab" data-t="added">Nya recept${nAdded ? `<span class="tn">${nAdded}</span>` : ""}</button>
+        <button role="tab" class="${activityTab === "cooked" ? "on" : ""}" data-a="acttab" data-t="cooked">Senast lagade${nCooked ? `<span class="tn">${nCooked}</span>` : ""}</button>
+      </div>
+      <div class="act-list">${items.length ? "" : `<p class="hnote" style="padding:12px 0">${activityTab === "cooked" ? "Inga tillagningar loggade än – tryck Lagad idag i ett recept." : "Inga recept än."}</p>`}${items.map(e => `
       <div class="fitem" data-a="open" data-id="${esc(e.r.id)}">
         <span class="nd ${isNew(e) ? "" : "old"}"></span>${avHtml(e.by)}
         <span class="tx"><i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
         <span class="when">${relDay(e.ts)}</span>
         ${e.r.photo ? `<img src="${esc(e.r.photo)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
       </div>`).join("")}
-      ${ev.length > items.length ? `<button class="linkbtn act-more" data-a="actmore">Visa fler</button>` : ""}
+      ${pool.length > items.length ? `<button class="linkbtn act-more" data-a="actmore">Visa fler</button>` : ""}
     </div>` : ""}
   </div>`;
 }
