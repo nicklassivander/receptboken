@@ -2008,7 +2008,9 @@ function askVariantOrOriginal(base){
 const PAN_SVG = `<svg class="panico" viewBox="0 0 32 32" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="13" cy="17" r="9"/><circle cx="13" cy="17" r="5.5" opacity=".45"/><path d="M21.5 13.5 29 7"/><path d="M10 5.5c.6-1 .6-2 0-3M14 5.5c.6-1 .6-2 0-3" opacity=".7"/></svg>`;
 let cookSession = null;
 const COOK_KEY = () => "cook:" + (me || "");
-function loadCook(){ try { cookSession = JSON.parse(localStorage.getItem(COOK_KEY()) || "null"); } catch { cookSession = null; } if (cookSession && loaded && !recipes.find(r => r.id === cookSession.recipeId)) cookSession = null; }
+function loadCook(){ try { cookSession = JSON.parse(localStorage.getItem(COOK_KEY()) || "null"); } catch { cookSession = null; } if (cookSession && loaded && !recipes.find(r => r.id === cookSession.recipeId)) cookSession = null;
+  // Glömd matlagning: efter 12 timmar utan aktiv timer avslutas den tyst (räknas inte som lagad)
+  if (cookSession && Date.now() - (cookSession.startedAt || 0) > 12 * 36e5 && !(cookSession.timers || []).some(t => t.end > Date.now())) { cookSession = null; saveCook(); } }
 function saveCook(){ try { cookSession ? localStorage.setItem(COOK_KEY(), JSON.stringify(cookSession)) : localStorage.removeItem(COOK_KEY()); } catch {} }
 function startCooking(r){
   if (cookSession && cookSession.recipeId !== r.id) {
