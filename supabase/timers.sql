@@ -1,5 +1,5 @@
 -- Receptboken: timers som ringer som pushnotis även när appen är stängd.
--- Ersätt <<VAPID_PRIVATE_KEY>> och <<CRON_SECRET>> innan körning (görs av Claude, nycklarna ska inte ligga i GitHub).
+-- Ersätt <<VAPID_PRIVATE_KEY>> innan körning (görs av Claude, nyckeln ska inte ligga i GitHub). Hemligheten för cron skapas i databasen.
 -- Körs en gång: Supabase -> SQL Editor -> New query -> klistra in -> Run.
 
 create extension if not exists pg_cron;
@@ -11,7 +11,7 @@ alter table public.recipe_settings enable row level security;
 insert into public.recipe_settings (key, value) values
   ('vapid_private', '<<VAPID_PRIVATE_KEY>>'),
   ('vapid_public', 'BC5bVnd2jko7hbqt27XQmVY6T48JDCGzPEQBM4sGhX7qhITGFnJv_SsGUYlQ6B_Mdy1ScNn9tokkUG_SnXPylGQ'),
-  ('cron_secret', '<<CRON_SECRET>>'),
+  ('cron_secret', md5(random()::text || clock_timestamp()::text) || md5(random()::text)),
   ('push_url', 'https://recept.sivander.com/api/push-due')
 on conflict (key) do update set value = excluded.value;
 
