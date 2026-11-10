@@ -621,6 +621,16 @@ body.has-cookbar .toast{bottom:calc(96px + env(safe-area-inset-bottom));z-index:
   .fgrp{grid-template-columns:1fr;gap:6px}
   .fp-foot{position:fixed;left:0;right:0;bottom:0;background:#fbf9f5;border-top:1px solid #e3dacb;padding:12px 18px calc(12px + env(safe-area-inset-bottom))}
 }
+.tagpick{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.tp-grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tp-g{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);width:90px;flex:none}
+.te-grp{border-top:1px solid #eee6da;padding:10px 0}
+.te-gh{display:flex;gap:10px;align-items:center;margin-bottom:6px}
+.te-gh input{font-family:var(--serif);font-size:18px;border:0;border-bottom:1px dashed #cdc4b6;background:transparent;padding:2px 0;flex:1}
+.te-t{display:inline-flex;align-items:center;gap:4px;cursor:default}
+.te-t button{border:0;background:none;color:#a33;font-size:15px;cursor:pointer;padding:0 0 0 2px;line-height:1}
+.te-add input{border:1px dashed #cdc4b6;border-radius:999px;padding:2px 11px;font:inherit;font-size:13.5px;width:110px;background:#fff}
+@media(max-width:620px){.tp-g{width:100%}}
 </style>
 </head>
 <body>

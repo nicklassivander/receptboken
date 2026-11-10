@@ -14,7 +14,15 @@ const TAG_GROUPS = [
 ];
 // Hur ord utanför listan ska sorteras in
 const TAG_HINTS = 'sås, dressing, bröd och sallad räknas som "tillbehör"; soppa som "förrätt" eller "varmrätt"; fläsk, vilt, lamm och nöt som "kött"; skaldjur som "fisk"; helg och bjudmat som "fest"; påsk och midsommar som "fest"; gryta och ugn utan lång tid räknas inte som metod.';
-const TAG_VOCAB = TAG_GROUPS.flatMap(g => g[1]);
+let customTagGroups = null;   // sparas i databasen (rad "_settings_tags"), annars standardlistan
+const SETTINGS_ID = "_settings_tags";
+const tagGroups = () => (customTagGroups && customTagGroups.length ? customTagGroups : TAG_GROUPS);
+const tagVocab = () => tagGroups().flatMap(g => g[1]);
+function splitSettings(list){
+  const st = list.find(r => r.id === SETTINGS_ID);
+  if (st && Array.isArray(st.groups)) customTagGroups = st.groups;
+  return list.filter(r => r.id !== SETTINGS_ID);
+}
 // Telefon/surfplatta med kamera: visa "Ta foto" (öppnar kameran direkt)
 const HAS_CAMERA = matchMedia("(pointer: coarse)").matches && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? " ipad" : ""));
 let pendingReqs = 0;  // förfrågningar om tillgång (bara superanvändare)
@@ -91,7 +99,7 @@ const newId = () => { const a = new Uint8Array(12); crypto.getRandomValues(a); r
 // ---------- offline: recepten sparas på enheten ----------
 const CACHE_KEY = "recept-cache-v1";
 function writeCache(){
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ me, role, at: Date.now(), recipes })); } catch {}
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ me, role, at: Date.now(), recipes, tagGroups: customTagGroups })); } catch {}
 }
 function readCache(){
   try { const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); return c && Array.isArray(c.recipes) ? c : null; } catch { return null; }
@@ -107,7 +115,7 @@ async function loadAll(){
     render(); return;
   }
   loadNote = "";
-  recipes = (rows || []).map(r => ({ ...r.data, id: r.id }));
+  recipes = splitSettings((rows || []).map(r => ({ ...r.data, id: r.id })));
   writeCache();
   if (view.name !== "edit") render();
 }
@@ -117,6 +125,7 @@ function subscribe(){
   sb.channel("recept")
     .on("postgres_changes", { event: "*", schema: "public", table: "recipes" }, p => {
       if (p.eventType === "DELETE") recipes = recipes.filter(r => r.id !== p.old.id);
+      else if (p.new.id === SETTINGS_ID) { customTagGroups = (p.new.data || {}).groups || null; }
       else {
         const r = { ...p.new.data, id: p.new.id };
         const i = recipes.findIndex(x => x.id === r.id);
@@ -541,9 +550,11 @@ function renderEdit(){
         <div><label>Tid</label><input type="text" name="time" value="${esc(d.time)}" placeholder="45 min"></div>
       </div>
 
-      <label>Taggar</label>
-      <input type="text" name="tags" value="${esc((d.tags || []).join(", "))}" placeholder="pasta, vardag, vegetariskt">
-      <div class="hint">Separera med kommatecken.</div>
+      <label>Nyckelord</label>
+      <input type="hidden" name="tags" id="tagsField" value="${esc((d.tags || []).join(", "))}">
+      <div class="tagpick" id="tagPick">${tagPickHtml(d.tags || [])}</div>
+      <div class="row" style="gap:8px;margin-top:8px"><input type="text" id="newTag" placeholder="Nytt nyckelord …" style="flex:1"><button type="button" class="btn ghost small" id="newTagBtn">Lägg till</button></div>
+      <div class="hint">Tryck för att välja. Ett nytt nyckelord hamnar under Övrigt${can("admin") ? " – du kan flytta det till en grupp under Konto → Nyckelord" : ""}.</div>
 
       <label>Ingredienser</label>
       <textarea name="ingredients" rows="8" placeholder="2 dl grädde&#10;250 g champinjoner&#10;# Till servering&#10;Parmesan">${esc((d.ingredients || []).join("\n"))}</textarea>
@@ -800,7 +811,7 @@ Svara ENDAST med ett JSON-objekt, utan förklaring:
 Regler:
 - ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ". Behåll ALLA tidsangivelser från källan (koktid, stektid, ugnstid, vila, marinering, jäsning) i det steg där de hör hemma och skriv dem med siffror och enhet, t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek" – aldrig bara "en stund" om källan anger en tid. Står tiden bara i receptets inledning eller i en totaltid, för in den i rätt steg om det framgår vilket.
 - steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
-- tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${TAG_VOCAB.join(", ")}. Välj det som stämmer – typ av rätt, huvudråvara, tillfälle och metod. ${TAG_HINTS}
+- tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${tagVocab().join(", ")}. Välj det som stämmer – typ av rätt, huvudråvara, tillfälle och metod. ${TAG_HINTS}
 - notes: eventuella tips från källan, kort. Annars tom sträng.
 - ${s.translate ? "Skriv allt på svenska. Räkna om amerikanska mått (cups, tbsp, tsp, oz, lb, °F) till svenska metriska mått (dl, msk, tsk, g, °C)." : "Behåll originalspråket och måtten."}
 - Hitta inte på något. Saknas receptinnehåll helt, svara {"error": "kort förklaring på svenska"}.
@@ -1077,7 +1088,8 @@ function openSettings(){
     <div class="actions" style="flex-direction:column">
       ${can("admin") ? `<button class="btn ghost" id="usersBtn">Hantera användare${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button>
       <button class="btn ghost" id="timesBtn">Lägg in tider i gamla recept</button>
-      <button class="btn ghost" id="tagsBtn">Städa nyckelord</button>
+      <button class="btn ghost" id="tagEdBtn">Nyckelord</button>
+      <button class="btn ghost" id="tagsBtn">Slå ihop nyckelord</button>
       <button class="btn ghost" id="importBtn">Importera recept från fil</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>` : ""}
       <button class="btn ghost" id="pwBtn">Byt lösenord</button>
@@ -1088,7 +1100,8 @@ function openSettings(){
   $id("pwBtn").onclick = () => openPasswordSheet(false);
   if ($id("usersBtn")) $id("usersBtn").onclick = openUsers;
   if ($id("timesBtn")) $id("timesBtn").onclick = openTimesTool;
-  if ($id("tagsBtn")) $id("tagsBtn").onclick = openTagsTool;
+  if ($id("tagsBtn")) $id("tagsBtn").onclick = openMergeTool;
+  if ($id("tagEdBtn")) $id("tagEdBtn").onclick = openTagEditor;
   if ($id("importBtn")) {
     $id("importBtn").onclick = () => $id("importFile").click();
     $id("importFile").onchange = e => { const f = e.target.files[0]; if (f) importFile(f, $id("importBtn")); };
@@ -1201,7 +1214,7 @@ async function showApp(session){
   if (hm) view = { name: "detail", id: decodeURIComponent(hm[1]) };
   // Visa sparade recept direkt, hämta färska i bakgrunden
   const cache = readCache();
-  if (cache && cache.me === me && cache.recipes.length) { recipes = cache.recipes; role = cache.role; loaded = true; }
+  if (cache && cache.me === me && cache.recipes.length) { recipes = cache.recipes; role = cache.role; loaded = true; if (cache.tagGroups) customTagGroups = cache.tagGroups; }
   render();
   let roleErr = null;
   try { const { data: r, error } = await sb.rpc("recipe_my_role"); roleErr = error; if (!error) role = r || null; } catch (e) { roleErr = e; }
@@ -1781,7 +1794,8 @@ function renderHelp(){
         <li>Är grundreceptet ditt kan du föra över en variant till det med <b>Uppdatera grundreceptet</b> längst ner i varianten.</li>
         <li>Ändrar du ingredienser, steg eller portioner i ett recept frågar appen om det ska bli en <b>ny variant</b> (originalet lämnas orört) eller om du vill <b>ändra originalet</b> – det senare är för rättelser.</li>
         <li>Filtren <b>Tillagda av mig</b> och <b>Lagade av mig</b> överst i listan visar dina egna recept och det du har lagat.</li>
-        <li><b>Filtrera</b> (till höger i filterraden, på mobilen bredvid Bilder/Lista) öppnar nyckelorden i grupper: Rätt, Råvara, Tillfälle och Metod. Välj flera för att smalna av, t.ex. <i>fisk + vardag</i>. Valda filter syns som brickor som du tar bort med ×.</li>
+        <li><b>Filtrera</b> (till höger i filterraden, på mobilen bredvid Bilder/Lista) öppnar nyckelorden i grupper. Välj flera för att smalna av, t.ex. <i>fisk + vardag</i>. Valda filter syns som brickor som du tar bort med ×.</li>
+        <li>När du redigerar ett recept väljer du nyckelord genom att trycka på dem, eller skriver ett nytt. Superanvändare ändrar listan under <b>Konto → Nyckelord</b>.</li>
       </ul>`)}
 
     ${sec("Bra att veta", `
@@ -2263,8 +2277,8 @@ function filterBtn(cls){
 function filterPanelHtml(list){
   const count = t => filter.tags.includes(t) ? list.length : list.filter(r => (r.tags || []).includes(t)).length;
   const used = new Set(recipes.flatMap(r => r.tags || []));
-  const other = [...used].filter(t => !TAG_VOCAB.includes(t)).sort((a, b) => a.localeCompare(b, "sv"));
-  const groups = TAG_GROUPS.concat(other.length ? [["Övrigt", other]] : []);
+  const other = [...used].filter(t => !tagVocab().includes(t)).sort((a, b) => a.localeCompare(b, "sv"));
+  const groups = tagGroups().concat(other.length ? [["Övrigt", other]] : []);
   const btn = t => { const n = count(t), on = filter.tags.includes(t); return `<button class="ftag ${on ? "on" : ""} ${!n && !on ? "dim" : ""}" data-a="tag" data-t="${esc(t)}" ${!n && !on ? "disabled" : ""}>${esc(t)}<small>${n}</small></button>`; };
   return `<div class="fpanel" role="dialog" aria-label="Filtrera">
     <div class="fp-head"><h3>Filtrera</h3><button class="iconbtn fp-x" data-a="fclose" aria-label="Stäng">×</button></div>
@@ -2277,7 +2291,7 @@ function filterPanelHtml(list){
 function openTagsTool(){
   const list = recipes.filter(r => canEdit(r));
   const used = new Set(recipes.flatMap(r => r.tags || []));
-  const odd = [...used].filter(t => !TAG_VOCAB.includes(t));
+  const odd = [...used].filter(t => !tagVocab().includes(t));
   openSheet(`<h2>Städa nyckelord</h2>
     <p>Claude går igenom ${list.length} recept och ger vart och ett 2–4 nyckelord från de 15 fasta orden (Rätt, Råvara, Tillfälle, Metod). Dubbletter och udda ord försvinner.</p>
     <p class="hnote">I dag finns ${used.size} olika nyckelord, varav ${odd.length} utanför listan${odd.length ? `: ${esc(odd.slice(0, 14).join(", "))}${odd.length > 14 ? " …" : ""}` : ""}. Taggen "att komplettera" behålls. Allt kan ångras.</p>
@@ -2294,7 +2308,7 @@ function openTagsTool(){
       const row = document.createElement("div"); row.className = "ttrow"; row.innerHTML = `<span class="spinner"></span> Recept ${i + 1}–${i + batch.length} av ${list.length}`; box.prepend(row);
       try {
         const prompt = `Ge varje recept 2–4 nyckelord, ENBART från listan nedan (exakt stavning, gemener). Välj typ av rätt, huvudråvara, tillfälle och metod när det passar. ${TAG_HINTS} "vardag" för enkla vardagsrätter, "långkok" för sådant som tar flera timmar. Hitta inte på nya ord.
-Lista: ${TAG_VOCAB.join(", ")}
+Lista: ${tagVocab().join(", ")}
 Svara bara med JSON: {"<id>": ["...", "..."], ...}
 
 Recept:
@@ -2302,7 +2316,7 @@ ${JSON.stringify(batch.map(r => ({ id: r.id, titel: r.title, tid: r.time || "", 
         const out = parseJson(await ai(prompt, { mode: "json" }));
         const lines = [];
         for (const r of batch) {
-          let tags = Array.isArray(out[r.id]) ? out[r.id].map(x => String(x).toLowerCase().trim()).filter(x => TAG_VOCAB.includes(x)) : null;
+          let tags = Array.isArray(out[r.id]) ? out[r.id].map(x => String(x).toLowerCase().trim()).filter(x => tagVocab().includes(x)) : null;
           if (!tags || !tags.length) { lines.push(`– ${esc(r.title || "")}: oförändrad`); continue; }
           tags = [...new Set(tags)].slice(0, 4);
           if ((r.tags || []).includes("att komplettera")) tags.push("att komplettera");
@@ -2322,4 +2336,114 @@ ${JSON.stringify(batch.map(r => ({ id: r.id, titel: r.title, tid: r.time || "", 
       };
     }
   };
+}
+
+// ---------- nyckelord: välj i formuläret ----------
+function tagPickHtml(sel){
+  const vocab = tagVocab();
+  const extra = sel.filter(t => !vocab.includes(t));
+  return tagGroups().concat(extra.length ? [["Övrigt", extra]] : []).map(([g, ts]) => `<div class="tp-grp"><span class="tp-g">${esc(g)}</span>${ts.map(t => `<button type="button" class="ftag ${sel.includes(t) ? "on" : ""}" data-tp="${esc(t)}">${esc(t)}</button>`).join("")}</div>`).join("");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-tp]"); if (b && $id("tagsField")) {
+    const f = $id("tagsField"); let cur = f.value.split(",").map(x => x.trim()).filter(Boolean);
+    const t = b.dataset.tp; cur = cur.includes(t) ? cur.filter(x => x !== t) : cur.concat(t);
+    f.value = cur.join(", "); b.classList.toggle("on", cur.includes(t)); return;
+  }
+  if (e.target.id === "newTagBtn" && $id("tagsField")) {
+    const t = ($id("newTag").value || "").trim().toLowerCase(); if (!t) return;
+    const f = $id("tagsField"); const cur = f.value.split(",").map(x => x.trim()).filter(Boolean);
+    if (!cur.includes(t)) cur.push(t);
+    f.value = cur.join(", "); $id("tagPick").innerHTML = tagPickHtml(cur); $id("newTag").value = "";
+  }
+});
+
+// ---------- nyckelord: spara listan ----------
+async function saveTagGroups(groups){
+  const clean = groups.map(([g, ts]) => [String(g).trim(), [...new Set(ts.map(t => String(t).trim().toLowerCase()).filter(Boolean))]]).filter(([g, ts]) => g && ts.length);
+  const { error } = await sb.from("recipes").upsert({ id: SETTINGS_ID, data: { settings: true, groups: clean, addedBy: me, updatedAt: new Date().toISOString() } });
+  if (error) { toast("Kunde inte spara nyckelorden: " + error.message); return false; }
+  customTagGroups = clean; return true;
+}
+
+// ---------- Konto → Nyckelord: redigera listan ----------
+function openTagEditor(){
+  let groups = JSON.parse(JSON.stringify(tagGroups()));
+  const used = {}; recipes.forEach(r => (r.tags || []).forEach(t => used[t] = (used[t] || 0) + 1));
+  const draw = () => {
+    const vocab = groups.flatMap(g => g[1]);
+    const other = Object.keys(used).filter(t => !vocab.includes(t) && t !== "att komplettera").sort((a, b) => used[b] - used[a]);
+    $id("teBody").innerHTML = groups.map(([g, ts], gi) => `<div class="te-grp"><div class="te-gh"><input value="${esc(g)}" data-gname="${gi}"><button class="linkbtn" data-gdel="${gi}" title="Ta bort gruppen">Ta bort</button></div>
+      <div class="ftags">${ts.map((t, ti) => `<span class="ftag te-t">${esc(t)}<small>${used[t] || 0}</small><button data-tdel="${gi}:${ti}" aria-label="Ta bort ${esc(t)}">×</button></span>`).join("")}
+      <span class="te-add"><input placeholder="+ nytt" data-tadd="${gi}"></span></div></div>`).join("")
+      + `<button class="linkbtn" id="teAddGroup" style="margin-top:10px">+ Ny grupp</button>`
+      + (other.length ? `<p class="vd-h" style="margin-top:18px">Används men finns inte i listan (Övrigt)</p><div class="ftags">${other.map(t => `<span class="ftag">${esc(t)}<small>${used[t]}</small></span>`).join("")}</div><p class="hnote">Kör "Slå ihop nyckelord" för att sortera in dem.</p>` : "");
+  };
+  openSheet(`<h2>Nyckelord</h2><p class="hnote">Grupper och nyckelord som visas under Filtrera och när du redigerar ett recept. Skriv ett nytt ord i "+ nytt" och tryck Enter.</p>
+    <div id="teBody"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn ghost" id="teNo">Avbryt</button><button class="btn accent" id="teSave">Spara</button></div>`);
+  draw();
+  const body = $id("teBody");
+  body.addEventListener("click", e => {
+    const d = e.target.closest("[data-tdel]"); if (d) { const [gi, ti] = d.dataset.tdel.split(":").map(Number); groups[gi][1].splice(ti, 1); draw(); return; }
+    const g = e.target.closest("[data-gdel]"); if (g) { groups.splice(+g.dataset.gdel, 1); draw(); return; }
+    if (e.target.id === "teAddGroup") { groups.push(["Ny grupp", []]); draw(); const ins = body.querySelectorAll("[data-gname]"); ins[ins.length - 1].select(); }
+  });
+  body.addEventListener("keydown", e => {
+    const a = e.target.closest("[data-tadd]"); if (!a || e.key !== "Enter") return;
+    e.preventDefault(); const t = a.value.trim().toLowerCase(); if (!t) return;
+    const gi = +a.dataset.tadd; groups.forEach(gr => gr[1] = gr[1].filter(x => x !== t)); groups[gi][1].push(t); draw();
+    const n = body.querySelector(`[data-tadd="${gi}"]`); if (n) n.focus();
+  });
+  body.addEventListener("input", e => { const n = e.target.closest("[data-gname]"); if (n) groups[+n.dataset.gname][0] = n.value; });
+  $id("teNo").onclick = closeSheet;
+  $id("teSave").onclick = async () => {
+    body.querySelectorAll("[data-tadd]").forEach(a => { const t = a.value.trim().toLowerCase(); if (t) groups[+a.dataset.tadd][1].push(t); });
+    if (await saveTagGroups(groups)) { closeSheet(); toast("Nyckelorden är sparade"); render(); }
+  };
+}
+
+// ---------- Slå ihop nyckelord: ~30 % av dagens antal, i grupper ----------
+function openMergeTool(){
+  const used = {}; recipes.forEach(r => (r.tags || []).forEach(t => { if (t !== "att komplettera") used[t] = (used[t] || 0) + 1; }));
+  const all = Object.keys(used).sort((a, b) => used[b] - used[a]);
+  const target = Math.max(6, Math.round(all.length * 0.3));
+  openSheet(`<h2>Slå ihop nyckelord</h2>
+    <p>I dag används <b>${all.length}</b> olika nyckelord. Claude slår ihop dem till ungefär <b>${target}</b> (30 %), sorterade i grupper, och föreslår vilket nytt ord varje gammalt blir. Du ser förslaget innan något ändras.</p>
+    <div id="mgBody"><div class="ftags">${all.map(t => `<span class="ftag">${esc(t)}<small>${used[t]}</small></span>`).join("")}</div></div>
+    <div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn ghost" id="mgNo">Stäng</button><button class="btn accent" id="mgGo">Föreslå</button></div>`);
+  $id("mgNo").onclick = closeSheet;
+  let plan = null;
+  $id("mgGo").onclick = async () => {
+    const go = $id("mgGo");
+    if (plan) return applyMerge(plan, go);
+    go.disabled = true; go.textContent = "Tänker …";
+    try {
+      const prompt = `Här är nyckelorden i en familjs receptbok, med antal recept per ord. Slå ihop dem till ungefär ${target} nyckelord (högst ${target + 2}) som är lätta att filtrera på, och sortera dem i 3–5 grupper med korta svenska gruppnamn (t.ex. "Rätt", "Råvara", "Tillfälle", "Metod"). Slå ihop synonymer och närliggande ord (t.ex. nötkött → kött, snacks → tilltugg). Välj vanliga, tydliga ord i gemener. Varje gammalt ord ska mappas till ETT nytt ord, eller till null om det inte passar alls.
+Svara bara med JSON: {"groups": [{"name": "...", "tags": ["..."]}], "map": {"<gammalt ord>": "<nytt ord eller null>"}}
+
+Nyckelord: ${JSON.stringify(used)}`;
+      const out = parseJson(await ai(prompt, { mode: "json" }));
+      const groups = (out.groups || []).map(g => [String(g.name || "").trim(), (g.tags || []).map(t => String(t).trim().toLowerCase()).filter(Boolean)]).filter(g => g[0] && g[1].length);
+      const vocab = groups.flatMap(g => g[1]);
+      const map = {}; for (const t of all) { const m = out.map && out.map[t]; map[t] = m && vocab.includes(String(m).toLowerCase()) ? String(m).toLowerCase() : (vocab.includes(t) ? t : null); }
+      plan = { groups, map };
+      const cnt = {}; recipes.forEach(r => new Set((r.tags || []).map(t => map[t]).filter(Boolean)).forEach(t => cnt[t] = (cnt[t] || 0) + 1));
+      $id("mgBody").innerHTML = `<p class="hnote">Förslag: ${vocab.length} nyckelord i ${groups.length} grupper. Siffran är antal recept efter sammanslagningen.</p>`
+        + groups.map(([g, ts]) => `<div class="fgrp"><div class="fgt">${esc(g)}</div><div class="ftags">${ts.map(t => `<span class="ftag">${esc(t)}<small>${cnt[t] || 0}</small></span>`).join("")}</div></div>`).join("")
+        + `<details class="vd-more" style="margin-top:10px"><summary>Visa vad varje gammalt ord blir</summary><ul class="vdiff">${all.map(t => `<li><span class="sg">→</span>${esc(t)} → <b>${esc(map[t] || "tas bort")}</b></li>`).join("")}</ul></details>`;
+      go.disabled = false; go.textContent = "Använd förslaget";
+    } catch (e) { go.disabled = false; go.textContent = "Försök igen"; toast(aiErr(e)); }
+  };
+}
+async function applyMerge(plan, go){
+  go.disabled = true; go.textContent = "Uppdaterar …";
+  if (!(await saveTagGroups(plan.groups))) { go.disabled = false; go.textContent = "Använd förslaget"; return; }
+  let n = 0;
+  for (const r of recipes) {
+    const old = r.tags || [];
+    const next = [...new Set(old.map(t => t === "att komplettera" ? t : plan.map[t]).filter(Boolean))].slice(0, 6);
+    if (!sameList(next, old) && canEdit(r)) { if (await patch(r.id, { tags: next, tagsBefore: old })) n++; }
+  }
+  closeSheet(); render(); toast(`Klart – ${n} recept uppdaterade med de nya nyckelorden`);
 }
