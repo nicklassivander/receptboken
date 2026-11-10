@@ -480,7 +480,7 @@ function renderDetail(){
     ${canEdit(r) ? `<div class="panel">
       <h2>Ändra receptet</h2>
       <p class="meta" style="justify-content:flex-start;margin:-6px 0 12px">Skriv vad du vill ändra, lägga till eller ta bort. Du granskar ändringen innan den sparas.</p>
-      <form class="ai-ask" id="edit-form"><input id="edit-input" placeholder="t.ex. Byt grädde mot crème fraiche och ta bort koriandern" autocomplete="off"><button class="btn small" type="submit" id="edit-btn">Ändra</button></form>
+      <form class="ai-ask" id="edit-form"><input id="edit-input" placeholder="Skriv här, t.ex. byt grädde mot crème fraiche" autocomplete="off"><button class="btn small" type="submit" id="edit-btn">Ändra</button></form>
       <div class="err" id="edit-err"></div>
     </div>` : ""}
 
@@ -493,7 +493,7 @@ function renderDetail(){
         <button class="chip" data-a="ai" data-q="vary">Andra varianter</button>
         <button class="chip" data-a="ai" data-q="sides">Vad serverar jag till?</button>
       </div>
-      <form class="ai-ask" id="ai-form"><input id="ai-input" placeholder="t.ex. Jag har ingen crème fraiche – vad tar jag?" autocomplete="off"><button class="btn small" type="submit">Fråga</button></form>
+      <form class="ai-ask" id="ai-form"><input id="ai-input" placeholder="Skriv din fråga här …" autocomplete="off"><button class="btn small" type="submit">Fråga</button></form>
       <div id="ai-out">${aiOutHtml(r.id)}</div>
     </div>` : ""}
 

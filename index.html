@@ -471,6 +471,20 @@ header.top h1{font-weight:600}
 .hnote{color:var(--muted);font-size:14px}
 .help-head .hnote{margin:4px 0 0}
 @media(max-width:620px){.mine-chips{gap:8px clamp(9px,3.2vw,16px) !important;flex-wrap:nowrap !important}.mine-chips .chip{font-size:clamp(11.5px,3.45vw,13.5px);white-space:nowrap}}
+/* tydligare sektioner och skrivfält i receptet */
+.panel{border-top:1px solid rgba(156,122,60,.55);position:relative;padding-top:34px;margin-top:38px}
+.panel::before{content:"";position:absolute;top:-4px;left:50%;width:7px;height:7px;margin-left:-3.5px;background:var(--bg,#ece9e2);border:1px solid rgba(156,122,60,.75);transform:rotate(45deg)}
+.cook .panel,.cook .cpane{border-top-color:var(--line)}
+.cook .panel::before,.cook .cpane::before,.panel.changes::before,.notes-empty::before{display:none}
+.ai-ask{gap:8px;align-items:stretch;margin-top:8px}
+.ai-ask input{border:1px solid #cdc4b6;background:#fff;padding:13px 14px;border-radius:3px;font-size:15px;box-shadow:inset 0 1px 2px rgba(0,0,0,.05);transition:border-color .15s,box-shadow .15s}
+.ai-ask input::placeholder{color:#a39b90;font-style:italic}
+.ai-ask input:focus{border-color:var(--brass);box-shadow:0 0 0 3px rgba(201,167,100,.22)}
+.ai-ask .btn{padding-left:20px;padding-right:20px}
+.notes-edit textarea{border-color:#cdc4b6}
+.notes-edit textarea:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(201,167,100,.22)}
+.notes-empty .linkbtn{display:block;width:100%;text-align:left;border:1px dashed #cdc4b6;background:#fff;padding:13px 14px;border-radius:3px;color:#8a837b;font-style:italic}
+.notes-empty .linkbtn:hover{border-color:var(--brass);color:var(--ink)}
 </style>
 </head>
 <body>
