@@ -2010,14 +2010,20 @@ function resumeCooking(){
   } else { render(); syncWakeLock(); }
 }
 
-// Tider i stegen: "15 min", "1 h", "1,5 timme", "10–12 minuter", "30 sek"
+// Tider i stegen: "15 min", "1 h", "1,5 timme", "10–12 minuter", "30 sek", "en halvtimme", "två timmar", "1½ h"
+const NUMWORDS = { en: 1, ett: 1, två: 2, tre: 3, fyra: 4, fem: 5, sex: 6, sju: 7, åtta: 8, nio: 9, tio: 10, elva: 11, tolv: 12, femton: 15, tjugo: 20, trettio: 30, fyrtio: 40, femtio: 50, sextio: 60, nittio: 90 };
 function parseDurations(text){
-  const out = [], re = /(\d+(?:[.,]\d+)?)(?:\s*[-–]\s*(\d+(?:[.,]\d+)?))?\s*(minuter|minut|min|timmar|timme|tim|h|sekunder|sek)(?![a-zåäö])/gi;
+  const out = [];
+  let t = String(text).replace(/(\d)\s*½/g, "$1,5").replace(/½/g, "0,5")
+    .replace(/\b(en|ett)\s+halv(?:\s+)?timme\b/gi, "30 min").replace(/\bhalvtimme\b/gi, "30 min")
+    .replace(/\b(en|ett)\s+kvart\b/gi, "15 min").replace(/\bkvart\b/gi, "15 min")
+    .replace(/\b(en|ett|två|tre|fyra|fem|sex|sju|åtta|nio|tio|elva|tolv|femton|tjugo|trettio|fyrtio|femtio|sextio|nittio)\s+(minuter|minut|min|timmar|timme|tim|sekunder|sek)\b/gi, (m, w, u) => NUMWORDS[w.toLowerCase()] + " " + u);
+  const re = /(\d+(?:[.,]\d+)?)(?:\s*(?:[-–]|till)\s*(\d+(?:[.,]\d+)?))?\s*(minuter|minut|min|timmar|timme|tim|h|sekunder|sek)(?![a-zåäö])/gi;
   let m;
-  while ((m = re.exec(text)) && out.length < 3) {
+  while ((m = re.exec(t)) && out.length < 3) {
     const v = parseFloat((m[2] || m[1]).replace(",", ".")), u = m[3].toLowerCase();
     const ms = u.startsWith("s") ? v * 1e3 : /^(h|tim)/.test(u) ? v * 36e5 : v * 6e4;
-    if (ms >= 1e4 && ms <= 48 * 36e5) out.push({ ms, label: m[0].trim() });
+    if (ms >= 1e4 && ms <= 48 * 36e5 && !out.some(o => o.ms === ms)) out.push({ ms, label: m[0].trim() });
   }
   return out;
 }
