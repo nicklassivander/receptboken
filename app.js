@@ -2249,6 +2249,7 @@ function showAlarm(){
   let next = -1;
   for (let j = (idx >= 0 ? idx : -1) + 1; j < steps.length; j++) if (!steps[j].startsWith("#") && !(cookSession.done || {})["s" + j] && j !== idx) { next = j; break; }
   if (idx < 0) next = steps.findIndex((x, j) => !x.startsWith("#") && !(cookSession.done || {})["s" + j]);
+  const nextDur = next >= 0 ? parseDurations(steps[next])[0] : null;
   const el = document.createElement("div");
   el.id = "alarm"; el.className = "alarm-bg"; el.dataset.id = due.id;
   el.innerHTML = `<div class="alarm" role="alertdialog" aria-labelledby="alarmT">
@@ -2257,7 +2258,8 @@ function showAlarm(){
     <p class="alarm-what">${idx >= 0 ? `<small>Steg ${numOf(idx)}</small>${esc(steps[idx])}` : esc(due.label || "Egen timer")}</p>
     ${next >= 0 ? `<div class="alarm-next"><small>Nästa · steg ${numOf(next)}</small>${esc(steps[next])}</div>` : (r ? `<div class="alarm-next"><small>Nästa</small>Alla steg är klara – smaklig måltid!</div>` : "")}
     <div class="alarm-btns">
-      ${idx >= 0 ? `<button class="btn accent" data-al="next">✓ Steget klart – visa nästa</button>` : `<button class="btn accent" data-al="show">Visa receptet</button>`}
+      ${nextDur ? `<button class="btn accent" data-al="nexttimer">✓ Klart – starta nästa timer · ${(() => { const m = Math.round(nextDur.ms / 6e4); return nextDur.ms < 6e4 ? Math.round(nextDur.ms / 1e3) + " sek" : m >= 60 ? Math.floor(m / 60) + " h" + (m % 60 ? " " + m % 60 + " min" : "") : m + " min"; })()}</button>` : ""}
+      ${idx >= 0 ? `<button class="btn ${nextDur ? "ghost" : "accent"}" data-al="next">✓ Steget klart – visa nästa</button>` : `<button class="btn accent" data-al="show">Visa receptet</button>`}
       <button class="btn ghost" data-al="ok">OK</button>
     </div></div>`;
   document.body.appendChild(el);
@@ -2265,8 +2267,9 @@ function showAlarm(){
   el.querySelectorAll("[data-al]").forEach(b => b.onclick = () => {
     const a = b.dataset.al;
     el.remove();
-    if (a === "next" && idx >= 0 && cookSession) { cookSession.done = { ...(cookSession.done || {}), ["s" + idx]: true }; if (view.name === "detail" && view.id === cookSession.recipeId) detailState.done = cookSession.done; }
+    if ((a === "next" || a === "nexttimer") && idx >= 0 && cookSession) { cookSession.done = { ...(cookSession.done || {}), ["s" + idx]: true }; if (view.name === "detail" && view.id === cookSession.recipeId) detailState.done = cookSession.done; }
     stopTimer(due.id);
+    if (a === "nexttimer" && nextDur) startTimer(nextDur.ms, `Steg ${numOf(next)}: ${nextDur.label}`, "s" + next);
     if (a !== "ok") openCookRecipe(); else if (view.name === "detail") render();
     try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch {}
   });
