@@ -2017,12 +2017,12 @@ const COOK_KEY = () => "cook:" + (me || "");
 function loadCook(){ try { cookSession = JSON.parse(localStorage.getItem(COOK_KEY()) || "null"); } catch { cookSession = null; } if (cookSession && loaded && !recipes.find(r => r.id === cookSession.recipeId)) cookSession = null;
   // Glömd matlagning: efter 12 timmar utan aktiv timer avslutas den tyst (räknas inte som lagad)
   if (cookSession && Date.now() - (cookSession.startedAt || 0) > 12 * 36e5 && !(cookSession.timers || []).some(t => t.end > Date.now())) { cookSession = null; saveCook(); } }
-function saveCook(){ writeCookLocal(Date.now()); pushCook(); }
+function saveCook(){ writeCookLocal(Math.max(Date.now(), cookLocalAt() + 1)); pushCook(); }   // alltid nyare än det vi senast såg, även om klockorna skiljer
 function writeCookLocal(at){ try { cookSession ? localStorage.setItem(COOK_KEY(), JSON.stringify(cookSession)) : localStorage.removeItem(COOK_KEY()); localStorage.setItem("cookAt:" + (me || ""), String(at)); } catch {} }
 const cookLocalAt = () => { try { return +localStorage.getItem("cookAt:" + (me || "")) || 0; } catch { return 0; } };
 // Synk mellan enheter: matlagningen sparas också i en egen rad i databasen (_cook_<e-post>)
 const COOK_ROW = () => "_cook_" + String(me || "").toLowerCase();
-let cookPushT = null, cookSyncWarned = false;
+let cookPushT = null, cookSyncWarned = false, cookHeadObs = null;
 function pushCook(){
   if (!me || !sb) return;
   clearTimeout(cookPushT);
@@ -2191,6 +2191,14 @@ function renderCookBar(){
   const hdr = view.name === "list" ? $app.querySelector("header.top") : null;
   if (hdr) { if (bar.previousElementSibling !== hdr) hdr.after(bar); bar.classList.add("inflow"); }
   else { if (bar.parentNode !== document.body) document.body.appendChild(bar); bar.classList.remove("inflow"); }
+  // Göm den svävande pastillen när rutan "Du lagar det här" syns – annars täcker den Klar!/Avbryt
+  if (cookHeadObs) { cookHeadObs.disconnect(); cookHeadObs = null; }
+  bar.classList.remove("behind");
+  const head = document.querySelector(".cooking-head");
+  if (head && !hdr && "IntersectionObserver" in window) {
+    cookHeadObs = new IntersectionObserver(es => { const b = document.getElementById("cookbar"); if (b) b.classList.toggle("behind", es.some(e => e.isIntersecting)); });
+    cookHeadObs.observe(head);
+  }
   document.body.classList.add("has-cookbar");
   const steps = r.steps || [], real = steps.filter(x => !x.startsWith("#"));
   const done = steps.filter((x, i) => !x.startsWith("#") && (cookSession.done || {})["s" + i]).length;
