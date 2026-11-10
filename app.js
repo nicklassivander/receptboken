@@ -442,7 +442,7 @@ function renderDetail(){
     <div class="panel cpane cp-ing">
       <h2><span>Ingredienser</span>
         <span class="row">
-          ${hasOrig ? `<span class="seg"><button class="${mode === "mine" ? "on" : ""}" data-a="mode" data-m="mine">Min</button><button class="${mode === "orig" ? "on" : ""}" data-a="mode" data-m="orig">Original</button></span>` : ""}
+          ${hasOrig ? `<span class="seg"><button class="${mode === "mine" ? "on" : ""}" data-a="mode" data-m="mine">${r.variantOf ? "Variant" : "Min"}</button><button class="${mode === "orig" ? "on" : ""}" data-a="mode" data-m="orig">Original</button></span>` : ""}
         </span></h2>
       ${baseServ ? `<div class="stepper" style="margin-bottom:8px"><button data-a="serv" data-d="-1">−</button><span>${serv} portioner</span><button data-a="serv" data-d="1">+</button></div>` : ""}
       ${ings.length ? `<ul class="ings">${ings.map((l, i) => l.startsWith("#")
@@ -463,11 +463,10 @@ function renderDetail(){
 
     ${r.myChanges || (canEdit(r) && r.original && isModified(r)) ? `<div class="panel mychanges"><h2>${r.variantOf ? "Ändringar i varianten" : "Mina ändringar"}</h2>
       ${r.myChanges ? `<div class="prewrap">${esc(r.myChanges)}</div>` : `<p class="hnote">Receptet skiljer sig från originalet – växla mellan Min och Original vid ingredienserna för att jämföra.</p>`}
-      ${canEdit(r) && r.original && isModified(r) && !r.variantOf ? `<div class="row" style="margin-top:14px"><button class="btn ghost small" data-a="promote">Gör Min version till nytt original</button></div>` : ""}
     </div>` : ""}
     ${(() => { const base = r.variantOf ? recipes.find(x => x.id === r.variantOf) : null;
       return base && canEdit(base) ? `<div class="panel mychanges"><h2>Uppdatera grundreceptet</h2>
-        <p style="margin:0 0 12px">Ersätt ingredienser och steg i <b>${esc(base.title || "grundreceptet")}</b> med den här varianten. Grundreceptets original sparas, så du kan jämföra med Min/Original efteråt.</p>
+        <p style="margin:0 0 12px">Ersätt ingredienser och steg i <b>${esc(base.title || "grundreceptet")}</b> med den här varianten.</p>
         <button class="btn accent small" data-a="mergevariant">Uppdatera grundreceptet</button></div>` : ""; })()}
 
     ${detailState.notesEdit ? `<div class="panel notes-edit"><h2>Anteckningar</h2>
@@ -515,7 +514,7 @@ function renderEdit(){
   $app.innerHTML = `
     <button class="back" data-a="cancel">← Avbryt</button>
     <h1 class="dtitle">${d.id ? "Redigera recept" : "Nytt recept"}</h1>
-    ${d.original && !d.id ? `<div class="notice">Receptet är importerat. Ändra det till din version – originalet sparas så att du kan jämföra senare.</div>` : ""}
+    ${!d.id && !d.variantOf && d.sourceUrl ? `<div class="notice">Receptet är importerat. Granska och rätta om något blev fel – vill du göra om det på ditt sätt gör du en variant efteråt.</div>` : ""}
     <form class="form" id="f" autocomplete="off">
       <label>Namn</label>
       <input type="text" name="title" value="${esc(d.title)}" placeholder="t.ex. Krämig svamppasta" required>
@@ -542,9 +541,9 @@ function renderEdit(){
       <textarea name="steps" rows="8" placeholder="# Dagen innan&#10;Marinera köttet över natten.&#10;# Vid servering&#10;Grilla och skiva.">${esc((d.steps || []).join("\n"))}</textarea>
       <div class="hint">Ett steg per rad. Rader som börjar med # blir rubriker, t.ex. "# Dagen innan" eller "# Vid servering".</div>
 
-      <label>Mina ändringar</label>
+      ${d.variantOf ? `<label>Ändringar i varianten</label>
       <textarea name="myChanges" rows="3" placeholder="t.ex. Bytte grädde mot crème fraiche, dubbel vitlök, 5 min kortare i ugnen">${esc(d.myChanges)}</textarea>
-      <div class="hint">Vad du gjort annorlunda än originalet – visas överst i receptet.</div>
+      <div class="hint">Vad varianten gör annorlunda än originalet.</div>` : `<input type="hidden" name="myChanges" value="${esc(d.myChanges || "")}">`}
 
       <label>Anteckningar</label>
       <textarea name="notes" rows="3" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(d.notes)}</textarea>
@@ -821,7 +820,7 @@ ${s.text ? "\nRECEPTTEXT:\n" + s.text.slice(0, 20000) : ""}`;
       if (parsed.notes) draft.notes = [draft.notes, parsed.notes].filter(Boolean).join("\n\n");
       draft.tags = [...new Set([...(draft.tags || []).filter(t => t !== "att komplettera"), ...parsed.tags])].slice(0, 8);
       if (s.url) draft.sourceUrl = s.url;
-      draft.original = { servings: draft.servings, ingredients: draft.ingredients, steps: draft.steps };
+      draft._fillIn = true;
       closeImport();
       view = { name: "edit", id: target.id }; render(); window.scrollTo(0, 0);
       return;
@@ -830,7 +829,6 @@ ${s.text ? "\nRECEPTTEXT:\n" + s.text.slice(0, 20000) : ""}`;
     if (pageImage) { try { photo = await storePhoto(await compress(await (await fetch(pageImage)).blob(), 1200, 400000)); } catch {} }
     draft = {
       ...parsed, sourceUrl: s.url, myChanges: "", photo,
-      original: { servings: parsed.servings, ingredients: parsed.ingredients, steps: parsed.steps },
     };
     closeImport();
     view = { name: "edit" }; render(); window.scrollTo(0, 0);
@@ -952,7 +950,7 @@ document.addEventListener("click", async e => {
       if (!base || !canEdit(base)) { toast("Du kan inte ändra grundreceptet"); break; }
       openSheet(`<h2>Uppdatera grundreceptet</h2>
         <p>Ingredienser, steg och portioner i <b>${esc(base.title || "")}</b> ersätts med ${esc(genitive(nameOf(addedByOf(cur))))} variant.</p>
-        <p class="hnote">Grundreceptets original finns kvar, och det som ändrats noteras under Mina ändringar.</p>
+        <p class="hnote">Det noteras med datum under grundreceptets anteckningar. Andra varianter påverkas inte.</p>
         ${canEdit(cur) ? `<label class="check" style="display:flex;gap:8px;align-items:center;margin:14px 0"><input type="checkbox" id="mvDel"> Ta bort varianten efteråt</label>` : ""}
         <div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn ghost" id="mvNo">Avbryt</button><button class="btn accent" id="mvYes">Uppdatera</button></div>`);
       $id("mvNo").onclick = closeSheet;
@@ -962,8 +960,7 @@ document.addEventListener("click", async e => {
         const line = `${today()}: Uppdaterad med varianten ${variantLabel(v)} (${nameOf(addedByOf(v))}).` + (v.myChanges ? "\n" + v.myChanges : "");
         const ok = await patch(base.id, {
           ingredients: v.ingredients || [], steps: v.steps || [], servings: v.servings || base.servings || null,
-          original: base.original || { servings: base.servings || null, ingredients: base.ingredients || [], steps: base.steps || [] },
-          myChanges: [base.myChanges, line].filter(Boolean).join("\n\n"),
+          notes: [base.notes, line].filter(Boolean).join("\n\n"),
         });
         if (!ok) { $id("mvYes").disabled = false; return; }
         const del = $id("mvDel") && $id("mvDel").checked;
@@ -979,7 +976,6 @@ document.addEventListener("click", async e => {
     case "histuse": {
       const e = histOf(cur).find(x => x.id === el.dataset.h); if (!e || !e.snapshot) break;
       draft = JSON.parse(JSON.stringify(cur));
-      if (!draft.original) draft.original = { servings: cur.servings || null, ingredients: cur.ingredients || [], steps: cur.steps || [] };
       draft.ingredients = e.snapshot.ingredients || []; draft.steps = e.snapshot.steps || [];
       if (e.snapshot.servings) draft.servings = e.snapshot.servings;
       view = { name: "edit", id: cur.id }; render(); window.scrollTo(0, 0); toast("Granska och spara"); break;
@@ -1001,7 +997,16 @@ document.addEventListener("click", async e => {
     case "save": {
       readForm();
       if (!draft.title) { toast("Ge receptet ett namn"); document.querySelector('[name=title]').focus(); return; }
+      // Ändrat innehåll i ett grundrecept: fråga om det ska bli en variant
+      if (draft.id && !draft.variantOf && !draft._fillIn && !el.dataset.force) {
+        const stored = recipes.find(x => x.id === draft.id);
+        const had = stored && ((stored.ingredients || []).length || (stored.steps || []).length);
+        const changed = stored && (!sameList(stored.ingredients || [], draft.ingredients || []) || !sameList(stored.steps || [], draft.steps || []) || (stored.servings || null) !== (draft.servings || null));
+        if (had && changed) { askVariantOrOriginal(stored); return; }
+      }
       const btn = document.getElementById("savebtn"); btn.disabled = true; btn.textContent = "Sparar …";
+      if (!draft.variantOf) { delete draft.original; if (!draft.id) draft.myChanges = ""; }
+      delete draft._fillIn;
       const needName = draft.variantOf && (!draft.variantName || draft.variantNameAuto);
       const id = await saveRecipe(draft);
       if (id && needName) nameVariant(id, true);
@@ -1278,7 +1283,6 @@ ${instruction}`;
     const out = parseJson(await ai(prompt, { mode: "json" }));
     if (!Array.isArray(out.ingredients) || !Array.isArray(out.steps)) throw { code: "invalid_json" };
     draft = JSON.parse(JSON.stringify(r));
-    if (!draft.original) draft.original = { servings: r.servings || null, ingredients: r.ingredients || [], steps: r.steps || [] };
     if (out.title) draft.title = String(out.title).trim();
     draft.servings = Number.isFinite(+out.servings) && +out.servings > 0 ? Math.round(+out.servings) : draft.servings;
     if (typeof out.time === "string") draft.time = out.time.trim();
@@ -1738,7 +1742,7 @@ function renderHelp(){
         <li>Vill du ändra någon annans: tryck <b>Gör min egen variant</b> – du får en egen kopia. Du kan göra hur många varianter du vill, även av dina egna recept (<b>Gör en variant</b>).</li>
         <li>Varianter får automatiskt ett namn efter vad som skiljer dem från originalet, t.ex. <i>Extra stark</i> eller <i>Utan grädde</i>. Vill du döpa själv skriver du namnet under <b>Redigera</b>. Byt mellan originalet och varianterna med raden <b>Varianter</b> under rubriken.</li>
         <li>Är grundreceptet ditt kan du föra över en variant till det med <b>Uppdatera grundreceptet</b> längst ner i varianten.</li>
-        <li><b>Gör Min version till nytt original</b> under Mina ändringar sparar dina ändringar som receptets nya original.</li>
+        <li>Ändrar du ingredienser, steg eller portioner i ett recept frågar appen om det ska bli en <b>ny variant</b> (originalet lämnas orört) eller om du vill <b>ändra originalet</b> – det senare är för rättelser.</li>
         <li>Filtren <b>Tillagda av mig</b> och <b>Lagade av mig</b> överst i listan visar dina egna recept och det du har lagat.</li>
       </ul>`)}
 
@@ -1905,4 +1909,35 @@ ${fmt(v)}`;
     if (!name || name.length > 30) return;
     if (await patch(id, { variantName: name, variantNameAuto: true })) { if (view.name === "detail" || view.name === "list") render(); }
   } catch {} finally { namingNow.delete(id); }
+}
+
+// Spara ändringar i ett grundrecept: som ny variant (standard) eller i originalet
+function askVariantOrOriginal(base){
+  openSheet(`<h2>Spara ändringarna</h2>
+    <p>Du har ändrat ingredienser, steg eller portioner i <b>${esc(base.title || "receptet")}</b>.</p>
+    <div class="savechoice">
+      <button class="btn accent" id="scVar">Spara som ny variant</button>
+      <p class="hnote">Originalet lämnas orört. Varianten får ett namn efter skillnaderna och syns i raden Varianter.</p>
+      <button class="btn ghost" id="scOrig">Ändra originalet</button>
+      <p class="hnote">För rättelser, t.ex. ett felstavat ord eller en mängd som blev fel vid importen.</p>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn ghost small" id="scNo">Avbryt</button></div>`);
+  $id("scNo").onclick = closeSheet;
+  $id("scOrig").onclick = () => { closeSheet(); draft.myChanges = ""; const b = document.getElementById("savebtn"); b.dataset.force = "1"; b.click(); delete b.dataset.force; };
+  $id("scVar").onclick = async () => {
+    $id("scVar").disabled = true;
+    const v = JSON.parse(JSON.stringify(draft));
+    ["id", "createdAt", "updatedAt", "history", "cookLog", "favBy", "favorite", "rating", "timesCooked", "lastCooked", "addedBy", "variantName", "variantNameAuto", "_fillIn"].forEach(k => delete v[k]);
+    v.variantOf = base.id;
+    v.original = { servings: base.servings || null, ingredients: base.ingredients || [], steps: base.steps || [] };
+    v.photo = draft.photo || base.photo || null;
+    const id = await saveRecipe(v);
+    closeSheet();
+    if (!id) { toast("Kunde inte spara varianten"); return; }
+    nameVariant(id, true);
+    draft = null; markOpened(id);
+    detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
+    view = { name: "detail", id }; render(); window.scrollTo(0, 0);
+    toast("Sparad som ny variant – originalet är orört");
+  };
 }
