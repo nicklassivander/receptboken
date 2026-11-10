@@ -267,6 +267,7 @@ function goBack(){
   else { view = { name: "list" }; draft = null; render(); window.scrollTo(0, 0); }
 }
 function render(){
+  setTimeout(renderCookBar, 0);
   $app.classList.toggle("wide", view.name === "list");
   syncHistory();
   syncWakeLock();
@@ -399,6 +400,9 @@ function renderDetail(){
   const f = baseServ && serv ? serv / baseServ : 1;
   const ings = src.ingredients || [];
   const steps = src.steps || [];
+  const cs = cookSession && cookSession.recipeId === r.id ? cookSession : null;
+  if (cs) { detailState.done = cs.done || {}; if (cs.servings && detailState.servings == null) detailState.servings = cs.servings; }
+  const nextIdx = cs ? steps.findIndex((x, i) => !x.startsWith("#") && !detailState.done["s" + i]) : -1;
 
   $app.innerHTML = `
     <div class="hero ${r.photo ? "" : "noimg"}">
@@ -429,6 +433,8 @@ function renderDetail(){
       ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
     </div>
     ${variantSwitcher(r)}
+    ${cs ? `<div class="cooking-head"><span class="pan" aria-hidden="true">🍳</span><span class="ct"><b>Du lagar det här</b><small>sedan ${new Date(cs.startedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}${detailState.servings ? ` · ${detailState.servings} portioner` : ""}</small></span><span class="cr"><button class="linkbtn" data-a="cookdone">Klar!</button><button class="linkbtn muted" data-a="cookstop">Avbryt</button></span></div>`
+      : `<div class="startcook"><button class="btn accent" data-a="cookstart"><span aria-hidden="true">🍳</span> Börja laga</button></div>`}
 
     ${(!ings.length || !steps.length || (r.tags || []).includes("att komplettera")) && canEdit(r) ? `<div class="panel changes"><h2>Receptet är inte komplett</h2>
       <p style="margin:0 0 12px">Ta skärmdumpar av receptet i videon eller på sidan och lägg till dem här, så fyller Claude i det som saknas.</p>
@@ -455,7 +461,7 @@ function renderDetail(){
       <h2>Gör så här</h2>
       ${steps.length ? `<ol class="steps">${(() => { let n = 0; return steps.map((s, i) => s.startsWith("#")
           ? (n = 0, `<li class="group">${esc(s.replace(/^#+\s*/, ""))}</li>`)
-          : `<li class="${detailState.done["s" + i] ? "done" : ""}" data-n="${++n}" data-a="tick" data-k="s${i}">${esc(s)}</li>`).join(""); })()}</ol>`
+          : `<li class="${detailState.done["s" + i] ? "done" : ""}${cs && i === nextIdx ? " nextstep" : ""}" data-n="${++n}" data-a="tick" data-k="s${i}">${esc(s)}${cs ? timerButtons(s, i, n) : ""}</li>`).join(""); })()}</ol>`
         : `<p class="meta">Inga steg ifyllda.</p>`}
     </div>
     <button class="cnext" data-a="ctab" data-t="${(detailState.tab || "ing") === "ing" ? "steps" : "ing"}">${(detailState.tab || "ing") === "ing" ? "Till Gör så här →" : "← Till ingredienserna"}</button>
@@ -876,7 +882,9 @@ document.addEventListener("click", async e => {
     case "mode": detailState.mode = el.dataset.m; detailState.servings = null; detailState.done = {}; render(); break;
     case "serv": {
       const base = (detailState.mode === "orig" ? cur.original.servings : cur.servings) || 1;
-      detailState.servings = Math.max(1, (detailState.servings ?? base) + (+el.dataset.d)); render(); break;
+      detailState.servings = Math.max(1, (detailState.servings ?? base) + (+el.dataset.d));
+      if (cookSession && cookSession.recipeId === cur.id) { cookSession.servings = detailState.servings; saveCook(); }
+      render(); break;
     }
     case "notesedit":
       detailState.notesEdit = true; detailState.notesDraft = cur.notes || ""; render();
@@ -910,12 +918,24 @@ document.addEventListener("click", async e => {
       if (!activityOpen) activityTab = null;
       if (activityOpen) { activitySeenBefore = seenAt(); setSeen(Date.now()); }
       render(); break;
+    case "cookstart": startCooking(cur); break;
+    case "cookstop":
+      if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Säker?"; break; }
+      endCooking(); toast("Tillagningen avbruten"); render(); break;
+    case "cookdone": { const r0 = cur; endCooking(); render(); openHistory(r0); toast("Snyggt! Sätt betyg och spara tillagningen"); break; }
+    case "timer": startTimer(+el.dataset.ms, el.dataset.label, el.dataset.k); break;
+    case "timerstop": stopTimer(el.dataset.id); break;
+    case "cookbar": openCookRecipe(); break;
     case "ctab": {
       detailState.tab = el.dataset.t; render();
       const c = document.getElementById("cook");
       if (c) { const top = c.getBoundingClientRect().top; if (top < 0 || el.classList.contains("cnext")) window.scrollTo({ top: window.scrollY + top - 4 }); }
       break; }
-    case "tick": detailState.done[el.dataset.k] = !detailState.done[el.dataset.k]; render(); break;
+    case "tick":
+      if (e.target.closest(".timerbtn")) break;
+      detailState.done[el.dataset.k] = !detailState.done[el.dataset.k];
+      if (cookSession && cookSession.recipeId === cur.id) { cookSession.done = detailState.done; saveCook(); }
+      render(); break;
     case "rate": {
       const n = +el.dataset.n; await patch(cur.id, { rating: cur.rating === n ? 0 : n }); break;
     }
@@ -1175,6 +1195,7 @@ async function showApp(session){
   if (roleErr && cache && cache.me === me && (navigator.onLine === false || /fetch|network|load failed/i.test(String(roleErr.message || roleErr)))) { role = cache.role; loadNote = "Du är offline – visar senast sparade recept."; loaded = true; render(); subscribe(); handleShare(); return; }
   if (!role) { storageOk = false; loaded = true; render(); return; }
   await loadAll(); subscribe(); handleShare(); refreshRequests();
+  resumeCooking();
   const md = (session.user && session.user.user_metadata) || {};
   if (!md.has_password) openPasswordSheet(true);
 }
@@ -1702,6 +1723,9 @@ function renderHelp(){
         ${d.touch ? `<li>Växla mellan <b>Ingredienser</b> och <b>Gör så här</b> med flikarna eller genom att <b>svepa</b> åt sidan.</li>` : `<li>Ingredienser och steg står bredvid varandra (i ett smalt fönster blir det flikar).</li>`}
         <li>Tryck på en rad för att <b>bocka av</b> den.</li>
         <li>Ändra antalet <b>portioner</b> med − och + – mängderna räknas om.</li>
+        <li>Tryck <b>🍳 Börja laga</b> i receptet. Skärmen hålls tänd, bockarna sparas och <b>nästa steg</b> markeras. Tider i stegen blir knappar (⏱ 15 min) som startar en timer.</li>
+        <li>Lämnar du receptet eller appen syns en mörk bar längst ner: <b>Lagar nu</b> – tryck för att komma tillbaka dit du var. Öppnar du appen igen hamnar du direkt i receptet.</li>
+        <li>Tryck <b>Klar!</b> när du är färdig, så sparar du tillagningen med betyg, anteckning och bild. ${d.kind === "ios" ? "På iPhone piper timern bara när appen är öppen – titta i baren när du kommer tillbaka." : "Timern piper och vibrerar när tiden är ute."}</li>
         <li>Håll skärmen tänd med <b>telefonikonen</b> – se nedan.</li>
         <li>Tryck <b>Lagad idag</b> när du är klar, eller <b>Ny tillagning</b> för att spara datum, betyg, anteckning och bild.</li>
       </ul>`)}
@@ -1941,3 +1965,103 @@ function askVariantOrOriginal(base){
     toast("Sparad som ny variant – originalet är orört");
   };
 }
+
+// ---------- tillagning: börja laga, fortsätt, timers ----------
+let cookSession = null;
+const COOK_KEY = () => "cook:" + (me || "");
+function loadCook(){ try { cookSession = JSON.parse(localStorage.getItem(COOK_KEY()) || "null"); } catch { cookSession = null; } if (cookSession && loaded && !recipes.find(r => r.id === cookSession.recipeId)) cookSession = null; }
+function saveCook(){ try { cookSession ? localStorage.setItem(COOK_KEY(), JSON.stringify(cookSession)) : localStorage.removeItem(COOK_KEY()); } catch {} }
+function startCooking(r){
+  if (cookSession && cookSession.recipeId !== r.id) {
+    const other = recipes.find(x => x.id === cookSession.recipeId);
+    if (other && !confirm(`Du lagar redan ${other.title}. Vill du avsluta den och börja med ${r.title}?`)) return;
+  }
+  cookSession = { recipeId: r.id, startedAt: Date.now(), servings: detailState.servings ?? r.servings ?? null, done: detailState.done || {}, timers: [] };
+  saveCook();
+  wakeWanted = true;
+  detailState.tab = "ing";
+  render(); syncWakeLock();
+  toast("Smaklig tillagning! Skärmen hålls tänd.");
+}
+function endCooking(){ cookSession = null; saveCook(); wakeWanted = false; syncWakeLock(); }
+function openCookRecipe(){
+  if (!cookSession) return;
+  const r = recipes.find(x => x.id === cookSession.recipeId); if (!r) { endCooking(); render(); return; }
+  if (!(view.name === "detail" && view.id === r.id)) {
+    detailState = { mode: "mine", servings: cookSession.servings ?? null, done: cookSession.done || {}, tab: "steps", notesEdit: false, notesDraft: null };
+    view = { name: "detail", id: r.id }; render();
+  } else { detailState.tab = "steps"; render(); }
+  setTimeout(() => { const n = document.querySelector(".nextstep") || document.getElementById("cook"); if (n) n.scrollIntoView({ block: "center", behavior: "smooth" }); }, 60);
+}
+function resumeCooking(){
+  loadCook();
+  if (!cookSession) return;
+  const r = recipes.find(x => x.id === cookSession.recipeId); if (!r) { endCooking(); return; }
+  wakeWanted = true;
+  if (view.name === "list") {
+    openCookRecipe();
+    const steps = r.steps || []; const real = steps.filter(x => !x.startsWith("#"));
+    const done = steps.filter((x, i) => !x.startsWith("#") && (cookSession.done || {})["s" + i]).length;
+    toast(`Välkommen tillbaka – du lagar ${r.title}${real.length ? `, steg ${Math.min(done + 1, real.length)} av ${real.length}` : ""}`);
+  } else { render(); syncWakeLock(); }
+}
+
+// Tider i stegen: "15 min", "1 h", "1,5 timme", "10–12 minuter", "30 sek"
+function parseDurations(text){
+  const out = [], re = /(\d+(?:[.,]\d+)?)(?:\s*[-–]\s*(\d+(?:[.,]\d+)?))?\s*(minuter|minut|min|timmar|timme|tim|h|sekunder|sek)(?![a-zåäö])/gi;
+  let m;
+  while ((m = re.exec(text)) && out.length < 3) {
+    const v = parseFloat((m[2] || m[1]).replace(",", ".")), u = m[3].toLowerCase();
+    const ms = u.startsWith("s") ? v * 1e3 : /^(h|tim)/.test(u) ? v * 36e5 : v * 6e4;
+    if (ms >= 1e4 && ms <= 48 * 36e5) out.push({ ms, label: m[0].trim() });
+  }
+  return out;
+}
+function timerButtons(text, i, n){
+  return parseDurations(text).map(d => `<button class="timerbtn" data-a="timer" data-ms="${d.ms}" data-k="s${i}" data-label="Steg ${n}: ${esc(d.label)}">⏱ ${esc(d.label)}</button>`).join("");
+}
+function startTimer(ms, label, k){
+  if (!cookSession) return;
+  cookSession.timers = (cookSession.timers || []).filter(t => !t.rung);
+  cookSession.timers.push({ id: "t" + Date.now().toString(36), label, k, end: Date.now() + ms, total: ms });
+  saveCook(); renderCookBar(); toast(`Timer startad: ${label}`);
+  try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch {}
+}
+function stopTimer(id){ if (!cookSession) return; cookSession.timers = (cookSession.timers || []).filter(t => t.id !== id); saveCook(); renderCookBar(); }
+const fmtLeft = ms => { const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}` : `${m}:${String(ss).padStart(2, "0")}`; };
+function renderCookBar(){
+  let bar = document.getElementById("cookbar");
+  if (!cookSession && me) loadCook();
+  const appEl = document.getElementById("app");
+  const show = cookSession && me && view.name !== "edit" && appEl && !appEl.classList.contains("hidden");
+  if (!show) { if (bar) bar.remove(); document.body.classList.remove("has-cookbar"); return; }
+  const r = recipes.find(x => x.id === cookSession.recipeId); if (!r) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement("div"); bar.id = "cookbar"; bar.className = "cookbar"; document.body.appendChild(bar); }
+  document.body.classList.add("has-cookbar");
+  const steps = r.steps || [], real = steps.filter(x => !x.startsWith("#"));
+  const done = steps.filter((x, i) => !x.startsWith("#") && (cookSession.done || {})["s" + i]).length;
+  const timers = (cookSession.timers || []).slice().sort((a, b) => a.end - b.end);
+  bar.innerHTML = `<button class="cb-main" data-a="cookbar"><span class="pan" aria-hidden="true">🍳</span><span class="t"><span>Lagar nu${real.length ? ` · steg ${Math.min(done + 1, real.length)}/${real.length}` : ""}</span><b>${esc(r.title || "")}</b></span></button>
+    ${timers.map(t => `<button class="tm ${t.end <= Date.now() ? "ring" : ""}" data-a="timerstop" data-id="${t.id}" title="${esc(t.label)} – tryck för att stänga av"><span data-end="${t.end}">${t.end <= Date.now() ? "Klar!" : "⏱ " + fmtLeft(t.end - Date.now())}</span></button>`).join("")}`;
+}
+let audioCtx = null;
+function beep(){
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    [0, .35, .7].forEach(d => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination); g.gain.setValueAtTime(.25, audioCtx.currentTime + d); g.gain.exponentialRampToValueAtTime(.001, audioCtx.currentTime + d + .3); o.start(audioCtx.currentTime + d); o.stop(audioCtx.currentTime + d + .3); });
+  } catch {}
+  try { navigator.vibrate && navigator.vibrate([300, 150, 300, 150, 300]); } catch {}
+}
+setInterval(() => {
+  if (!cookSession || !(cookSession.timers || []).length) return;
+  let rang = false;
+  for (const t of cookSession.timers) {
+    if (t.end <= Date.now() && !t.rung) {
+      t.rung = true; rang = true; beep(); toast(`⏰ Klart: ${t.label}`);
+      try { if (document.hidden && Notification.permission === "granted") new Notification("Timern är klar", { body: t.label, icon: "/icon-192.png" }); } catch {}
+    }
+  }
+  if (rang) { saveCook(); renderCookBar(); }
+  document.querySelectorAll("#cookbar [data-end]").forEach(el => { const left = +el.dataset.end - Date.now(); el.textContent = left <= 0 ? "Klar!" : "⏱ " + fmtLeft(left); el.parentElement.classList.toggle("ring", left <= 0); });
+}, 1000);
+document.addEventListener("click", () => { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === "suspended") audioCtx.resume(); } catch {} }, { once: true });
