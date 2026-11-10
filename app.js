@@ -7,12 +7,13 @@ let filter = { q: "", tags: [], fav: false, mine: false, cookedMe: false, sort: 
 let filterOpen = false;
 // Fasta nyckelord i grupper – håller listan kort och sökbar
 const TAG_GROUPS = [
-  ["Rätt", ["förrätt", "varmrätt", "efterrätt", "tillbehör", "sås", "tilltugg", "soppa", "sallad", "bröd", "dryck"]],
-  ["Råvara", ["kött", "fläsk", "kyckling", "vilt", "fisk", "skaldjur", "vegetariskt"]],
-  ["Kök", ["svenskt", "italienskt", "franskt", "asiatiskt", "mexikanskt", "medelhavet"]],
-  ["Tillfälle", ["vardag", "helg", "fest", "jul", "påsk", "midsommar", "sommar"]],
-  ["Metod", ["grill", "ugn", "gryta", "långkok", "snabbt", "inläggning"]],
+  ["Rätt", ["förrätt", "varmrätt", "efterrätt", "tilltugg", "tillbehör", "dryck"]],
+  ["Råvara", ["kött", "kyckling", "fisk", "vegetariskt"]],
+  ["Tillfälle", ["vardag", "fest", "jul"]],
+  ["Metod", ["grill", "långkok"]],
 ];
+// Hur ord utanför listan ska sorteras in
+const TAG_HINTS = 'sås, dressing, bröd och sallad räknas som "tillbehör"; soppa som "förrätt" eller "varmrätt"; fläsk, vilt, lamm och nöt som "kött"; skaldjur som "fisk"; helg och bjudmat som "fest"; påsk och midsommar som "fest"; gryta och ugn utan lång tid räknas inte som metod.';
 const TAG_VOCAB = TAG_GROUPS.flatMap(g => g[1]);
 // Telefon/surfplatta med kamera: visa "Ta foto" (öppnar kameran direkt)
 const HAS_CAMERA = matchMedia("(pointer: coarse)").matches && /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent + (navigator.maxTouchPoints > 1 ? " ipad" : ""));
@@ -799,7 +800,7 @@ Svara ENDAST med ett JSON-objekt, utan förklaring:
 Regler:
 - ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ". Behåll ALLA tidsangivelser från källan (koktid, stektid, ugnstid, vila, marinering, jäsning) i det steg där de hör hemma och skriv dem med siffror och enhet, t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek" – aldrig bara "en stund" om källan anger en tid. Står tiden bara i receptets inledning eller i en totaltid, för in den i rätt steg om det framgår vilket.
 - steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
-- tags: 2–5 taggar, ENBART från denna lista (gemener, exakt stavning): ${TAG_VOCAB.join(", ")}. Välj det som stämmer – typ av rätt, huvudråvara, kök, tillfälle och metod.
+- tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${TAG_VOCAB.join(", ")}. Välj det som stämmer – typ av rätt, huvudråvara, tillfälle och metod. ${TAG_HINTS}
 - notes: eventuella tips från källan, kort. Annars tom sträng.
 - ${s.translate ? "Skriv allt på svenska. Räkna om amerikanska mått (cups, tbsp, tsp, oz, lb, °F) till svenska metriska mått (dl, msk, tsk, g, °C)." : "Behåll originalspråket och måtten."}
 - Hitta inte på något. Saknas receptinnehåll helt, svara {"error": "kort förklaring på svenska"}.
@@ -1780,7 +1781,7 @@ function renderHelp(){
         <li>Är grundreceptet ditt kan du föra över en variant till det med <b>Uppdatera grundreceptet</b> längst ner i varianten.</li>
         <li>Ändrar du ingredienser, steg eller portioner i ett recept frågar appen om det ska bli en <b>ny variant</b> (originalet lämnas orört) eller om du vill <b>ändra originalet</b> – det senare är för rättelser.</li>
         <li>Filtren <b>Tillagda av mig</b> och <b>Lagade av mig</b> överst i listan visar dina egna recept och det du har lagat.</li>
-        <li><b>Filtrera</b> (till höger i filterraden, på mobilen bredvid Bilder/Lista) öppnar nyckelorden i grupper: Rätt, Råvara, Kök, Tillfälle och Metod. Välj flera för att smalna av, t.ex. <i>fisk + vardag</i>. Valda filter syns som brickor som du tar bort med ×.</li>
+        <li><b>Filtrera</b> (till höger i filterraden, på mobilen bredvid Bilder/Lista) öppnar nyckelorden i grupper: Rätt, Råvara, Tillfälle och Metod. Välj flera för att smalna av, t.ex. <i>fisk + vardag</i>. Valda filter syns som brickor som du tar bort med ×.</li>
       </ul>`)}
 
     ${sec("Bra att veta", `
@@ -2278,7 +2279,7 @@ function openTagsTool(){
   const used = new Set(recipes.flatMap(r => r.tags || []));
   const odd = [...used].filter(t => !TAG_VOCAB.includes(t));
   openSheet(`<h2>Städa nyckelord</h2>
-    <p>Claude går igenom ${list.length} recept och ger vart och ett 2–5 nyckelord från de fasta grupperna (Rätt, Råvara, Kök, Tillfälle, Metod). Dubbletter och udda ord försvinner.</p>
+    <p>Claude går igenom ${list.length} recept och ger vart och ett 2–4 nyckelord från de 15 fasta orden (Rätt, Råvara, Tillfälle, Metod). Dubbletter och udda ord försvinner.</p>
     <p class="hnote">I dag finns ${used.size} olika nyckelord, varav ${odd.length} utanför listan${odd.length ? `: ${esc(odd.slice(0, 14).join(", "))}${odd.length > 14 ? " …" : ""}` : ""}. Taggen "att komplettera" behålls. Allt kan ångras.</p>
     <div id="tgList" class="ttlist"></div>
     <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn ghost" id="tgClose">Stäng</button><button class="btn accent" id="tgGo">Starta</button></div>`);
@@ -2292,7 +2293,7 @@ function openTagsTool(){
       const batch = list.slice(i, i + 8);
       const row = document.createElement("div"); row.className = "ttrow"; row.innerHTML = `<span class="spinner"></span> Recept ${i + 1}–${i + batch.length} av ${list.length}`; box.prepend(row);
       try {
-        const prompt = `Ge varje recept 2–5 nyckelord, ENBART från listan nedan (exakt stavning, gemener). Välj typ av rätt, huvudråvara, kök, tillfälle och metod när det passar. Använd "snabbt" bara om receptet tar under 30 min, "vardag" för enkla vardagsrätter, "fest" för bjudmat. Hitta inte på nya ord.
+        const prompt = `Ge varje recept 2–4 nyckelord, ENBART från listan nedan (exakt stavning, gemener). Välj typ av rätt, huvudråvara, tillfälle och metod när det passar. ${TAG_HINTS} "vardag" för enkla vardagsrätter, "långkok" för sådant som tar flera timmar. Hitta inte på nya ord.
 Lista: ${TAG_VOCAB.join(", ")}
 Svara bara med JSON: {"<id>": ["...", "..."], ...}
 
@@ -2303,7 +2304,7 @@ ${JSON.stringify(batch.map(r => ({ id: r.id, titel: r.title, tid: r.time || "", 
         for (const r of batch) {
           let tags = Array.isArray(out[r.id]) ? out[r.id].map(x => String(x).toLowerCase().trim()).filter(x => TAG_VOCAB.includes(x)) : null;
           if (!tags || !tags.length) { lines.push(`– ${esc(r.title || "")}: oförändrad`); continue; }
-          tags = [...new Set(tags)].slice(0, 5);
+          tags = [...new Set(tags)].slice(0, 4);
           if ((r.tags || []).includes("att komplettera")) tags.push("att komplettera");
           if (sameList(tags, r.tags || [])) { lines.push(`– ${esc(r.title || "")}: redan rätt`); continue; }
           if (await patch(r.id, { tags, tagsBefore: r.tags || [] })) { done.push(r.id); lines.push(`✓ <b>${esc(r.title || "")}</b> <span class="hnote">${esc(tags.join(", "))}</span>`); }
