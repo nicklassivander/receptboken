@@ -409,7 +409,8 @@ function renderDetail(){
         <h1 class="dtitle">${esc(r.title || "Namnlöst recept")}</h1>
       </div>
     </div>
-    <div class="row" style="justify-content:center;gap:18px">
+    <div class="row ratebar" style="justify-content:center;gap:18px">
+      <button class="tolist" data-a="home" aria-label="Tillbaka till alla recept"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span>Alla recept</span></button>
       <div class="stars" ${can("contributor") ? "" : 'style="pointer-events:none"'}>${[1,2,3,4,5].map(n => `<button class="${(r.rating || 0) >= n ? "on" : ""}" data-a="rate" data-n="${n}" aria-label="${n} stjärnor">★</button>`).join("")}</div>
       <button class="iconbtn" data-a="togglefav" aria-label="Favorit" style="font-size:20px;color:var(--accent)" ${can("contributor") ? "" : "disabled"}>${isFav(r) ? "♥" : "♡"}</button>
       ${"wakeLock" in navigator ? `<button class="iconbtn wakeicon" id="wakebtn" data-a="wake" aria-pressed="false" aria-label="Håll skärmen tänd" title="Håll skärmen tänd">

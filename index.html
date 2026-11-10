@@ -485,6 +485,12 @@ header.top h1{font-weight:600}
 .notes-edit textarea:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(201,167,100,.22)}
 .notes-empty .linkbtn{display:block;width:100%;text-align:left;border:1px dashed #cdc4b6;background:#fff;padding:13px 14px;border-radius:3px;color:#8a837b;font-style:italic}
 .notes-empty .linkbtn:hover{border-color:var(--brass);color:var(--ink)}
+.ratebar{position:relative}
+.tolist{position:absolute;left:0;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:6px 0;font:inherit;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.tolist:hover{color:var(--ink)}
+.tolist svg{transition:transform .15s}
+.tolist:hover svg{transform:translateX(-3px)}
+@media(max-width:620px){.tolist span{display:none}.tolist{padding:8px 6px 8px 0}}
 </style>
 </head>
 <body>
