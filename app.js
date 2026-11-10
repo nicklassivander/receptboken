@@ -433,8 +433,8 @@ function renderDetail(){
       ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
     </div>
     ${variantSwitcher(r)}
-    ${cs ? `<div class="cooking-head"><span class="pan" aria-hidden="true">🍳</span><span class="ct"><b>Du lagar det här</b><small>sedan ${new Date(cs.startedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}${detailState.servings ? ` · ${detailState.servings} portioner` : ""}</small></span><span class="cr"><button class="linkbtn" data-a="cookdone">Klar!</button><button class="linkbtn muted" data-a="cookstop">Avbryt</button></span></div>`
-      : `<div class="startcook"><button class="btn accent" data-a="cookstart"><span aria-hidden="true">🍳</span> Börja laga</button></div>`}
+    ${cs ? `<div class="cooking-head"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="ct"><b>Du lagar det här</b><small>sedan ${new Date(cs.startedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}${detailState.servings ? ` · ${detailState.servings} portioner` : ""}</small></span><span class="cr"><button class="linkbtn" data-a="cookdone">Klar!</button><button class="linkbtn muted" data-a="cookstop">Avbryt</button></span></div>`
+      : `<div class="startcook"><button class="cookbtn" data-a="cookstart">${PAN_SVG}<span>Börja laga</span></button></div>`}
 
     ${(!ings.length || !steps.length || (r.tags || []).includes("att komplettera")) && canEdit(r) ? `<div class="panel changes"><h2>Receptet är inte komplett</h2>
       <p style="margin:0 0 12px">Ta skärmdumpar av receptet i videon eller på sidan och lägg till dem här, så fyller Claude i det som saknas.</p>
@@ -1967,6 +1967,7 @@ function askVariantOrOriginal(base){
 }
 
 // ---------- tillagning: börja laga, fortsätt, timers ----------
+const PAN_SVG = `<svg class="panico" viewBox="0 0 32 32" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="13" cy="17" r="9"/><circle cx="13" cy="17" r="5.5" opacity=".45"/><path d="M21.5 13.5 29 7"/><path d="M10 5.5c.6-1 .6-2 0-3M14 5.5c.6-1 .6-2 0-3" opacity=".7"/></svg>`;
 let cookSession = null;
 const COOK_KEY = () => "cook:" + (me || "");
 function loadCook(){ try { cookSession = JSON.parse(localStorage.getItem(COOK_KEY()) || "null"); } catch { cookSession = null; } if (cookSession && loaded && !recipes.find(r => r.id === cookSession.recipeId)) cookSession = null; }
@@ -2041,7 +2042,7 @@ function renderCookBar(){
   const steps = r.steps || [], real = steps.filter(x => !x.startsWith("#"));
   const done = steps.filter((x, i) => !x.startsWith("#") && (cookSession.done || {})["s" + i]).length;
   const timers = (cookSession.timers || []).slice().sort((a, b) => a.end - b.end);
-  bar.innerHTML = `<button class="cb-main" data-a="cookbar"><span class="pan" aria-hidden="true">🍳</span><span class="t"><span>Lagar nu${real.length ? ` · steg ${Math.min(done + 1, real.length)}/${real.length}` : ""}</span><b>${esc(r.title || "")}</b></span></button>
+  bar.innerHTML = `<button class="cb-main" data-a="cookbar"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="t"><span>Lagar nu${real.length ? ` · steg ${Math.min(done + 1, real.length)}/${real.length}` : ""}</span><b>${esc(r.title || "")}</b></span></button>
     ${timers.map(t => `<button class="tm ${t.end <= Date.now() ? "ring" : ""}" data-a="timerstop" data-id="${t.id}" title="${esc(t.label)} – tryck för att stänga av"><span data-end="${t.end}">${t.end <= Date.now() ? "Klar!" : "⏱ " + fmtLeft(t.end - Date.now())}</span></button>`).join("")}`;
 }
 let audioCtx = null;
