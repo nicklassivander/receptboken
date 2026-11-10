@@ -409,6 +409,7 @@ function renderList(){
     </div>
     ${filterOpen ? filterPanelHtml(list) : ""}
     ${filter.tags.length ? `<div class="activetags">${filter.tags.map(t => `<button data-a="tag" data-t="${esc(t)}">${esc(t)} <b aria-hidden="true">×</b></button>`).join("")}<button class="linkbtn" data-a="tagclear">Rensa</button></div>` : ""}` : ""}
+    ${aiSearchHtml(list)}
     ${body}
     ${storageOk && loaded && can("contributor") ? `<button class="fab" data-a="menu" aria-label="Lägg till">${menuOpen ? "×" : "+"}</button>` : ""}
     ${menuOpen ? `<div class="menu">
@@ -905,6 +906,8 @@ document.addEventListener("click", async e => {
     case "new":
       menuOpen = false; draft = { title: "", sourceUrl: "", servings: 4, time: "", tags: [], ingredients: [], steps: [], myChanges: "", notes: "", photo: null };
       view = { name: "edit" }; render(); window.scrollTo(0, 0); break;
+    case "aisearch": runAiSearch(); break;
+    case "aisearchclose": aiSearch = null; filter.q = ""; render(); break;
     case "open":
       markOpened(el.dataset.id);
       detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null };
@@ -2637,7 +2640,7 @@ function logView(id){
 }
 
 const LOG_TEXT = { open: "öppnade appen", view: "tittade på", cook_start: "började laga", cook_done: "lagade klart", cook_cancel: "avbröt tillagningen av",
-  add: "lade till", edit: "ändrade", variant: "gjorde en variant:", delete: "tog bort", import: "importerade ett recept", fav: "favoritmarkerade", unfav: "tog bort favorit:",
+  add: "lade till", edit: "ändrade", ai_search: "frågade Claude:", variant: "gjorde en variant:", delete: "tog bort", import: "importerade ett recept", fav: "favoritmarkerade", unfav: "tog bort favorit:",
   added: "lade till", cooked: "lagade" };
 const DEV_TEXT = { ios: "iPhone/iPad", android: "Android", mac: "Mac", pc: "Dator" };
 async function openActivity(days){
@@ -2679,4 +2682,50 @@ async function openActivity(days){
     $id("aaClose").onclick = closeSheet;
   };
   draw();
+}
+
+
+// ---------- Fråga Claude: smartare sökning när vanliga sökningen inte räcker ----------
+let aiSearch = null;   // { q, busy, items: [{id, why}], answer, err }
+function aiSearchHtml(list){
+  const q = filter.q.trim();
+  if (q.length < 2 || !sample) return "";
+  const s = aiSearch && aiSearch.q === q ? aiSearch : null;
+  const spark = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z" opacity=".7"/></svg>`;
+  if (!s) return `<button class="aisearch-btn" data-a="aisearch">${spark}<span>${list.length ? "Inte rätt?" : "Inga träffar."} <b>Fråga Claude</b> om "${esc(q)}"</span></button>`;
+  if (s.busy) return `<div class="aisearch"><div class="ais-head">${spark}<b>Claude letar i receptboken …</b><span class="spinner"></span></div></div>`;
+  if (s.err) return `<div class="aisearch"><div class="ais-head">${spark}<b>Det gick inte att fråga Claude</b></div><p class="ais-ans">${esc(s.err)}</p><button class="linkbtn" data-a="aisearch">Försök igen</button></div>`;
+  const items = s.items.map(it => ({ ...it, r: recipes.find(r => r.id === it.id) })).filter(x => x.r);
+  return `<div class="aisearch">
+    <div class="ais-head">${spark}<b>Claude föreslår</b><button class="iconbtn ais-x" data-a="aisearchclose" aria-label="Stäng">×</button></div>
+    ${s.answer ? `<p class="ais-ans">${esc(s.answer)}</p>` : ""}
+    ${items.length ? `<div class="ais-list">${items.map(x => `<button class="ais-item" data-a="open" data-id="${esc(x.r.id)}">
+      ${x.r.photo ? `<img src="${esc(x.r.photo)}" alt="" loading="lazy">` : `<span class="ais-ph"></span>`}
+      <span><b>${esc(x.r.title)}${x.r.variantOf ? ` <small class="badge mod">${esc(variantBadge(x.r))}</small>` : ""}</b><small>${esc(x.why || "")}</small></span></button>`).join("")}</div>` : ""}
+  </div>`;
+}
+async function runAiSearch(){
+  const q = filter.q.trim(); if (!q) return;
+  aiSearch = { q, busy: true, items: [] }; renderList();
+  const cat = recipes.map(r => ({ id: r.id, titel: r.title, variant: r.variantOf ? variantLabel(r) : undefined, taggar: r.tags || [], tid: r.time || undefined,
+    portioner: r.servings || undefined, betyg: r.rating || undefined, lagad: r.timesCooked || undefined,
+    ingredienser: (r.ingredients || []).filter(x => !x.startsWith("#")).slice(0, 18).map(x => x.slice(0, 60)),
+    anteckning: (r.notes || r.myChanges || "").slice(0, 120) || undefined }));
+  const prompt = `Du hjälper en familj att hitta rätt recept i deras egen receptbok. De sökte på: "${q}"
+Tolka frågan fritt: det kan vara ingredienser de har hemma, ett tillfälle, en känsla, en tid, en kategori eller en halvt ihågkommen rätt.
+Välj upp till 6 recept ur listan som passar bäst, bäst först. Använd bara id:n från listan. Hittar du inget som passar, lämna listan tom och föreslå kort vad de kan söka på i stället.
+Svara bara med JSON: {"svar": "en kort mening på svenska", "recept": [{"id": "...", "varför": "kort motivering, max 12 ord"}]}
+
+Receptboken:
+${JSON.stringify(cat)}`;
+  try {
+    const out = parseJson(await ai(prompt, { mode: "json" }));
+    if (!aiSearch || aiSearch.q !== q) return;
+    aiSearch = { q, busy: false, answer: out.svar || "", items: (out.recept || []).map(x => ({ id: x.id, why: x["varför"] || x.varfor || "" })).filter(x => x.id) };
+    logEvent("ai_search", null, { q, träffar: aiSearch.items.length });
+  } catch (e) {
+    if (!aiSearch || aiSearch.q !== q) return;
+    aiSearch = { q, busy: false, items: [], err: e && e.code === "auth" ? "Logga in igen och försök på nytt." : "Försök igen om en stund." };
+  }
+  if (view.name === "list") renderList();
 }
