@@ -401,7 +401,6 @@ function renderDetail(){
   $app.innerHTML = `
     <div class="hero ${r.photo ? "" : "noimg"}">
       ${r.photo ? `<img src="${esc(r.photo)}" alt="">` : ""}
-      <button class="back" data-a="home">Alla recept</button>
       <button class="fback" data-a="home" aria-label="Tillbaka till alla recept"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
       <div class="hero-cap">
         <div class="row">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}
