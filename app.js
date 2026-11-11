@@ -2719,14 +2719,24 @@ async function runAiSearch(){
   const prompt = `Du hjälper en familj att hitta rätt recept i deras egen receptbok. De sökte på: "${q}"
 Tolka frågan fritt: det kan vara ingredienser de har hemma, ett tillfälle, en känsla, en tid, en kategori eller en halvt ihågkommen rätt.
 Välj upp till 6 recept ur listan som passar bäst, bäst först. Använd bara id:n från listan. Hittar du inget som passar, lämna listan tom och föreslå kort vad de kan söka på i stället.
-Svara bara med JSON: {"svar": "en kort mening på svenska", "recept": [{"id": "...", "varför": "kort motivering, max 12 ord"}]}
+Varje recept du nämner i "svar" MÅSTE också finnas med i "recept", med exakt id från listan.
+Svara bara med JSON: {"svar": "en kort mening på svenska", "recept": [{"id": "...", "titel": "receptets titel", "varför": "kort motivering, max 12 ord"}]}
 
 Receptboken:
 ${JSON.stringify(cat)}`;
   try {
     const out = parseJson(await ai(prompt, { mode: "json" }));
     if (!aiSearch || aiSearch.q !== q) return;
-    aiSearch = { ...aiSearch, q, busy: false, answer: out.svar || "", items: (out.recept || []).map(x => ({ id: x.id, why: x["varför"] || x.varfor || "" })).filter(x => x.id) };
+    // Hitta receptet även om Claude skrivit id:t lite fel – matcha då på titel
+    const norm = t => String(t || "").toLowerCase().replace(/[^a-zåäö0-9]+/g, " ").trim();
+    const findR = x => recipes.find(r => r.id === x.id) || recipes.find(r => norm(r.title) === norm(x.titel || x.title || x.id))
+      || recipes.find(r => norm(x.titel || x.id).length > 3 && (norm(r.title).includes(norm(x.titel || x.id)) || norm(x.titel || x.id).includes(norm(r.title))));
+    const seen = new Set();
+    const items = (out.recept || []).map(x => { const r = findR(x || {}); return r && !seen.has(r.id) && seen.add(r.id) ? { id: r.id, why: x["varför"] || x.varfor || "" } : null; }).filter(Boolean);
+    // Nämner svaret ett recept som inte kom med i listan? Lägg till det.
+    const ans = norm(out.svar);
+    recipes.forEach(r => { const t = norm(r.title); if (t.length > 4 && ans.includes(t) && !seen.has(r.id)) { seen.add(r.id); items.push({ id: r.id, why: "" }); } });
+    aiSearch = { ...aiSearch, q, busy: false, answer: out.svar || "", items };
     logEvent("ai_search", null, { q, träffar: aiSearch.items.length });
   } catch (e) {
     if (!aiSearch || aiSearch.q !== q) return;
