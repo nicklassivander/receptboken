@@ -357,7 +357,7 @@ function renderList(){
         <button class="btn ${sample ? "ghost" : "accent"}" data-a="new">Skriv eget</button>
       </div></div>`;
   } else if (!list.length) {
-    body = aiSearch && aiSearch.q === filter.q.trim() && !aiSearch.busy && (aiSearch.items || []).length ? "" : `<div class="empty"><p>Inga recept matchar.</p><button class="btn ghost small" data-a="clear">Rensa filter</button></div>`;
+    body = aiSearch && aiSearch.q === filter.q.trim() ? "" : `<div class="empty"><p>Inga recept matchar.</p><button class="btn ghost small" data-a="clear">Rensa filter</button></div>`;
   } else {
     body = layout === "list" ? listRows(list) : `<div class="grid">${list.map(r => `
       <div class="card" data-a="open" data-id="${esc(r.id)}">
@@ -907,6 +907,9 @@ document.addEventListener("click", async e => {
       menuOpen = false; draft = { title: "", sourceUrl: "", servings: 4, time: "", tags: [], ingredients: [], steps: [], myChanges: "", notes: "", photo: null };
       view = { name: "edit" }; render(); window.scrollTo(0, 0); break;
     case "aisearch": runAiSearch(); break;
+    case "ainew": runAiNew(); break;
+    case "ainewopen": if (aiSearch && aiSearch.nw) { aiSearch.nw.open = !aiSearch.nw.open; renderList(); } break;
+    case "ainewsave": saveAiNew(); break;
     case "aisearchclose": aiSearch = null; filter.q = ""; render(); break;
     case "open":
       markOpened(el.dataset.id);
@@ -2640,7 +2643,7 @@ function logView(id){
 }
 
 const LOG_TEXT = { open: "öppnade appen", view: "tittade på", cook_start: "började laga", cook_done: "lagade klart", cook_cancel: "avbröt tillagningen av",
-  add: "lade till", edit: "ändrade", ai_search: "frågade Claude:", variant: "gjorde en variant:", delete: "tog bort", import: "importerade ett recept", fav: "favoritmarkerade", unfav: "tog bort favorit:",
+  add: "lade till", edit: "ändrade", ai_search: "frågade Claude:", ai_new: "fick ett nytt recept av Claude:", variant: "gjorde en variant:", delete: "tog bort", import: "importerade ett recept", fav: "favoritmarkerade", unfav: "tog bort favorit:",
   added: "lade till", cooked: "lagade" };
 const DEV_TEXT = { ios: "iPhone/iPad", android: "Android", mac: "Mac", pc: "Dator" };
 async function openActivity(days){
@@ -2693,7 +2696,7 @@ function aiSearchHtml(list){
   const s = aiSearch && aiSearch.q === q ? aiSearch : null;
   const spark = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z" opacity=".7"/></svg>`;
   if (!s) return `<button class="aisearch-btn" data-a="aisearch">${spark}<span>${list.length ? "Inte rätt?" : "Inga träffar."} <b>Fråga Claude</b> om "${esc(q)}"</span></button>`;
-  if (s.busy) return `<div class="aisearch"><div class="ais-head">${spark}<b>Claude letar i receptboken …</b><span class="spinner"></span></div></div>`;
+  if (s.busy) return `<div class="aisearch"><div class="ais-head">${spark}<b>Claude letar i receptboken …</b><span class="spinner"></span></div>${aiNewHtml(s)}</div>`;
   if (s.err) return `<div class="aisearch"><div class="ais-head">${spark}<b>Det gick inte att fråga Claude</b></div><p class="ais-ans">${esc(s.err)}</p><button class="linkbtn" data-a="aisearch">Försök igen</button></div>`;
   const items = s.items.map(it => ({ ...it, r: recipes.find(r => r.id === it.id) })).filter(x => x.r);
   return `<div class="aisearch">
@@ -2702,11 +2705,13 @@ function aiSearchHtml(list){
     ${items.length ? `<div class="ais-list">${items.map(x => `<button class="ais-item" data-a="open" data-id="${esc(x.r.id)}">
       ${x.r.photo ? `<img src="${esc(x.r.photo)}" alt="" loading="lazy">` : `<span class="ais-ph"></span>`}
       <span><b>${esc(x.r.title)}${x.r.variantOf ? ` <small class="badge mod">${esc(variantBadge(x.r))}</small>` : ""}</b><small>${esc(x.why || "")}</small></span></button>`).join("")}</div>` : ""}
+    ${aiNewHtml(s)}
   </div>`;
 }
 async function runAiSearch(){
   const q = filter.q.trim(); if (!q) return;
-  aiSearch = { q, busy: true, items: [] }; renderList();
+  aiSearch = { q, busy: true, items: [], nw: { busy: true } }; renderList();
+  runAiNew(q);
   const cat = recipes.map(r => ({ id: r.id, titel: r.title, variant: r.variantOf ? variantLabel(r) : undefined, taggar: r.tags || [], tid: r.time || undefined,
     portioner: r.servings || undefined, betyg: r.rating || undefined, lagad: r.timesCooked || undefined,
     ingredienser: (r.ingredients || []).filter(x => !x.startsWith("#")).slice(0, 18).map(x => x.slice(0, 60)),
@@ -2721,11 +2726,66 @@ ${JSON.stringify(cat)}`;
   try {
     const out = parseJson(await ai(prompt, { mode: "json" }));
     if (!aiSearch || aiSearch.q !== q) return;
-    aiSearch = { q, busy: false, answer: out.svar || "", items: (out.recept || []).map(x => ({ id: x.id, why: x["varför"] || x.varfor || "" })).filter(x => x.id) };
+    aiSearch = { ...aiSearch, q, busy: false, answer: out.svar || "", items: (out.recept || []).map(x => ({ id: x.id, why: x["varför"] || x.varfor || "" })).filter(x => x.id) };
     logEvent("ai_search", null, { q, träffar: aiSearch.items.length });
   } catch (e) {
     if (!aiSearch || aiSearch.q !== q) return;
-    aiSearch = { q, busy: false, items: [], err: e && e.code === "auth" ? "Logga in igen och försök på nytt." : "Försök igen om en stund." };
+    aiSearch = { ...aiSearch, q, busy: false, items: [], err: e && e.code === "auth" ? "Logga in igen och försök på nytt." : "Försök igen om en stund." };
   }
   if (view.name === "list") renderList();
+}
+
+// Nytt receptförslag från Claude, utöver det som redan finns i boken
+function aiNewHtml(s){
+  const n = s && s.nw; if (!n) return "";
+  if (n.busy) return `<div class="ais-new"><div class="ain-h"><small>Nytt förslag</small></div><p class="ais-ans"><span class="spinner"></span> Claude skriver ett riktigt bra recept åt dig …</p></div>`;
+  if (n.err || !n.r) return `<div class="ais-new"><p class="ais-ans">Kunde inte ta fram ett nytt förslag. <button class="linkbtn" data-a="ainew">Försök igen</button></p></div>`;
+  const r = n.r;
+  const ings = (r.ingredienser || []).map(l => String(l).startsWith("#") ? `<li class="group">${esc(String(l).replace(/^#\s*/, ""))}</li>` : `<li>${esc(l)}</li>`).join("");
+  let k = 0; const steps = (r.steg || []).map(x => String(x).startsWith("#") ? `<li class="group">${esc(String(x).replace(/^#\s*/, ""))}</li>` : `<li data-n="${++k}">${esc(x)}</li>`).join("");
+  return `<div class="ais-new">
+    <div class="ain-h"><small>Nytt förslag från Claude</small></div>
+    <h3>${esc(r.titel || "")}</h3>
+    ${r.beskrivning ? `<p class="ain-d">${esc(r.beskrivning)}</p>` : ""}
+    ${r.receptboken ? `<p class="ain-rel"><span aria-hidden="true">↳</span> ${esc(r.receptboken)}</p>` : ""}
+    <p class="ain-m">${[r.tid, r.portioner ? r.portioner + " portioner" : "", (r.ingredienser || []).filter(x => !String(x).startsWith("#")).length + " ingredienser"].filter(Boolean).map(esc).join(" · ")}</p>
+    ${n.open ? `<div class="ain-body"><div><h4>Ingredienser</h4><ul class="ings">${ings}</ul></div><div><h4>Gör så här</h4><ol class="steps">${steps}</ol></div></div>` : ""}
+    <div class="ain-btns">
+      <button class="btn accent small" data-a="ainewsave">Spara i receptboken</button>
+      <button class="btn ghost small" data-a="ainewopen">${n.open ? "Dölj receptet" : "Visa hela receptet"}</button>
+      <button class="linkbtn" data-a="ainew">Ge mig ett annat</button>
+    </div>
+  </div>`;
+}
+async function runAiNew(q){
+  q = q || (aiSearch && aiSearch.q); if (!q || !aiSearch) return;
+  const avoid = (aiSearch.nw && aiSearch.nw.tried) || [];
+  aiSearch.nw = { busy: true, tried: avoid }; if (view.name === "list") renderList();
+  const liked = recipes.filter(r => (r.rating || 0) >= 4 || (r.timesCooked || 0) >= 2).slice(0, 12).map(r => r.title);
+  const prompt = `Du är en skicklig kock och skriver för en svensk familj som gillar att laga god mat. De sökte i sin receptbok på: "${q}"
+Skriv ETT riktigt bra recept som svarar mot sökningen – något du själv skulle rekommendera, med tydlig smak och en detalj som gör det lite extra. Det ska fungera i ett vanligt svenskt hemmakök med råvaror från en välsorterad butik.
+${liked.length ? `Rätter familjen gillar (för att förstå smaken, kopiera dem inte): ${liked.join(", ")}.` : ""}
+Det här är deras receptbok (titel – nyckelord): ${recipes.filter(r => !r.variantOf).map(r => `${r.title}${(r.tags || []).length ? " – " + r.tags.join("/") : ""}`).join("; ")}.
+Utgå från receptboken: förstå vad de gillar och hur de lagar mat, och föreslå något som passar in men tillför något nytt. Föreslå inte något de redan har.${avoid.length ? ` Föreslå inte heller: ${avoid.join(", ")}.` : ""}
+Om ett av deras recept redan ligger nära sökningen: säg kort vad ditt förslag gör annorlunda, eller vad i boken det passar bra ihop med (t.ex. tillbehör eller förrätt).
+Regler: svenska, svenska mått (g, dl, msk, tsk, st), 4 portioner om inget annat framgår. Skriv tider med siffror i stegen (t.ex. "15 min"), så att appen kan visa timers. Rubriker i ingredienser eller steg skrivs som "# Rubrik". Nyckelord ENBART från listan: ${tagVocab().join(", ")}.
+Svara bara med JSON: {"titel": "...", "beskrivning": "en lockande mening", "receptboken": "en kort mening om hur det förhåller sig till eller passar ihop med något av deras recept – nämn receptet vid namn", "portioner": 4, "tid": "t.ex. 45 min", "taggar": ["..."], "ingredienser": ["..."], "steg": ["..."]}`;
+  try {
+    const r = parseJson(await ai(prompt, { mode: "json" }));
+    if (!aiSearch || aiSearch.q !== q) return;
+    if (!r || !r.titel || !(r.steg || []).length) throw new Error("tomt");
+    aiSearch.nw = { r, tried: avoid.concat(r.titel) };
+  } catch {
+    if (!aiSearch || aiSearch.q !== q) return;
+    aiSearch.nw = { err: true, tried: avoid };
+  }
+  if (view.name === "list") renderList();
+}
+function saveAiNew(){
+  const r = aiSearch && aiSearch.nw && aiSearch.nw.r; if (!r) return;
+  draft = { title: r.titel || "", sourceUrl: "", servings: +r.portioner || 4, time: r.tid || "", tags: (r.taggar || []).filter(t => tagVocab().includes(t)),
+    ingredients: (r.ingredienser || []).map(String), steps: (r.steg || []).map(String), myChanges: "", notes: r.beskrivning ? r.beskrivning + " (Förslag från Claude)" : "Förslag från Claude", photo: null };
+  logEvent("ai_new", { id: null, title: draft.title }, { q: aiSearch.q });
+  view = { name: "edit" }; render(); window.scrollTo(0, 0);
+  toast("Kolla igenom och tryck Spara");
 }
