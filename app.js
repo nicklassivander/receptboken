@@ -2333,7 +2333,11 @@ function showAlarm(){
 }
 
 // Kommer man tillbaka till appen efter att timern ringt: sluta påminna via notiser
+// Siffran på appikonen kommer bara från timer-notiser – nollställ den varje gång appen öppnas
+const clearBadge = () => { try { navigator.clearAppBadge && navigator.clearAppBadge().catch(() => {}); } catch {} };
+clearBadge();
 document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") clearBadge();
   if (document.visibilityState !== "visible" || !cookSession) return;
   (cookSession.timers || []).filter(t => t.end <= Date.now()).forEach(t => sb.rpc("recipe_timer_cancel", { p_id: t.id }).then(() => {}, () => {}));
   try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch {}
