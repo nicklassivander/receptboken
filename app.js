@@ -3607,10 +3607,15 @@ function toastActions(msg, actions){
 // Startar med standardbilden. Har någon bild markerats "I sidhuvudet" visas bara de, annars alla
 // receptbilder som är tillräckligt stora och liggande. Av för en enhet med ?bild=av (på igen med ?bild=pa).
 var hdrOff = (function(){ try { if (/[?&]bild=av\b/.test(location.search)) localStorage.setItem("hdrOff", "1"); if (/[?&]bild=(pa|på|demo)\b/.test(location.search)) localStorage.removeItem("hdrOff"); return localStorage.getItem("hdrOff") === "1"; } catch { return false; } })();
-var hdrEl = null, hdrCap = null, hdrList = [], hdrIdx = -1, hdrTimer = null, hdrFlip = false, hdrSig = "", hdrBad = new Set(), hdrTries = 0;
+var hdrEl = null, hdrCap = null, hdrList = [], hdrIdx = -1, hdrTimer = null, hdrFlip = false, hdrSig = "", hdrTries = 0;
+// bilder som inte dög (för små/stående) – sparas per bildadress så de inte laddas ner igen
+var hdrBadUrls = (function(){ try { return new Set(JSON.parse(localStorage.getItem("hdrBad") || "[]")); } catch { return new Set(); } })();
+var hdrErrUrls = new Set();
+var hdrBad = { has: id => { const r = recipes.find(x => x.id === id); return !!(r && (hdrBadUrls.has(r.photo) || hdrErrUrls.has(r.photo))); }, get size(){ return hdrBadUrls.size; } };
+function hdrMarkBad(r){ hdrBadUrls.add(r.photo); try { localStorage.setItem("hdrBad", JSON.stringify([...hdrBadUrls].slice(-300))); } catch {} }
 function hdrPool(){
   const ph = recipes.filter(r => r.photo && !hdrBad.has(r.id));
-  const picked = ph.filter(r => r.hdr);
+  const picked = recipes.filter(r => r.photo && r.hdr && !hdrErrUrls.has(r.photo));
   return picked.length ? picked : ph;
 }
 function hdrSlides(){
@@ -3648,18 +3653,18 @@ function hdrNext(){
     inc.style.zIndex = 2; out.style.zIndex = 1; hdrEl.classList.add("live");
     inc.classList.remove("kb"); void inc.offsetWidth; inc.classList.add("kb");
     // Den nya tonas in ovanpå den gamla, som ligger kvar tills bytet är klart (ingen mörk dipp)
-    requestAnimationFrame(() => requestAnimationFrame(() => { inc.classList.add("on"); setTimeout(() => { if (inc.classList.contains("on")) out.classList.remove("on"); }, 3100); }));
+    setTimeout(() => { inc.classList.add("on"); setTimeout(() => { if (inc.classList.contains("on")) out.classList.remove("on"); }, 3100); }, 40);
     hdrFlip = !hdrFlip;
     const first = !hdrCap.dataset.id;
     hdrCap.classList.add("fade");
     setTimeout(() => { hdrCap.dataset.id = r.id; hdrCap.innerHTML = `<span>${esc(r.title || "")}</span><b>→</b>`; hdrCap.classList.remove("fade"); }, first ? 0 : 1300);
     const nx = hdrList[(hdrIdx + 1) % hdrList.length]; if (nx) { const p = new Image(); p.src = nx.photo; if (p.decode) p.decode().catch(() => {}); }
   };
-  const skip = () => { hdrBad.add(r.id); if (++hdrTries < 12) hdrNext(); else hdrTries = 0; };
+  const skip = (keep) => { if (keep) hdrMarkBad(r); else hdrErrUrls.add(r.photo); if (++hdrTries < 12) hdrNext(); else hdrTries = 0; };
   const show = () => {
     inc.onload = null;
     // för små eller stående bilder blir suddiga/hårt beskurna i det breda sidhuvudet (gäller inte handplockade)
-    if (!r.hdr && (inc.naturalWidth < 900 || inc.naturalHeight > inc.naturalWidth * 1.05)) { skip(); return; }
+    if (!r.hdr && (inc.naturalWidth < 900 || inc.naturalHeight > inc.naturalWidth * 1.05)) { skip(true); return; }
     hdrTries = 0;
     if (inc.decode) inc.decode().then(go, go); else go();
   };
