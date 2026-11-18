@@ -648,6 +648,9 @@ function recipeText(r){
   return lines.join("\n");
 }
 
+// Pappa tänker: huvud med kockmössa, kugghjul som snurrar och tankevågor som pulserar
+const THINK_SVG = `<svg class="think-ico" viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><g class="tk-gear"><circle cx="11.5" cy="14.5" r="2.3" fill="currentColor" fill-opacity=".18"/><circle cx="11.5" cy="14.5" r=".8"/><path d="M11.5 10.9v1.3M11.5 16.8v1.3M7.9 14.5h1.3M13.8 14.5h1.3M9 12l.9.9M13.1 16.1l.9.9M9 17l.9-.9M13.1 12.9l.9-.9"/></g><path class="tk-w1" d="M20 5.5c.6-.6.6-1.4 0-2"/><path class="tk-w2" d="M21.8 6.5c1-1 1-2.6 0-3.6"/></svg>`;
+
 // ---------- AI: fråga Claude om ett recept ----------
 const aiState = {};   // recipeId -> [{q, a, busy, err}]
 const AI_PRESETS = {
@@ -675,7 +678,7 @@ function aiOutHtml(id){
   return items.map((it, i) => {
     const links = !it.busy && it.a ? recipes.filter(x => x.id !== id && x.title && it.a.toLowerCase().includes(x.title.toLowerCase())) : [];
     return `<div class="ai-q">${esc(it.q)}</div>
-      <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : it.a ? aiMd(it.a) : `<span class="meta">Pappa tänker …</span>`}</div>
+      <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : it.a ? aiMd(it.a) : `<span class="meta thinking">${THINK_SVG}Pappa tänker …</span>`}</div>
       ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
       ${!it.busy && it.check ? `<div class="aic-check ${it.check.level}"><b>${it.check.level === "warn" ? "⚠ Tänk på" : "💡 Tips"}</b> ${esc(it.check.text)}</div>` : ""}
       ${!it.busy && it.change && !it.dismissed ? (() => { const rr = recipes.find(x => x.id === id); return rr ? `<div class="aic">

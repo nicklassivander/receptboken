@@ -920,6 +920,15 @@ body.sheet-open{overflow:hidden}
 .aic-part li.add{color:#2f5a2b}
 .aic-part li.add::before{content:"+";position:absolute;left:4px;color:#4f7a4a}
 .aic-btns{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:10px}
+/* Pappa tänker */
+.thinking{display:inline-flex;align-items:center;gap:10px;font-style:italic}
+.think-ico{color:var(--brass,#9c7a3c);flex:none}
+.think-ico .tk-gear{transform-box:fill-box;transform-origin:center;animation:tkspin 3.2s linear infinite}
+.think-ico .tk-w1,.think-ico .tk-w2{opacity:0;animation:tkwave 1.6s ease-in-out infinite}
+.think-ico .tk-w2{animation-delay:.3s}
+@keyframes tkspin{to{transform:rotate(360deg)}}
+@keyframes tkwave{0%,100%{opacity:0;transform:translateX(-1px)}40%,60%{opacity:1;transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.think-ico .tk-gear,.think-ico .tk-w1,.think-ico .tk-w2{animation:none;opacity:1}}
 </style>
 </head>
 <body>
