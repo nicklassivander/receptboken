@@ -675,7 +675,7 @@ function aiOutHtml(id){
   return items.map((it, i) => {
     const links = !it.busy && it.a ? recipes.filter(x => x.id !== id && x.title && it.a.toLowerCase().includes(x.title.toLowerCase())) : [];
     return `<div class="ai-q">${esc(it.q)}</div>
-      <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : it.a ? aiMd(it.a) : `<span class="meta">Claude tänker …</span>`}</div>
+      <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : it.a ? aiMd(it.a) : `<span class="meta">Pappa tänker …</span>`}</div>
       ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
       ${!it.busy && it.check ? `<div class="aic-check ${it.check.level}"><b>${it.check.level === "warn" ? "⚠ Tänk på" : "💡 Tips"}</b> ${esc(it.check.text)}</div>` : ""}
       ${!it.busy && it.change && !it.dismissed ? (() => { const rr = recipes.find(x => x.id === id); return rr ? `<div class="aic">
