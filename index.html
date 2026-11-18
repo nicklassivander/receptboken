@@ -844,6 +844,11 @@ body.sheet-open{overflow:hidden}
 .aa-ulist td small{font-size:11px;color:var(--brass)}
 .aa-ulist tr[data-who]{cursor:pointer}
 .aa-day h4{margin-top:8px}
+/* × uppe till höger i alla rutor – följer med när man scrollar */
+.sheet-x,.sheet-head .fp-x{width:38px;height:38px;border-radius:50%;border:0;background:#efe9df;color:var(--ink);font-size:24px;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.sheet-x:hover,.sheet-head .fp-x:hover{background:#e3dbcd}
+.sheet-x{position:sticky;top:0;float:right;margin:-12px -8px 0 10px;z-index:3}
+.sheet-head{position:sticky;top:-28px;background:var(--paper);z-index:3;padding-top:4px}
 </style>
 </head>
 <body>

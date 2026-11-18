@@ -1112,7 +1112,7 @@ document.addEventListener("click", async e => {
 // ---------- ark (inställningar, användare, lösenord) ----------
 const sheetIsOpen = () => !!document.getElementById("sheet-bg");
 function openSheet(html){
-  setTimeout(lockScroll, 0);   // efter att rutan finns, och efter ev. historikpost
+  setTimeout(() => { lockScroll(); addSheetX(); }, 0);   // efter att rutan finns, och efter ev. historikpost
   // Ny ruta (inte byte av innehåll i en öppen): lägg en post i historiken så att Tillbaka stänger den
   if (!sheetIsOpen() && history.state && !history.state.sheet) {
     history.replaceState({ ...history.state, y: window.scrollY }, "");
@@ -1121,6 +1121,15 @@ function openSheet(html){
   }
   document.getElementById("modal-root").innerHTML = `<div class="modal-bg" id="sheet-bg"><div class="modal form" role="dialog">${html}</div></div>`;
   document.getElementById("sheet-bg").addEventListener("click", e => { if (e.target.id === "sheet-bg") closeSheet(); });
+}
+// Alla rutor får ett × uppe i högra hörnet (om de inte redan har ett)
+function addSheetX(){
+  const m = document.querySelector("#modal-root .modal");
+  if (!m || m.querySelector(".fp-x, .sheet-x")) return;
+  const b = document.createElement("button");
+  b.className = "sheet-x"; b.type = "button"; b.setAttribute("aria-label", "Stäng"); b.textContent = "×";
+  b.onclick = () => closeSheet();
+  m.prepend(b);
 }
 // Lås sidan bakom en öppen ruta så att bara rutan scrollar (fungerar även i Safari på iPhone)
 let lockedY = null;
