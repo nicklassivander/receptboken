@@ -1098,13 +1098,13 @@ header.top h1 .t-gl{height:2px;background:#f0cf8c;box-shadow:0 0 0 1px rgba(0,0,
 /* Förhandsvisning: växlande receptbilder i sidhuvudet */
 header.top.has-slides{position:relative;isolation:isolate}
 .hdr-slides{position:absolute;inset:0;z-index:-1;overflow:hidden;background:#0c0d0d}
-.hdr-slides img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.8s ease;transform-origin:50% 55%}
+.hdr-slides img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 3s cubic-bezier(.45,0,.55,1);transform-origin:50% 55%;will-change:opacity,transform;backface-visibility:hidden}
 .hdr-slides img.on{opacity:1}
-.hdr-slides img.kb{animation:hskb 11s ease-out forwards}
-@keyframes hskb{from{transform:scale(1.02)}to{transform:scale(1.1) translate(-1.2%,-1%)}}
+.hdr-slides img.kb{animation:hskb 15s linear forwards}
+@keyframes hskb{from{transform:scale(1.03) translate3d(0,0,0)}to{transform:scale(1.11) translate3d(-1.2%,-1%,0)}}
 @media(prefers-reduced-motion:reduce){.hdr-slides img.kb{animation:none}}
 .hs-veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,9,9,.75) 0%,rgba(8,9,9,.38) 38%,rgba(8,9,9,.2) 68%,rgba(8,9,9,.62) 100%)}
-.hdr-cap{position:absolute;z-index:3;left:max(22px,calc(50vw - 418px));top:22px;max-width:46%;display:flex;align-items:center;gap:8px;background:rgba(14,10,7,.55);border:1px solid rgba(226,196,138,.45);border-radius:20px;padding:6px 13px;color:#f0dcaa;font:400 13px/1.2 var(--sans);letter-spacing:.03em;cursor:pointer;transition:opacity .45s ease;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.hdr-cap{position:absolute;z-index:3;left:max(22px,calc(50vw - 418px));top:22px;max-width:46%;display:flex;align-items:center;gap:8px;background:rgba(14,10,7,.55);border:1px solid rgba(226,196,138,.45);border-radius:20px;padding:6px 13px;color:#f0dcaa;font:400 13px/1.2 var(--sans);letter-spacing:.03em;cursor:pointer;transition:opacity .9s ease-in-out;text-shadow:0 1px 3px rgba(0,0,0,.8)}
 .hdr-cap span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hdr-cap b{font-weight:400;color:#ffe9b8}
 .hdr-cap.fade{opacity:0}

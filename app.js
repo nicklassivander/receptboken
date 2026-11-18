@@ -3615,7 +3615,7 @@ function hdrSlides(){
     hdrCap = document.createElement("button"); hdrCap.type = "button"; hdrCap.className = "hdr-cap"; hdrCap.dataset.a = "open";
     hdr.classList.add("has-slides"); hdr.prepend(hdrEl); hdr.appendChild(hdrCap);
     hdrNext();
-    hdrTimer = setInterval(() => { if (!document.hidden && document.querySelector("#app header.top .hdr-slides")) hdrNext(); }, 8000);
+    hdrTimer = setInterval(() => { if (!document.hidden && document.querySelector("#app header.top .hdr-slides")) hdrNext(); }, 9000);
     return;
   }
   if (!hdr.contains(hdrEl)) { hdr.classList.add("has-slides"); hdr.prepend(hdrEl); hdr.appendChild(hdrCap); }
@@ -3624,14 +3624,20 @@ function hdrNext(){
   if (!hdrList.length) return;
   hdrIdx = (hdrIdx + 1) % hdrList.length;
   const r = hdrList[hdrIdx], imgs = hdrEl.querySelectorAll("img"), inc = imgs[hdrFlip ? 1 : 0], out = imgs[hdrFlip ? 0 : 1];
-  const show = () => {
-    inc.onload = null;
-    inc.classList.remove("kb"); void inc.offsetWidth; inc.classList.add("on", "kb"); out.classList.remove("on");
+  let shown = false;
+  const go = () => {
+    if (shown) return; shown = true;
+    inc.style.zIndex = 2; out.style.zIndex = 1;
+    inc.classList.remove("kb"); void inc.offsetWidth; inc.classList.add("kb");
+    // Den nya tonas in ovanpå den gamla, som ligger kvar tills bytet är klart (ingen mörk dipp)
+    requestAnimationFrame(() => requestAnimationFrame(() => { inc.classList.add("on"); setTimeout(() => { if (inc.classList.contains("on")) out.classList.remove("on"); }, 3100); }));
     hdrFlip = !hdrFlip;
+    const first = !hdrCap.dataset.id;
     hdrCap.classList.add("fade");
-    setTimeout(() => { hdrCap.dataset.id = r.id; hdrCap.innerHTML = `<span>${esc(r.title || "")}</span><b>→</b>`; hdrCap.classList.remove("fade"); }, 450);
-    const nx = hdrList[(hdrIdx + 1) % hdrList.length]; if (nx) { const p = new Image(); p.src = nx.photo; }
+    setTimeout(() => { hdrCap.dataset.id = r.id; hdrCap.innerHTML = `<span>${esc(r.title || "")}</span><b>→</b>`; hdrCap.classList.remove("fade"); }, first ? 0 : 1300);
+    const nx = hdrList[(hdrIdx + 1) % hdrList.length]; if (nx) { const p = new Image(); p.src = nx.photo; if (p.decode) p.decode().catch(() => {}); }
   };
+  const show = () => { inc.onload = null; if (inc.decode) inc.decode().then(go, go); else go(); };
   inc.onload = show; inc.onerror = () => { inc.onerror = null; hdrList.splice(hdrIdx, 1); hdrIdx--; if (hdrList.length) hdrNext(); };
   inc.src = r.photo;
   if (inc.complete && inc.naturalWidth) show();
