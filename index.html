@@ -520,7 +520,19 @@ header.top h1{font-weight:600}
 .card{position:relative}
 .card .newdot{position:absolute;top:10px;left:10px;background:var(--accent,#5c1a24);color:#fff;font-size:10px;letter-spacing:.16em;text-transform:uppercase;padding:4px 8px;z-index:2}
 .newtag{display:inline-block;background:var(--accent,#5c1a24);color:#fff;font-family:var(--sans,inherit);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;padding:2px 6px;vertical-align:3px}
-@media(max-width:620px){.act-row .latest{display:none}.fitem .when{font-size:11px}}
+@media(max-width:620px){.fitem .when{font-size:11px}}
+/* Senaste i köket: de tre senaste rullar */
+.act-row .latest{position:relative;height:1.45em;line-height:1.45em;overflow:hidden;text-overflow:clip}
+.act-row .latest .tk-in{display:flex;flex-direction:column}
+.act-row .latest .tk{display:block;height:1.45em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act-row .latest.ticker.n3 .tk-in{animation:tick3 9s cubic-bezier(.6,0,.3,1) infinite}
+.act-row .latest.ticker.n2 .tk-in{animation:tick2 6s cubic-bezier(.6,0,.3,1) infinite}
+.act-row:hover .latest .tk-in{animation-play-state:paused}
+@keyframes tick3{0%,28%{transform:translateY(0)}33%,61%{transform:translateY(-1.45em)}66%,94%{transform:translateY(-2.9em)}100%{transform:translateY(-4.35em)}}
+@keyframes tick2{0%,42%{transform:translateY(0)}50%,92%{transform:translateY(-1.45em)}100%{transform:translateY(-2.9em)}}
+.act.open .latest .tk-in{animation:none}
+@media(prefers-reduced-motion:reduce){.act-row .latest .tk-in{animation:none!important}}
+@media(max-width:620px){.act-row{flex-wrap:wrap;row-gap:2px}.act-row .latest{display:block;order:9;flex:1 0 100%;font-size:13.5px}}
 .act-tabs{display:flex;gap:26px;border-top:1px solid var(--line);padding:0 2px}
 .act-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 0 8px;font:inherit;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);cursor:pointer;margin-bottom:-1px}
 .act-tabs button.on{color:var(--ink);border-bottom-color:var(--brass,#9c7a3c)}
