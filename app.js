@@ -1120,7 +1120,7 @@ document.addEventListener("click", async e => {
       openSheet(`<h2>Uppdatera grundreceptet</h2>
         <p>Ingredienser, steg och portioner i <b>${esc(base.title || "")}</b> ersätts med ${esc(genitive(nameOf(addedByOf(cur))))} variant.</p>
         <p class="hnote">Det noteras med datum under grundreceptets anteckningar. Andra varianter påverkas inte.</p>
-        ${canEdit(cur) ? `<label class="check" style="display:flex;gap:8px;align-items:center;margin:14px 0"><input type="checkbox" id="mvDel"> Ta bort varianten efteråt</label>` : ""}
+        ${canEdit(cur) ? `<label class="check" style="display:flex;gap:8px;align-items:center;margin:14px 0"><input type="checkbox" id="mvDel" checked> Ta bort varianten efteråt</label>` : ""}
         <div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn ghost" id="mvNo">Avbryt</button><button class="btn accent" id="mvYes">Uppdatera</button></div>`);
       $id("mvNo").onclick = closeSheet;
       $id("mvYes").onclick = async () => {
