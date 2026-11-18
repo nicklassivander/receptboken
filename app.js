@@ -541,15 +541,13 @@ function renderDetail(){
       <div id="ai-out">${aiOutHtml(r.id)}</div>
     </div>` : ""}
 
-    <div class="actions">
-      ${can("contributor") ? `<button class="btn accent" data-a="cooked">Lagad idag</button>
-      <button class="btn ghost" data-a="histadd">Ny tillagning</button>` : ""}
-      ${canEdit(r) ? `<button class="btn ghost" data-a="pickdish">${r.photo ? "Byt bild" : "Lägg till bild"}</button>
-      <button class="btn ghost" data-a="edit">Redigera</button>` : ""}
-      ${can("contributor") ? `<button class="btn ghost" data-a="variant">${addedByOf(r) === me ? "Gör en variant" : "Gör min egen variant"}</button>` : ""}
-      <button class="btn ghost" data-a="copy">Kopiera</button>
-      ${canEdit(r) ? `<button class="btn danger" data-a="del">Radera</button>` : ""}
+    <div class="actions tiles">
+      ${can("contributor") ? `${actTile("cooked", "check", "Lagad idag")}${actTile("histadd", "note", "Ny tillagning")}` : ""}
+      ${canEdit(r) ? `${actTile("pickdish", "photo", r.photo ? "Byt bild" : "Lägg till bild")}${actTile("edit", "pencil", "Redigera")}` : ""}
+      ${can("contributor") ? actTile("variant", "variant", addedByOf(r) === me ? "Gör en variant" : "Gör min egen variant") : ""}
+      ${actTile("copy", "copy", "Kopiera")}
     </div>
+    ${canEdit(r) ? `<div class="actions-del"><button class="linkbtn del-link" data-a="del">Radera receptet</button></div>` : ""}
   `;
 }
 
@@ -1058,7 +1056,7 @@ document.addEventListener("click", async e => {
       try { await navigator.clipboard.writeText(recipeText(cur)); toast("Receptet kopierat"); } catch { toast("Kunde inte kopiera"); }
       break;
     case "del":
-      if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Säker? Tryck igen"; setTimeout(() => { el.classList.remove("armed"); el.textContent = "Radera"; }, 3500); }
+      if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Säker? Tryck igen"; setTimeout(() => { el.classList.remove("armed"); el.textContent = "Radera receptet"; }, 3500); }
       else { if (await deleteRecipe(cur.id)) toast("Receptet raderat"); view = { name: "list" }; render(); }
       break;
     case "edit": draft = JSON.parse(JSON.stringify(cur)); view = { name: "edit", id: cur.id }; render(); window.scrollTo(0, 0); break;
@@ -2032,6 +2030,19 @@ function activityHtml(){
       ${pool.length > items.length ? `<button class="linkbtn act-more" data-a="actmore">Visa fler</button>` : ""}
     </div>` : ""}
   </div>`;
+}
+
+// Knapprutor under receptet: ikon över text
+function actTile(a, ic, label){
+  const ACT_ICON = {
+  check: '<circle cx="12" cy="12" r="8.5"/><path d="M8.3 12.3l2.5 2.5 4.9-5.2"/>',
+  note: '<path d="M6 3.5h9.5l3 3V20.5H6z"/><path d="M9 9h6M9 12.5h6M9 16h3.5"/><path d="M3.5 7v13.5"/>',
+  photo: '<rect x="3.5" y="5.5" width="17" height="13" rx="1.5"/><circle cx="9" cy="10.5" r="1.6"/><path d="M4 17l5-4.5 3.5 3 2.5-2 4.5 3.5"/>',
+  pencil: '<path d="M4.5 19.5l1-4.2L15.8 5a1.8 1.8 0 0 1 2.6 0l.6.6a1.8 1.8 0 0 1 0 2.6L8.7 18.5z"/><path d="M14 6.8l3.2 3.2"/>',
+  variant: '<path d="M5 3h8l4 4v6"/><path d="M13 3v4h4"/><path d="M5 3v18h6"/><path d="M14.5 20.5l6-6-2-2-6 6-.5 2.5z"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  };
+  return `<button class="atile" data-a="${a}"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ACT_ICON[ic]}</svg><span>${esc(label)}</span></button>`;
 }
 
 // Ikoner för händelsetyperna: blad med plus = lade till, blad med penna = variant, kastrull med ånga = lagade
