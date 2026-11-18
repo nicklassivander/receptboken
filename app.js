@@ -677,6 +677,8 @@ function aiOutHtml(id){
   const items = aiState[id] || [];
   return items.map((it, i) => {
     const links = !it.busy && it.a ? recipes.filter(x => x.id !== id && x.title && it.a.toLowerCase().includes(x.title.toLowerCase())) : [];
+    // Medan pappa tänker står frågan under ikonen; när svaret kommit står frågan överst som vanligt
+    if (it.busy && !it.a && !it.err) return `<div class="ai-a"><span class="meta thinking">${THINK_SVG}Pappa tänker …</span></div><div class="ai-q">${esc(it.q)}</div>`;
     return `<div class="ai-q">${esc(it.q)}</div>
       <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : it.a ? aiMd(it.a) : `<span class="meta thinking">${THINK_SVG}Pappa tänker …</span>`}</div>
       ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
