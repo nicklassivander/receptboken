@@ -2005,7 +2005,7 @@ function activityHtml(){
   const items = pool.slice(0, activityOpen === "all" ? 25 : 6);
   const nAdded = added.filter(isNew).length, nCooked = cooked.filter(isNew).length;
   return `<div class="act ${activityOpen ? "open" : ""}">
-    <button class="act-row" data-a="acttoggle" aria-expanded="${!!activityOpen}">
+    <button class="act-row" data-a="acttoggle" aria-expanded="${!!activityOpen}" title="Senaste i köket">
       <span class="kitchen-ico ${newCount ? "has-new" : ""}" aria-hidden="true"><svg viewBox="2.5 2.5 19 19" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16v5a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M2.5 12.5H4M20 12.5h1.5"/><path d="M8.5 9c-.8-1 .8-2 0-3M12 9c-.8-1 .8-2 0-3M15.5 9c-.8-1 .8-2 0-3"/></svg><i></i></span>
       <span class="lab">Senaste i köket</span>
       ${(() => { const ck = ev.filter(e => e.kind === "cooked").slice(0, 3);   // minst tre tillagningar om det finns

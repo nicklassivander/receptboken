@@ -541,6 +541,13 @@ header.top h1{font-weight:600}
 .kitchen-ico i{display:none;position:absolute;top:-1px;right:-1px;width:11px;height:11px;border-radius:50%;background:var(--accent,#5c1a24);border:2px solid var(--bg,#ece7de)}
 .kitchen-ico.has-new i{display:block;animation:newpulse 2s ease-out 3}
 @keyframes newpulse{0%{box-shadow:0 0 0 0 rgba(92,26,36,.45)}70%{box-shadow:0 0 0 7px rgba(92,26,36,0)}100%{box-shadow:0 0 0 0 rgba(92,26,36,0)}}
+/* Mobil: allt på en rad – ikon, flöde, pil */
+@media(max-width:620px){
+  .act-row{flex-wrap:nowrap!important;gap:10px}
+  .act-row .lab{display:none}
+  .act-row .latest,.act-row .latest.mq{order:0!important;flex:1 1 auto!important;min-width:0;font-size:13.5px}
+  .act-row .new{display:none}
+}
 /* Senaste i köket som flöde höger → vänster */
 .act-row .latest.mq{display:block;position:relative;height:28px;line-height:28px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent)}
 .act-row .latest .mq-track{display:flex;width:max-content;animation:mqslide var(--d,30s) linear infinite}
