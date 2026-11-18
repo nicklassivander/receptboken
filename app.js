@@ -3101,6 +3101,7 @@ function subscribeShop(){
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") loadShop(); });
 }
 window.addEventListener("resize", () => { try { renderShopFab(); } catch {} });
+try { document.fonts && document.fonts.ready.then(() => { try { renderShopFab(); } catch {} }); } catch {}
 function shopLeft(){ return shopLists.reduce((n, l) => n + l.items.filter(i => !i.done).length, 0); }
 
 // Flytande korgknapp nere till höger (ovanför + i receptlistan)
