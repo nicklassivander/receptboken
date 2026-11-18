@@ -2376,7 +2376,7 @@ function showAlarm(){
 const clearBadge = () => { try { navigator.clearAppBadge && navigator.clearAppBadge().catch(() => {}); } catch {} };
 clearBadge();
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") clearBadge();
+  if (document.visibilityState === "visible") { clearBadge(); if (me) logOpen(); }   // appen återupptas ur bakgrunden räknas också som öppnad
   if (document.visibilityState !== "visible" || !cookSession) return;
   (cookSession.timers || []).filter(t => t.end <= Date.now()).forEach(t => sb.rpc("recipe_timer_cancel", { p_id: t.id }).then(() => {}, () => {}));
   try { navigator.clearAppBadge && navigator.clearAppBadge(); } catch {}
@@ -2667,12 +2667,12 @@ async function applyMerge(plan, go){
 }
 
 // ---------- aktivitetslogg (läses av superanvändare under Konto → Aktivitet) ----------
-let logOff = false;
+let logOffUntil = 0;   // saknas loggen i databasen: försök igen om en stund i stället för att ge upp
 function logEvent(kind, r, detail){
-  if (!me || !sb || logOff) return;
+  if (!me || !sb || Date.now() < logOffUntil) return;
   let dev = ""; try { const d = deviceInfo(); dev = d.kind + (d.installed ? "-app" : ""); } catch {}
   sb.rpc("recipe_log_event", { p_kind: kind, p_recipe: r && r.id || null, p_title: r && r.title || null, p_detail: detail || null, p_device: dev })
-    .then(({ error }) => { if (error && /function|schema cache|does not exist/i.test(error.message || "")) logOff = true; }, () => {});
+    .then(({ error }) => { if (error && /function|schema cache|does not exist/i.test(error.message || "")) logOffUntil = Date.now() + 5 * 6e4; }, () => {});
 }
 function logOpen(){
   try { const k = "logOpen:" + me, last = +localStorage.getItem(k) || 0; if (Date.now() - last < 30 * 6e4) return; localStorage.setItem(k, String(Date.now())); } catch {}
@@ -2681,8 +2681,9 @@ function logOpen(){
 const loggedViews = {};
 function logView(id){
   if (!id || Date.now() - (loggedViews[id] || 0) < 15 * 6e4) return;
+  const r = recipes.find(x => x.id === id); if (!r) return;   // recepten inte laddade än – försök vid nästa visning
   loggedViews[id] = Date.now();
-  const r = recipes.find(x => x.id === id); if (r) logEvent("view", r);
+  logEvent("view", r);
 }
 
 const LOG_TEXT = { open: "öppnade appen", view: "tittade på", cook_start: "började laga", cook_done: "lagade klart", cook_cancel: "avbröt tillagningen av",
@@ -2851,11 +2852,9 @@ const NOTIFY_KINDS = [
   ["liked", "Någon gillar ditt recept", "När någon gör ett av dina recept till favorit"],
   ["variant", "Variant av ditt recept", "När någon gör en egen variant av ett av dina recept"],
 ];
-let notifyOff = false;
 function notify(kind, r, extra){
-  if (!me || !sb || notifyOff || !r || !r.id) return;
-  sb.rpc("recipe_notify", { p_kind: kind, p_recipe: r.id, p_extra: extra || null })
-    .then(({ error }) => { if (error && /function|schema cache|does not exist/i.test(error.message || "")) notifyOff = true; }, () => {});
+  if (!me || !sb || !r || !r.id) return;
+  sb.rpc("recipe_notify", { p_kind: kind, p_recipe: r.id, p_extra: extra || null }).then(() => {}, () => {});
 }
 // Har enheten redan sagt ja till notiser: se till att den är registrerad (t.ex. ny telefon eller ny inloggning)
 setTimeout(() => { try { if (me && "Notification" in window && Notification.permission === "granted") ensurePush(); } catch {} }, 4000);
