@@ -2153,7 +2153,8 @@ function askVariantOrOriginal(base){
 }
 
 // ---------- tillagning: börja laga, fortsätt, timers ----------
-const PAN_SVG = `<svg class="panico" viewBox="0 0 32 32" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="13" cy="17" r="9"/><circle cx="13" cy="17" r="5.5" opacity=".45"/><path d="M21.5 13.5 29 7"/><path d="M10 5.5c.6-1 .6-2 0-3M14 5.5c.6-1 .6-2 0-3" opacity=".7"/></svg>`;
+// Samma kastrull med ånga som för "lagade" i Senaste i köket
+const PAN_SVG = `<svg class="panico" viewBox="2.5 2.5 19 19" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16v5a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M2.5 12.5H4M20 12.5h1.5"/><path d="M8.5 9c-.8-1 .8-2 0-3M12 9c-.8-1 .8-2 0-3M15.5 9c-.8-1 .8-2 0-3"/></svg>`;
 let cookSession = null;
 const COOK_KEY = () => "cook:" + (me || "");
 function loadCook(){ try { cookSession = JSON.parse(localStorage.getItem(COOK_KEY()) || "null"); } catch { cookSession = null; } if (cookSession && loaded && !recipes.find(r => r.id === cookSession.recipeId)) cookSession = null;
