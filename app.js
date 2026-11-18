@@ -991,7 +991,7 @@ document.addEventListener("click", async e => {
     }
     case "togglefav": {
       const f = favsOf(cur); const nf = f.includes(me) ? f.filter(x => x !== me) : f.concat(me);
-      await patch(cur.id, { favBy: nf }); logEvent(nf.includes(me) ? "fav" : "unfav", cur); toast(nf.includes(me) ? "Sparad bland dina favoriter" : "Borttagen från dina favoriter"); break; }
+      await patch(cur.id, { favBy: nf }); logEvent(nf.includes(me) ? "fav" : "unfav", cur); if (nf.includes(me)) notify("liked", cur); toast(nf.includes(me) ? "Sparad bland dina favoriter" : "Borttagen från dina favoriter"); break; }
     case "histadd": openHistory(cur); break;
     case "histedit": openHistory(cur, el.dataset.h); break;
     case "histdel":
@@ -1052,6 +1052,7 @@ document.addEventListener("click", async e => {
     }
     case "cooked":
       await patch(cur.id, { timesCooked: (cur.timesCooked || 0) + 1, lastCooked: today(), cookLog: cookLogOf(cur).concat({ by: me, date: today(), at: new Date().toISOString() }) });
+      notify("cooked", cur);
       toast("Noterat: lagad idag"); break;
     case "copy":
       try { await navigator.clipboard.writeText(recipeText(cur)); toast("Receptet kopierat"); } catch { toast("Kunde inte kopiera"); }
@@ -1081,6 +1082,7 @@ document.addEventListener("click", async e => {
       const isNew = !draft.id;
       const id = await saveRecipe(draft);
       if (id) logEvent(isNew ? (draft.variantOf ? "variant" : "add") : "edit", { id, title: draft.title });
+      if (id && isNew) notify(draft.variantOf ? "variant" : "added", { id, title: draft.title, variantOf: draft.variantOf });
       if (id && draft.variantOf) namingTried.delete(id);
       if (id && needName) nameVariant(id, true);
       if (id) {
@@ -1136,6 +1138,7 @@ function openSettings(){
     merge: I('<path d="M6 4v5c0 3 6 3 6 6v5M18 4v5c0 3-6 3-6 6"/>'),
     clock: I('<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M9.5 3h5"/>'),
     file: I('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M12 11v6M9.5 14.5 12 17l2.5-2.5"/>'),
+    bell: I('<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>'),
     help: I('<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.5a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.4"/><circle cx="12" cy="16.8" r=".6" fill="currentColor"/>'),
     key: I('<circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5 20 3M16.5 6.5l2.5 2.5M14 9l2 2"/>'),
     out: I('<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/>'),
@@ -1154,9 +1157,11 @@ function openSettings(){
       ${row("importBtn", "file", "Importera från fil", "Läs in recept från en JSON-fil")}
       <input type="file" id="importFile" accept=".json,application/json" hidden></div>` : ""}
     <div class="sgrp"><h3>Ditt konto</h3>
+      ${row("notifyBtn", "bell", "Aviseringar", "Välj vad du vill bli meddelad om")}
       ${row("helpBtn", "help", "Hjälp och instruktioner", "")}
       ${row("pwBtn", "key", "Byt lösenord", "")}
       ${row("logoutBtn", "out", "Logga ut", "")}</div>`);
+  $id("notifyBtn").onclick = () => { closeSheet(); openNotifySettings(); };
   $id("helpBtn").onclick = () => { closeSheet(); view = { name: "help" }; render(); window.scrollTo(0, 0); };
   $id("closeSheetBtn").onclick = closeSheet;
   $id("pwBtn").onclick = () => openPasswordSheet(false);
@@ -1478,7 +1483,7 @@ function openHistory(r, entryId){
       data.cookLog = cookLogOf(r).concat({ by: me, date, at: new Date().toISOString() });
     }
     $id("hsave").disabled = true;
-    if (await patch(r.id, data)) { closeSheet(); toast(entryId ? "Tillagningen är ändrad" : "Tillagningen är sparad"); }
+    if (await patch(r.id, data)) { closeSheet(); if (!entryId && date >= today()) notify("cooked", r, entry.rating ? "★".repeat(entry.rating) : ""); toast(entryId ? "Tillagningen är ändrad" : "Tillagningen är sparad"); }
     else $id("hsave").disabled = false;
   };
 }
@@ -2071,7 +2076,7 @@ function askVariantOrOriginal(base){
     v.original = { servings: base.servings || null, ingredients: base.ingredients || [], steps: base.steps || [] };
     v.photo = draft.photo || base.photo || null;
     const id = await saveRecipe(v);
-    if (id) logEvent("variant", { id, title: v.title });
+    if (id) { logEvent("variant", { id, title: v.title }); notify("variant", { id, title: v.title, variantOf: v.variantOf }); }
     closeSheet();
     if (!id) { toast("Kunde inte spara varianten"); return; }
     nameVariant(id, true);
@@ -2817,4 +2822,61 @@ function saveAiNew(){
   logEvent("ai_new", { id: null, title: draft.title }, { q: aiSearch.q });
   view = { name: "edit" }; render(); window.scrollTo(0, 0);
   toast("Kolla igenom och tryck Spara");
+}
+
+// ---------- aviseringar till familjen (push, även när appen är stängd) ----------
+// added/cooked → alla andra; liked/variant → receptets skapare. Mottagare och deras val räknas ut i databasen.
+const NOTIFY_KINDS = [
+  ["added", "Nya recept", "När någon lägger till ett recept"],
+  ["cooked", "Någon lagar", "När någon lagar ett recept"],
+  ["liked", "Någon gillar ditt recept", "När någon gör ett av dina recept till favorit"],
+  ["variant", "Variant av ditt recept", "När någon gör en egen variant av ett av dina recept"],
+];
+let notifyOff = false;
+function notify(kind, r, extra){
+  if (!me || !sb || notifyOff || !r || !r.id) return;
+  sb.rpc("recipe_notify", { p_kind: kind, p_recipe: r.id, p_extra: extra || null })
+    .then(({ error }) => { if (error && /function|schema cache|does not exist/i.test(error.message || "")) notifyOff = true; }, () => {});
+}
+// Har enheten redan sagt ja till notiser: se till att den är registrerad (t.ex. ny telefon eller ny inloggning)
+setTimeout(() => { try { if (me && "Notification" in window && Notification.permission === "granted") ensurePush(); } catch {} }, 4000);
+
+async function openNotifySettings(){
+  openSheet(`<div class="sheet-head"><h2>Aviseringar</h2><button class="iconbtn fp-x" id="closeSheetBtn" aria-label="Stäng">×</button></div><div class="nf-body"><p class="meta">Laddar …</p></div>`);
+  $id("closeSheetBtn").onclick = closeSheet;
+  const box = () => document.querySelector(".nf-body");
+  let prefs = {}, missing = false;
+  const { data, error } = await sb.rpc("recipe_notify_prefs_get");
+  if (error) missing = true; else prefs = data || {};
+  if (!box()) return;
+  const d = deviceInfo();
+  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const devState = !supported ? (d.kind === "ios" && !d.installed ? "ios" : "unsupported") : Notification.permission;
+  const DEV = {
+    granted: ["Aviseringar är på", "Du får aviseringar här även när appen är stängd."],
+    denied: ["Aviseringar är blockerade", "Tillåt aviseringar för appen i telefonens eller webbläsarens inställningar."],
+    ios: ["Lägg appen på hemskärmen först", "På iPhone fungerar aviseringar bara i appen på hemskärmen. Se Hjälp."],
+    unsupported: ["Stöds inte i den här webbläsaren", "Prova Chrome, Edge eller Safari."],
+    default: ["Aviseringar är av", "Slå på för att få aviseringar på den här enheten."],
+  }[devState] || ["Aviseringar är av", ""];
+  box().innerHTML = `
+    ${missing ? `<p class="hnote">Aviseringarna är inte påslagna i databasen än. Kör <b>supabase/notify.sql</b> i Supabase (SQL Editor → Run).</p>` : ""}
+    <div class="sgrp"><h3>Den här enheten</h3>
+      <div class="srow nf-dev"><span class="st"><b>${DEV[0]}</b><small>${DEV[1]}</small></span>
+        ${devState === "default" ? `<button class="btn accent small" id="nfOn">Slå på</button>` : devState === "granted" && !missing ? `<button class="btn ghost small" id="nfTest">Testa</button>` : ""}</div></div>
+    <div class="sgrp"><h3>Meddela mig när</h3>
+      ${NOTIFY_KINDS.map(([k, t, s]) => `<label class="srow nf-row"><span class="st"><b>${t}</b><small>${s}</small></span><span class="sw"><input type="checkbox" data-k="${k}" ${prefs[k] === false ? "" : "checked"} ${missing ? "disabled" : ""}><i></i></span></label>`).join("")}
+    </div>
+    <p class="meta">Timrar under matlagningen ringer alltid. Valen gäller alla dina enheter.</p>`;
+  box().querySelectorAll("input[data-k]").forEach(i => i.onchange = async () => {
+    prefs[i.dataset.k] = i.checked;
+    const { error } = await sb.rpc("recipe_notify_prefs_set", { p_prefs: prefs });
+    toast(error ? "Kunde inte spara" : i.checked ? "Påslaget" : "Avstängt");
+  });
+  if ($id("nfOn")) $id("nfOn").onclick = async () => { const st = await ensurePush(); toast(st === "ok" ? "Aviseringar påslagna" : "Det gick inte att slå på aviseringar"); openNotifySettings(); };
+  if ($id("nfTest")) $id("nfTest").onclick = async () => {
+    const st = await ensurePush();
+    const { error } = st === "ok" ? await sb.rpc("recipe_notify_test") : { error: true };
+    toast(error ? "Kunde inte skicka testet" : "Testavisering på väg – kommer inom ca 15 sekunder");
+  };
 }

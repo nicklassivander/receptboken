@@ -22,13 +22,18 @@ module.exports = async (req, res) => {
   let due;
   try { due = await rpc("recipe_push_due", { p_secret: secret }); }
   catch (e) { return res.status(401).json({ error: "nekad" }); }
-  const items = (due && due.items) || [];
+  const items = ((due && due.items) || []).map(it => ({ ...it, tag: "timer-" + it.timer, ttl: 600, urgency: "high" }));
+  // Händelser i köket (nya recept, någon lagar, gillar, variant) – finns bara om notify.sql är körd
+  try {
+    const ev = await rpc("recipe_notify_due", { p_secret: secret });
+    for (const it of (ev && ev.items) || []) items.push({ ...it, ttl: 6 * 3600, urgency: "normal" });
+  } catch {}
   if (!items.length) return res.status(200).json({ sent: 0 });
   webpush.setVapidDetails("mailto:recept@sivander.com", due.vapid_public, due.vapid_private);
   let sent = 0;
   await Promise.all(items.map(async (it) => {
-    const payload = JSON.stringify({ title: it.title || "Timern är klar", body: it.body || "", url: it.url || "/", tag: "timer-" + it.timer });
-    try { await webpush.sendNotification(it.sub, payload, { TTL: 600, urgency: "high" }); sent++; }
+    const payload = JSON.stringify({ title: it.title || "Timern är klar", body: it.body || "", url: it.url || "/", tag: it.tag });
+    try { await webpush.sendNotification(it.sub, payload, { TTL: it.ttl, urgency: it.urgency }); sent++; }
     catch (e) {
       if (e.statusCode === 404 || e.statusCode === 410) { try { await rpc("recipe_push_gone", { p_secret: secret, p_endpoint: it.sub.endpoint }); } catch {} }
       else console.error("push", e.statusCode, e.body);
