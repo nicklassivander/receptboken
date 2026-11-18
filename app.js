@@ -1112,6 +1112,7 @@ document.addEventListener("click", async e => {
 // ---------- ark (inställningar, användare, lösenord) ----------
 const sheetIsOpen = () => !!document.getElementById("sheet-bg");
 function openSheet(html){
+  setTimeout(lockScroll, 0);   // efter att rutan finns, och efter ev. historikpost
   // Ny ruta (inte byte av innehåll i en öppen): lägg en post i historiken så att Tillbaka stänger den
   if (!sheetIsOpen() && history.state && !history.state.sheet) {
     history.replaceState({ ...history.state, y: window.scrollY }, "");
@@ -1121,9 +1122,27 @@ function openSheet(html){
   document.getElementById("modal-root").innerHTML = `<div class="modal-bg" id="sheet-bg"><div class="modal form" role="dialog">${html}</div></div>`;
   document.getElementById("sheet-bg").addEventListener("click", e => { if (e.target.id === "sheet-bg") closeSheet(); });
 }
+// Lås sidan bakom en öppen ruta så att bara rutan scrollar (fungerar även i Safari på iPhone)
+let lockedY = null;
+function lockScroll(){
+  if (lockedY !== null || !sheetIsOpen()) return;
+  lockedY = window.scrollY;
+  const b = document.body.style;
+  b.position = "fixed"; b.top = -lockedY + "px"; b.left = "0"; b.right = "0"; b.width = "100%";
+  document.body.classList.add("sheet-open");
+}
+function unlockScroll(){
+  if (lockedY === null) return;
+  const y = lockedY; lockedY = null;
+  const b = document.body.style;
+  b.position = ""; b.top = ""; b.left = ""; b.right = ""; b.width = "";
+  document.body.classList.remove("sheet-open");
+  window.scrollTo(0, y);
+}
 function closeSheet(fromPop){
   const was = sheetIsOpen();
   document.getElementById("modal-root").innerHTML = "";
+  unlockScroll();
   // Stängd med ×/knapp: markera rutans historikpost så att Tillbaka hoppar över den
   if (was && !fromPop && history.state && history.state.sheet) history.replaceState({ ...history.state, sheet: false, dup: true }, "");
 }
@@ -2865,11 +2884,12 @@ async function openNotifySettings(){
       <div class="srow nf-dev"><span class="st"><b>${DEV[0]}</b><small>${DEV[1]}</small></span>
         ${devState === "default" ? `<button class="btn accent small" id="nfOn">Slå på</button>` : devState === "granted" && !missing ? `<button class="btn ghost small" id="nfTest">Testa</button>` : ""}</div></div>
     <div class="sgrp"><h3>Meddela mig när</h3>
-      ${NOTIFY_KINDS.map(([k, t, s]) => `<label class="srow nf-row"><span class="st"><b>${t}</b><small>${s}</small></span><span class="sw"><input type="checkbox" data-k="${k}" ${prefs[k] === false ? "" : "checked"} ${missing ? "disabled" : ""}><i></i></span></label>`).join("")}
+      ${NOTIFY_KINDS.map(([k, t, s]) => { const on = prefs[k] !== false; return `<label class="srow nf-row ${on ? "on" : ""}"><span class="st"><b>${t}</b><small>${s}</small></span><span class="nf-state">${on ? "På" : "Av"}</span><span class="sw"><input type="checkbox" data-k="${k}" ${on ? "checked" : ""} ${missing ? "disabled" : ""} aria-label="${t}"><i></i></span></label>`; }).join("")}
     </div>
     <p class="meta">Timrar under matlagningen ringer alltid. Valen gäller alla dina enheter.</p>`;
   box().querySelectorAll("input[data-k]").forEach(i => i.onchange = async () => {
     prefs[i.dataset.k] = i.checked;
+    const row = i.closest(".nf-row"); row.classList.toggle("on", i.checked); row.querySelector(".nf-state").textContent = i.checked ? "På" : "Av";
     const { error } = await sb.rpc("recipe_notify_prefs_set", { p_prefs: prefs });
     toast(error ? "Kunde inte spara" : i.checked ? "Påslaget" : "Avstängt");
   });
