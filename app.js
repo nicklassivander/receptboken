@@ -1844,14 +1844,35 @@ function renderHelp(){
     ${sec("När du lagar mat", `
       <ul>
         ${d.touch ? `<li>Växla mellan <b>Ingredienser</b> och <b>Gör så här</b> med flikarna eller genom att <b>svepa</b> åt sidan.</li>` : `<li>Ingredienser och steg står bredvid varandra (i ett smalt fönster blir det flikar).</li>`}
-        <li>Tryck på en rad för att <b>bocka av</b> den.</li>
         <li>Ändra antalet <b>portioner</b> med − och + – mängderna räknas om.</li>
-        <li>Tryck <b>🍳 Börja laga</b> i receptet. Skärmen hålls tänd, bockarna sparas och <b>nästa steg</b> markeras. Tider i stegen blir knappar (⏱ 15 min) som startar en timer.</li>
-        <li>Lämnar du receptet eller appen syns en mörk bar längst ner: <b>Lagar nu</b> – tryck för att komma tillbaka dit du var. Öppnar du appen igen hamnar du direkt i receptet.</li>
-        <li>Tryck <b>Klar!</b> när du är färdig, så sparar du tillagningen med betyg, anteckning och bild. ${d.kind === "ios" ? "På iPhone piper timern bara när appen är öppen – titta i baren när du kommer tillbaka." : "Timern piper och vibrerar när tiden är ute."}</li>
+        <li>Tryck <b>Börja laga</b> i receptet. Skärmen hålls tänd och varje steg i <b>Gör så här</b> får en <b>kryssruta</b> till höger. Bocka av stegen – de blir gröna och överstrukna, <b>Nästa</b> visar var du är och en grön linje visar hur långt du har kommit.</li>
+        <li><b>Timer:</b> tider i stegen blir knappar (⏱ 15 min). Med <b>⏱ Timer</b> sätter du en egen tid – appen föreslår tiderna som står i receptet, eller så väljer du själv och skriver vad den gäller (t.ex. <i>Ugnen</i>).</li>
+        <li>När timern är klar kommer en ruta med steget som är klart och <b>nästa steg</b>. Tryck <b>✓ Steget klart – visa nästa</b>, eller <b>starta nästa timer</b> direkt om nästa steg har en tid. Appen piper tills du kvitterar.</li>
+        <li>${d.kind === "ios" ? (d.installed ? "Timern skickar en avisering även när appen är stängd." : "Lägg appen på hemskärmen så kan timern skicka avisering även när appen är stängd.") : "Timern skickar en avisering även när appen är stängd."} Siffran på appikonen försvinner när du öppnar appen.</li>
+        <li>Medan du lagar syns en mörk bricka <b>Lagar nu</b> uppe till höger – tryck för att komma tillbaka till receptet. Den följer med till dina andra enheter: börjar du på datorn ser du det på telefonen, med bockar och timrar.</li>
+        <li>Tryck <b>Klar!</b> när du är färdig, så sparar du tillagningen med betyg, anteckning och bild – eller <b>Avbryt</b> (tryck två gånger). Glömmer du att avsluta stängs det av sig självt efter 12 timmar.</li>
         <li>Håll skärmen tänd med <b>telefonikonen</b> – se nedan.</li>
-        <li>Tryck <b>Lagad idag</b> när du är klar, eller <b>Ny tillagning</b> för att spara datum, betyg, anteckning och bild.</li>
+        <li>Lagade du utan att trycka Börja laga: tryck <b>Lagad idag</b>, eller <b>Ny tillagning</b> för att spara datum, betyg, anteckning och bild.</li>
       </ul>`)}
+
+    ${sec("Hitta recept och fråga Claude", `
+      <ul>
+        <li><b>Sökfältet</b> letar i titlar, nyckelord, ingredienser och anteckningar.</li>
+        <li>Hittar du inte rätt dyker raden <b>✦ Fråga Claude</b> upp under sökningen. Claude läser hela receptboken och föreslår de recept som passar bäst – du kan skriva fritt, t.ex. <i>har ägg, potatis och lök</i>, <i>något snabbt till vardags</i> eller <i>den där grytan med rödvin</i>.</li>
+        <li>Claude skriver också ett <b>nytt receptförslag</b> som passar er smak och inte finns i boken. Tryck <b>Visa hela receptet</b>, <b>Spara i receptboken</b> (du granskar innan du sparar) eller <b>Ge mig ett annat</b>.</li>
+        <li><b>Filtrera</b> (till höger i filterraden, på mobilen bredvid Bilder/Lista) visar nyckelorden i grupper: <b>Rätt</b>, <b>Mattyp</b> (kött, fläsk, kyckling, fisk, skaldjur, vegetariskt), <b>Tillfälle</b> och <b>Metod</b>. Övriga ord ligger hopfällda under <b>Övrigt</b>. Välj flera för att smalna av, t.ex. <i>fisk + vardag</i>; valda filter tar du bort med ×.</li>
+        <li>Snabbfilter överst: <b>Mina favoriter</b>, <b>Tillagda av mig</b> och <b>Lagade av mig</b>.</li>
+      </ul>`)}
+
+    ${sec("Aviseringar", `
+      <p>Appen kan meddela dig när något händer i köket – även när den är stängd.</p>
+      <ul>
+        <li><b>Alla</b> får besked när någon <b>lägger till</b> ett recept eller <b>lagar</b> något.</li>
+        <li><b>Du</b> får besked när någon gör ett av dina recept till <b>favorit</b> eller gör en <b>variant</b> av det.</li>
+        <li>Slå på och välj under <b>Konto → Aviseringar</b>. Varje rad visar tydligt <b>PÅ</b> (grön bock) eller <b>AV</b> (grått kryss). Tryck <b>Testa</b> för att se att det fungerar på enheten.</li>
+        <li>Aviseringar måste slås på en gång per enhet. Timrar under matlagningen ringer alltid.</li>
+      </ul>
+      ${d.kind === "ios" && !d.installed ? `<p class="hnote">På iPhone fungerar aviseringar bara när appen ligger på hemskärmen – se Installera appen.</p>` : ""}`)}
 
     ${sec("Favoriter", `
       <ul>
@@ -1890,16 +1911,16 @@ function renderHelp(){
         <li>Varianter får automatiskt ett namn efter vad som skiljer dem från originalet, t.ex. <i>Extra stark</i> eller <i>Utan grädde</i>. Vill du döpa själv skriver du namnet under <b>Redigera</b>. Byt mellan originalet och varianterna med raden <b>Varianter</b> under rubriken.</li>
         <li>Är grundreceptet ditt kan du föra över en variant till det med <b>Uppdatera grundreceptet</b> längst ner i varianten.</li>
         <li>Ändrar du ingredienser, steg eller portioner i ett recept frågar appen om det ska bli en <b>ny variant</b> (originalet lämnas orört) eller om du vill <b>ändra originalet</b> – det senare är för rättelser.</li>
-        <li>Filtren <b>Tillagda av mig</b> och <b>Lagade av mig</b> överst i listan visar dina egna recept och det du har lagat.</li>
-        <li><b>Filtrera</b> (till höger i filterraden, på mobilen bredvid Bilder/Lista) öppnar nyckelorden i grupper. Välj flera för att smalna av, t.ex. <i>fisk + vardag</i>. Valda filter syns som brickor som du tar bort med ×.</li>
         <li>När du redigerar ett recept väljer du nyckelord genom att trycka på dem, eller skriver ett nytt. Superanvändare ändrar listan under <b>Konto → Nyckelord</b>.</li>
       </ul>`)}
 
     ${sec("Bra att veta", `
       <ul>
         <li>Recepten sparas på enheten och går att läsa <b>utan nät</b>.</li>
-        <li><b>Senaste i köket</b> överst i receptlistan: tryck på raden för att fälla ut den. Fliken <b>Nya recept</b> visar vem som har lagt till recept eller gjort varianter, <b>Senast lagade</b> vem som har lagat vad. Röda prickar och <b>Nytt</b> visar vad som har hänt sedan du var här sist.</li>
+        <li><b>Senaste i köket</b> överst i receptlistan rullar de fem senaste händelserna. Ikonen visar vad som hänt: ${evIcon("added")} lade till, ${evIcon("variant")} gjorde en variant, ${evIcon("cooked")} lagade. Tryck på raden för att fälla ut den – fliken <b>Nya recept</b> visar tillagda recept och varianter, <b>Senast lagade</b> vem som har lagat vad. Röda prickar och <b>Nytt</b> visar vad som har hänt sedan du var här sist.</li>
         <li>Det andra sparar syns direkt hos dig.</li>
+        <li><b>Tillbaka</b> (knappen i appen, webbläsarens pil, musens bakåtknapp eller svep) tar dig tillbaka dit du var i listan. Är en ruta öppen stängs den först. Alla rutor kan också stängas med <b>×</b> uppe till höger.</li>
+        <li>Under <b>Konto</b> hittar du Aviseringar, Hjälp, Byt lösenord och Logga ut. Superanvändare ser också <b>Användare</b>, <b>Aktivitet</b> (vem som gjort vad, och från vilken enhet) och verktygen för nyckelord och tider.</li>
         <li>Länken till ett öppet recept kan delas – mottagaren hamnar på just det receptet.</li>
         <li><b>Behörigheter:</b> Läsa – ser allt. Egna recept – lägger till och ändrar sina egna. Superanvändare – ändrar allt och godkänner nya.</li>
       </ul>`)}
