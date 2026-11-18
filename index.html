@@ -822,6 +822,28 @@ body.sheet-open{overflow:hidden}
 .sw input:checked + i::after{transform:translateX(18px)}
 .sw input:disabled + i{opacity:.5}
 .sw input:focus-visible + i{outline:2px solid var(--brass);outline-offset:2px}
+/* Aktivitet: personer som kompakta chips, tidslinjen direkt, detaljer längst ner */
+.aa-chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;margin:0 0 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.aa-chips::-webkit-scrollbar{display:none}
+.aa-chip{display:inline-flex;align-items:center;gap:7px;flex:none;background:#fff;border:1px solid #ddd4c6;border-radius:999px;padding:4px 12px 4px 4px;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;white-space:nowrap}
+.aa-chip:first-child{padding:6px 14px}
+.aa-chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.aa-av{position:relative;width:24px;height:24px;border-radius:50%;background:var(--brass,#9c7a3c);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:500}
+.aa-live{position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:50%;background:#4f7a4a;border:2px solid #fff}
+.aa-who{font-size:13px;color:#7d766e;margin:0 0 6px;line-height:1.5}
+.aa-ulist{margin-top:18px;border-top:1px solid #e6dfd4;padding-top:10px}
+.aa-ulist summary{cursor:pointer;font-family:var(--serif);font-size:18px;list-style:none;display:flex;align-items:center;gap:8px}
+.aa-ulist summary::-webkit-details-marker{display:none}
+.aa-ulist summary::after{content:"▾";color:var(--brass);font-size:13px;margin-left:auto}
+.aa-ulist[open] summary::after{content:"▴"}
+.aa-ulist summary small{font-family:var(--sans);font-size:12px;color:#8a837b}
+.aa-ulist table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+.aa-ulist th{text-align:left;font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#8a837b;padding:6px 6px 6px 0;border-bottom:1px solid #e6dfd4}
+.aa-ulist td{padding:8px 6px 8px 0;border-bottom:1px solid #f0eae0;vertical-align:top;color:#5d5750}
+.aa-ulist td b{display:block;font-weight:500;color:var(--ink)}
+.aa-ulist td small{font-size:11px;color:var(--brass)}
+.aa-ulist tr[data-who]{cursor:pointer}
+.aa-day h4{margin-top:8px}
 </style>
 </head>
 <body>

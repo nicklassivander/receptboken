@@ -2711,10 +2711,12 @@ async function openActivity(days){
     box().innerHTML = `
       ${note ? `<p class="hnote">${note}</p>` : ""}
       <div class="aa-period">${[7, 30, 90].map(d => `<button class="ftag ${d === days ? "on" : ""}" data-days="${d}">${d} dagar</button>`).join("")}</div>
-      ${users.length ? `<div class="aa-users">${users.map(u => `<button class="aa-user ${who === u.email ? "on" : ""}" data-who="${esc(u.email)}">
-          <b>${esc(u.name || nameOf(u.email))}</b><span>${esc(ROLE_LABEL[u.role] || u.role)}</span>
-          <small>Inloggad ${esc(fmtT(u.last_sign_in_at))}<br>Senast aktiv ${esc(fmtT(u.last_seen))} · ${u.events_30d} händelser/30 d</small></button>`).join("")}</div>` : ""}
-      ${who ? `<p class="aa-filter">Visar ${esc(nameOf(who))} <button class="linkbtn" data-who="">Visa alla</button></p>` : ""}
+      ${users.length ? `<div class="aa-chips" role="group" aria-label="Visa person">
+          <button class="aa-chip ${who ? "" : "on"}" data-who="">Alla</button>
+          ${users.map(u => { const recent = u.last_seen && Date.now() - Date.parse(u.last_seen) < 864e5; return `<button class="aa-chip ${who === u.email ? "on" : ""}" data-who="${esc(u.email)}">
+            <span class="aa-av">${esc((u.name || nameOf(u.email) || "?").slice(0, 1).toUpperCase())}${recent ? `<i class="aa-live" title="Aktiv senaste dygnet"></i>` : ""}</span>${esc((u.name || nameOf(u.email)).split(" ")[0])}</button>`; }).join("")}
+        </div>` : ""}
+      ${(() => { const u = who && users.find(x => x.email === who); return u ? `<p class="aa-who">${esc(ROLE_LABEL[u.role] || u.role)} · Inloggad ${esc(fmtT(u.last_sign_in_at))} · Senast aktiv ${esc(fmtT(u.last_seen))} · ${u.events_30d} händelser/30 d</p>` : ""; })()}
       ${byDay.length ? byDay.map(g => `<div class="aa-day"><h4>${esc(g.d)}</h4>${g.e.map(e => `<div class="aa-ev">
           <time>${new Date(e.at).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}</time>
           <span>${evIcon(e.kind)}<b>${esc(nameOf(e.email))}</b> ${esc(LOG_TEXT[e.kind] || e.kind)}
@@ -2722,9 +2724,13 @@ async function openActivity(days){
           ${e.kind === "import" && e.detail ? `<small>${esc([e.detail.url, e.detail.bilder ? e.detail.bilder + " bilder" : "", e.detail.text ? "text" : ""].filter(Boolean).join(" · "))}</small>` : ""}
           ${e.device ? `<small class="aa-dev">${esc((DEV_TEXT[String(e.device).replace("-app", "")] || e.device) + (String(e.device).endsWith("-app") ? " · app" : ""))}</small>` : ""}</span></div>`).join("")}</div>`).join("")
         : `<p class="meta" style="padding:14px 0">Ingen aktivitet ${who ? "för " + esc(nameOf(who)) + " " : ""}de senaste ${days} dagarna.</p>`}
+      ${users.length ? `<details class="aa-ulist"><summary>Användare och inloggningar <small>${users.length}</small></summary>
+        <table><thead><tr><th>Namn</th><th>Inloggad</th><th>Senast aktiv</th><th>30 d</th></tr></thead><tbody>
+        ${users.map(u => `<tr data-who="${esc(u.email)}"><td><b>${esc(u.name || nameOf(u.email))}</b><small>${esc(ROLE_LABEL[u.role] || u.role)}</small></td><td>${esc(fmtT(u.last_sign_in_at))}</td><td>${esc(fmtT(u.last_seen))}</td><td>${u.events_30d}</td></tr>`).join("")}
+        </tbody></table></details>` : ""}
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="aaClose">Stäng</button></div>`;
     box().querySelectorAll("[data-days]").forEach(b => b.onclick = () => openActivity(+b.dataset.days));
-    box().querySelectorAll("[data-who]").forEach(b => b.onclick = () => { who = who === b.dataset.who ? "" : b.dataset.who; draw(); });
+    box().querySelectorAll("[data-who]").forEach(b => b.onclick = () => { who = who === b.dataset.who ? "" : b.dataset.who; draw(); const m = document.querySelector(".modal"); if (m) m.scrollTop = 0; });
     box().querySelectorAll("[data-rid]").forEach(b => b.onclick = () => { closeSheet(); detailState = { mode: "mine", servings: null, done: {}, tab: "ing", notesEdit: false, notesDraft: null }; view = { name: "detail", id: b.dataset.rid }; render(); window.scrollTo(0, 0); });
     $id("aaClose").onclick = closeSheet;
   };
