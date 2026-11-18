@@ -376,7 +376,7 @@ function renderList(){
   }
 
   $app.innerHTML = `
-    <header class="top"><a class="brand" href="#" data-a="home" aria-label="Till alla recept"><img src="logo.svg" alt="" class="logo"><h1>Sivander's Recept${recipes.length ? (() => { const nNew = recipes.filter(isNewForMe).length; return `<span class="rcount"><b>${recipes.length}</b><span>recept</span>${nNew ? `<i class="rc-dot"></i><em>+${nNew} ${nNew === 1 ? "ny" : "nya"}</em>` : ""}</span>`; })() : ""}</h1></a>
+    <header class="top"><a class="brand" href="#" data-a="home" aria-label="Till alla recept"><img src="logo.svg" alt="" class="logo"><h1><span class="t-sv">Sivander's</span> <i class="t-gl"></i><span class="t-rp">Recept</span>${recipes.length ? (() => { const nNew = recipes.filter(isNewForMe).length; return `<span class="rcount"><b>${recipes.length}</b><span>recept</span>${nNew ? `<i class="rc-dot"></i><em>+${nNew} ${nNew === 1 ? "ny" : "nya"}</em>` : ""}</span>`; })() : ""}</h1></a>
       <span class="row"><button class="iconbtn" data-a="help" aria-label="Hjälp och instruktioner">Hjälp</button><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button></span></header>
     ${loadNote ? `<div class="notice">${esc(loadNote)}</div>` : ""}
     ${recipes.length ? `
@@ -3149,7 +3149,19 @@ try { document.fonts && document.fonts.ready.then(() => { try { renderShopFab();
 function shopLeft(){ return shopLists.reduce((n, l) => n + shopGroups(l.items.filter(i => !i.done && !isHomeItem(i))).length, 0); }
 
 // Flytande korgknapp nere till höger (ovanför + i receptlistan)
+// Mobil: RECEPT fyller bredden till höger om loggan
+function fitTitle(){
+  const h1 = document.querySelector("#app header.top h1"), rp = h1 && h1.querySelector(".t-rp");
+  if (!rp) return;
+  if (window.innerWidth > 620) { rp.style.fontSize = ""; const sv0 = h1.querySelector(".t-sv"); if (sv0) sv0.style.fontSize = ""; return; }
+  const w = h1.clientWidth - (parseFloat(getComputedStyle(h1).paddingLeft) || 0) - (parseFloat(getComputedStyle(h1).paddingRight) || 0);
+  if (!w) return;
+  let s = 40; rp.style.fontSize = s + "px";
+  for (let i = 0; i < 6; i++) { const cw = rp.scrollWidth; if (!cw) break; const r = w / cw; if (Math.abs(r - 1) < 0.01) break; s = Math.max(18, Math.min(72, s * r)); rp.style.fontSize = s.toFixed(1) + "px"; }
+  const sv = h1.querySelector(".t-sv"); if (sv) sv.style.fontSize = (s * 0.78).toFixed(1) + "px";
+}
 function renderShopFab(){
+  try { fitTitle(); } catch {}
   let b = document.getElementById("shopfab");
   // Startsidan: alltid (ingång till listan). Inne i ett recept m.m.: bara när det finns en aktiv lista med varor kvar
   const onStart = !!document.querySelector("#app header.top");
@@ -3171,7 +3183,7 @@ function renderShopFab(){
   const nav = hdr && hdr.querySelector(":scope > .row");
   let edge = null;
   if (hdr && hdr.matches("header.top") && window.innerWidth > 900) {
-    const h1 = hdr.querySelector("h1"), tn = h1 && [...h1.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    const h1 = hdr.querySelector("h1"), tn = h1 && (h1.querySelector(".t-rp") || [...h1.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()));
     if (tn) { const rg = document.createRange(); rg.selectNodeContents(tn); const rr = rg.getBoundingClientRect(); const ls = parseFloat(getComputedStyle(h1).letterSpacing) || 0; if (rr.width) edge = rr.right - ls; }
   }
   if (edge == null && nav) edge = nav.getBoundingClientRect().right;
