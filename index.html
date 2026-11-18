@@ -1104,18 +1104,19 @@ header.top.has-slides{position:relative;isolation:isolate}
 @keyframes hskb{from{transform:scale(1.03) translate3d(0,0,0)}to{transform:scale(1.11) translate3d(-1.2%,-1%,0)}}
 @media(prefers-reduced-motion:reduce){.hdr-slides img.kb{animation:none}}
 .hs-veil{position:absolute;inset:0;z-index:3;opacity:0;transition:opacity 3s ease;background:linear-gradient(180deg,rgba(8,9,9,.75) 0%,rgba(8,9,9,.38) 38%,rgba(8,9,9,.2) 68%,rgba(8,9,9,.62) 100%)}
-.hdr-cap{position:absolute;z-index:3;left:max(22px,calc(50vw - 418px));top:22px;max-width:46%;display:flex;align-items:center;gap:8px;background:rgba(14,10,7,.55);border:1px solid rgba(226,196,138,.45);border-radius:20px;padding:6px 13px;color:#f0dcaa;font:400 13px/1.2 var(--sans);letter-spacing:.03em;cursor:pointer;transition:opacity .9s ease-in-out;text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.hdr-cap{position:absolute;z-index:3;left:max(22px,calc(50vw - 418px));bottom:18px;max-width:46%;display:flex;align-items:center;gap:8px;background:rgba(14,10,7,.55);border:1px solid rgba(226,196,138,.45);border-radius:20px;padding:6px 13px;color:#f0dcaa;font:400 13px/1.2 var(--sans);letter-spacing:.03em;cursor:pointer;transition:opacity .9s ease-in-out;text-shadow:0 1px 3px rgba(0,0,0,.8)}
 .hdr-cap span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hdr-cap b{font-weight:400;color:#ffe9b8}
 .hdr-cap.fade{opacity:0}
 .hdr-cap:empty{display:none}
-@media(max-width:620px){.hdr-cap{top:auto;left:12px;bottom:10px;max-width:58%;font-size:12px;padding:5px 11px}}
+@media(max-width:620px){.hdr-cap{left:18px;bottom:10px;max-width:58%;font-size:12px;padding:5px 11px}}
 .hdr-slides.live .hs-veil{opacity:1}
 /* "Till sidhuvudet" på receptbilden */
 .hero{position:relative}
 .hdrpick{position:absolute;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:6;display:flex;align-items:center;gap:7px;height:36px;padding:0 13px 0 11px;border-radius:18px;border:1px solid rgba(226,196,138,.5);background:rgba(21,16,12,.62);color:#f0dcaa;font:400 13px/1 var(--sans);letter-spacing:.02em;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 3px 12px rgba(0,0,0,.25)}
 .hdrpick.on{background:#c9a55c;border-color:#c9a55c;color:#1f1712}
 .hdrpick:active{transform:scale(.96)}
+header.top{overflow:hidden}
 </style>
 </head>
 <body>

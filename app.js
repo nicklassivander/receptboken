@@ -3633,6 +3633,17 @@ function hdrSlides(){
     return;
   }
   if (!hdr.contains(hdrEl)) { hdr.classList.add("has-slides"); hdr.prepend(hdrEl); hdr.appendChild(hdrCap); }
+  hdrPlaceCap(hdr);
+}
+// Dator: receptnamnet nere till vänster, i linje med sökfältet (och slutar före loggan)
+function hdrPlaceCap(hdr){
+  if (!hdrCap) return;
+  if (window.innerWidth <= 620) { hdrCap.style.left = hdrCap.style.maxWidth = ""; return; }
+  const s = document.querySelector("#app .search"), lg = hdr.querySelector(".logo");
+  if (!s) return;
+  const hl = hdr.getBoundingClientRect().left, left = s.getBoundingClientRect().left - hl;
+  hdrCap.style.left = Math.round(left) + "px";
+  if (lg) { const room = lg.getBoundingClientRect().left - hl - left - 18; if (room > 120) hdrCap.style.maxWidth = Math.round(room) + "px"; }
 }
 function hdrNext(){
   const pool = hdrPool(), sig = pool.map(r => r.id).sort().join(",");
