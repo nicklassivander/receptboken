@@ -3102,7 +3102,7 @@ function subscribeShop(){
 }
 window.addEventListener("resize", () => { try { renderShopFab(); } catch {} });
 try { document.fonts && document.fonts.ready.then(() => { try { renderShopFab(); } catch {} }); } catch {}
-function shopLeft(){ return shopLists.reduce((n, l) => n + l.items.filter(i => !i.done).length, 0); }
+function shopLeft(){ return shopLists.reduce((n, l) => n + shopGroups(l.items.filter(i => !i.done && !isHomeItem(i))).length, 0); }
 
 // Flytande korgknapp nere till höger (ovanför + i receptlistan)
 function renderShopFab(){
@@ -3230,8 +3230,8 @@ function openShopFromRecipe(r){
 function openShop(listId){
   if (listId) shopListId = listId;
   shopMode = "list";
-  openSheet(`<div class="sheet-head"><h2>Inköpslista</h2><button class="iconbtn fp-x" id="closeSheetBtn" aria-label="Stäng">×</button></div><div class="shop-body"></div>`);
-  $id("closeSheetBtn").onclick = closeSheet;
+  openSheet(`<div class="shop-body"></div>`);
+  const m = document.querySelector("#modal-root .modal"); if (m) m.classList.add("shopm");
   drawShop();
 }
 function shopText(l){
@@ -3241,7 +3241,7 @@ function shopText(l){
   SHOP_SECTIONS.forEach(s => { const g = rows.filter(i => (i.section || "Övrigt") === s); if (g.length) out.push("", s, ...g.map(i => "☐ " + i.text)); });
   return out.join("\n");
 }
-function drawShop(){
+function drawShopOld(){
   const box = document.querySelector(".shop-body"); if (!box) return;
   if (shopOff) { box.innerHTML = `<p class="hnote">Inköpslistan är inte påslagen i databasen än. Kör <b>supabase/shopping.sql</b> i Supabase (SQL Editor → Run).</p>`; return; }
   const l = shopLists.find(x => x.id === shopListId) || shopLists.find(x => x.owner === myEmail()) || shopLists[0] || null;
@@ -3328,4 +3328,165 @@ async function drawShopMembers(l){
     l.members = emails; shopMode = "list"; drawShop();
     toast(emails.length ? `Delad med ${emails.map(nameOf).join(", ")}` : "Listan är bara din igen");
   };
+}
+
+// ---- Inköpslistan, utseende C: mörk rubrik med framstegsring, kompakta rader, Hemma, samma vara ihopslagen ----
+var HOME_PREFIX = "HEMMA:";
+function isHomeItem(i){ return String(i.section || "").startsWith(HOME_PREFIX); }
+function realSection(i){ const s = String(i.section || "Övrigt"); return s.startsWith(HOME_PREFIX) ? s.slice(HOME_PREFIX.length) || "Övrigt" : s; }
+// "2 gula lökar" och "1 gul lök" ska bli samma vara: enkel svensk grundform per ord
+function shopNameKey(t){
+  return shopIngKey(t).replace(/[^a-zåäöé\s-]/g, " ").split(/\s+/).filter(Boolean)
+    .map(w => w.length > 4 && /(ar|or|er)$/.test(w) ? w.slice(0, -2) : w.length > 3 && /a$/.test(w) ? w.slice(0, -1) : w).join(" ");
+}
+function parseQty(t){
+  const m = String(t).trim().match(/^(\d+(?:[.,]\d+)?|½|¼|¾)\s*(g|kg|hg|dl|cl|ml|l|msk|tsk|krm|st)?\b\.?\s*(.*)$/i);
+  if (!m) return null;
+  const n = m[1] === "½" ? .5 : m[1] === "¼" ? .25 : m[1] === "¾" ? .75 : parseFloat(m[1].replace(",", "."));
+  return { n, unit: (m[2] || "").toLowerCase(), rest: m[3] };
+}
+// Grupper av samma vara (samma grundnamn) inom en lista
+function shopGroups(items){
+  const map = new Map();
+  items.forEach(i => { const k = (isHomeItem(i) ? "h:" : "") + (shopNameKey(i.text) || normItem(i.text)); if (!map.has(k)) map.set(k, []); map.get(k).push(i); });
+  return [...map.values()];
+}
+function groupLabel(g){
+  if (g.length === 1) return { text: g[0].text, qty: "" };
+  const ps = g.map(i => parseQty(i.text));
+  if (ps.every(p => p) && ps.every(p => p.unit === ps[0].unit)) {
+    const sum = ps.reduce((s, p) => s + p.n, 0);
+    const best = ps.find(p => p.n > 1) || ps[0];
+    return { text: `${fmtNum(sum)}${ps[0].unit ? " " + ps[0].unit : ""} ${sum > 1 ? best.rest : ps[0].rest}`.trim(), qty: "" };
+  }
+  const base = shopIngKey(g[0].text); const name = base ? base[0].toUpperCase() + base.slice(1) : g[0].text;
+  const q = g.map((i, k) => { const p = ps[k]; return p ? `${fmtNum(p.n)}${p.unit ? " " + p.unit : ""}` : null; }).filter(Boolean);
+  return { text: name, qty: q.length ? q.join(" + ") : "" };
+}
+var SHOP_COLORS = ["#9c7a3c", "#5c1a24", "#3f6e8c", "#8a5a9e", "#b5523b", "#2f7a6b"];
+function shopDots(l){
+  const src = [...new Set(l.items.map(i => i.recipe_title || ""))];
+  const map = {}; let c = 0;
+  src.forEach(s => { map[s] = s ? SHOP_COLORS[c++ % SHOP_COLORS.length] : "#4f7a4a"; });
+  return { map, many: src.length > 1, src };
+}
+var shopOpenGroup = null;
+function drawShop(){
+  const box = document.querySelector(".shop-body"); if (!box) return;
+  const closeBtn = `<button class="fp-x shop-x" id="shopClose" aria-label="Stäng">×</button>`;
+  if (shopOff) { box.innerHTML = `<div class="shop-hero">${closeBtn}<div><h2>Inköpslista</h2></div></div><div class="shop-in"><p class="hnote">Inköpslistan är inte påslagen i databasen än. Kör <b>supabase/shopping.sql</b> i Supabase (SQL Editor → Run).</p></div>`; $id("shopClose").onclick = closeSheet; return; }
+  const l = shopLists.find(x => x.id === shopListId) || shopLists.find(x => x.owner === myEmail()) || shopLists[0] || null;
+  if (l) shopListId = l.id;
+  const own = l && l.owner === myEmail();
+  const items = l ? l.items : [];
+  const active = items.filter(i => !isHomeItem(i));
+  const groups = shopGroups(active), homeGroups = shopGroups(items.filter(isHomeItem));
+  const total = groups.length, doneN = groups.filter(g => g.every(i => i.done)).length;
+  const dots = l ? shopDots(l) : { map: {}, many: false, src: [] };
+  const titles = dots.src.filter(Boolean);
+  const pct = total ? doneN / total : 0, C = 2 * Math.PI * 23;
+  const ring = `<svg class="shop-ring" viewBox="0 0 56 56" aria-label="${doneN} av ${total} klara"><circle cx="28" cy="28" r="23" fill="none" stroke="#4a3a2e" stroke-width="5"/><circle cx="28" cy="28" r="23" fill="none" stroke="#c9a55c" stroke-width="5" stroke-linecap="round" stroke-dasharray="${(pct * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 28 28)"/><text x="28" y="${total ? 28 : 32}" text-anchor="middle" font-size="15" fill="#f0dcaa" font-family="Georgia,serif">${total ? doneN : "–"}</text>${total ? `<text x="28" y="39" text-anchor="middle" font-size="8" fill="#bfae8c" font-family="sans-serif">av ${total}</text>` : ""}</svg>`;
+  const HOUSE = '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7v9H4z"/><path d="M10 20v-5h4v5"/></svg>';
+  const gid = g => g.map(i => i.id).join(",");
+  const row = g => {
+    const lb = groupLabel(g), done = g.every(i => i.done), key = gid(g);
+    const who = [...new Set(g.map(i => String(i.added_by).toLowerCase()).filter(e => e !== myEmail()))].map(nameOf).join(", ");
+    const ds = [...new Set(g.map(i => i.recipe_title || ""))];
+    const open = shopOpenGroup === key && g.length > 1;
+    return `<div class="sh-row ${done ? "done" : ""}" data-g="${esc(key)}" ${who ? `title="Tillagd av ${esc(who)}"` : ""}>
+      <button class="sh-bx" data-act="tick" aria-label="${done ? "Ångra" : "Bocka av"} ${esc(lb.text)}"></button>
+      ${dots.many ? `<span class="sh-dots">${ds.map(s => `<i style="background:${dots.map[s]}"></i>`).join("")}</span>` : ""}
+      <button class="sh-tx" data-act="expand">${esc(lb.text)}${lb.qty ? `<em>${esc(lb.qty)}</em>` : ""}</button>
+      <button class="sh-hm" data-act="home" aria-label="Finns hemma" title="Finns hemma">${HOUSE}</button>
+    </div>${open ? g.map(i => `<div class="sh-sub"><i style="background:${dots.map[i.recipe_title || ""]}"></i>${esc(i.text)} · ${esc(i.recipe_title || "Egen vara")}</div>`).join("") : ""}`;
+  };
+  const sections = SHOP_SECTIONS.map(s => { const gs = groups.filter(g => realSection(g[0]) === s); return gs.length ? `<div class="sh-blk"><p class="sh-sec">${esc(s)}</p>${gs.map(row).join("")}</div>` : ""; }).join("");
+  const hist = Object.entries(shopHistory()).sort((a, b) => b[1] - a[1]).slice(0, 40).map(x => x[0]);
+  box.innerHTML = `
+    <div class="shop-hero">${ring}
+      <div class="sh-ttl"><h2>${esc(l ? l.name : "Inköpslista")}</h2>
+        <small>${titles.length ? esc(titles.join(" · ")) + (dots.src.includes("") ? " · egna varor" : "") : (items.length ? "Egna varor" : "Tom lista")}</small>
+        ${l ? `<span>${own ? (l.members.length ? `Delad med ${l.members.map(m => esc(nameOf(m))).join(", ")}` : "Bara du ser den här listan") : `Delad av ${esc(nameOf(l.owner))}`}</span>` : ""}</div>
+      ${shopLists.length > 1 ? `<div class="sh-tabs">${shopLists.map(x => `<button class="${l && x.id === l.id ? "on" : ""}" data-list="${esc(x.id)}">${esc(x.name)}</button>`).join("")}<button data-act="newlist">+ Ny</button></div>` : ""}
+      ${closeBtn}</div>
+    <div class="shop-in">
+      ${dots.many ? `<div class="sh-key">${dots.src.map(s => `<span><i style="background:${dots.map[s]}"></i>${esc(s || "Egen vara")}</span>`).join("")}</div>` : ""}
+      ${groups.length ? `<div class="sh-cols">${sections}</div>` : `<p class="shp-empty">${homeGroups.length ? "Allt annat finns hemma." : "Listan är tom. Lägg till varor nedan, eller tryck <b>Handla</b> i ett recept."}</p>`}
+      ${homeGroups.length ? `<details class="sh-home"><summary>Fanns hemma · ${homeGroups.length}</summary>${homeGroups.map(g => `<div class="sh-hrow" data-g="${esc(gid(g))}">${HOUSE}<span>${esc(groupLabel(g).text)}</span><button class="linkbtn" data-act="unhome">Tillbaka</button></div>`).join("")}</details>` : ""}
+      <div class="sh-foot">
+        <form class="shp-add" id="shpAdd"><input id="shpNew" list="shpHist" placeholder="Lägg till vara … (flera med komma)" autocomplete="off"><button class="btn small" type="submit">Lägg till</button><datalist id="shpHist">${hist.map(h => `<option value="${esc(h)}">`).join("")}</datalist></form>
+        ${l ? `<div class="sh-acts">
+          <button class="btn ghost small" data-act="share">Dela / kopiera</button>
+          ${own ? `<button class="btn ghost small" data-act="members">Dela med …</button>` : ""}
+          ${doneN ? `<button class="btn ghost small" data-act="clear">Töm avbockat</button>` : ""}
+          ${shopLists.length <= 1 ? `<button class="btn ghost small" data-act="newlist">+ Ny lista</button>` : ""}
+          ${own ? `<button class="linkbtn" data-act="rename">Byt namn</button><button class="linkbtn del-link" data-act="delete">Ta bort listan</button>` : `<button class="linkbtn del-link" data-act="leave">Lämna listan</button>`}
+        </div>` : ""}
+      </div>
+    </div>`;
+  $id("shopClose").onclick = closeSheet;
+  const findG = el => { const ids = (el.closest("[data-g]").dataset.g || "").split(","); return l.items.filter(i => ids.includes(i.id)); };
+  const save = async (rows, patch) => {
+    rows.forEach(i => Object.assign(i, patch(i))); drawShop(); renderShopFab();
+    const res = await Promise.all(rows.map(i => sb.from("recipe_list_items").update(patch(i)).eq("id", i.id)));
+    if (res.some(r => r.error)) { toast("Kunde inte spara"); loadShop(); }
+  };
+  box.querySelectorAll("[data-list]").forEach(b => b.onclick = () => { shopListId = b.dataset.list; shopOpenGroup = null; drawShop(); });
+  box.querySelectorAll('[data-act="tick"]').forEach(b => b.onclick = () => { const g = findG(b); const v = !g.every(i => i.done); save(g, () => ({ done: v })); });
+  box.querySelectorAll('[data-act="expand"]').forEach(b => b.onclick = () => { const k = b.closest("[data-g]").dataset.g; if (k.includes(",")) { shopOpenGroup = shopOpenGroup === k ? null : k; drawShop(); } else { const g = findG(b); const v = !g.every(i => i.done); save(g, () => ({ done: v })); } });
+  box.querySelectorAll('[data-act="home"]').forEach(b => b.onclick = () => {
+    const g = findG(b); const name = groupLabel(g).text;
+    save(g, i => ({ section: HOME_PREFIX + realSection(i), done: false }));
+    toastActions(`${name} finns hemma`, [["Ångra", () => save(g, i => ({ section: realSection(i) }))], ["Alltid hemma", () => { const k = shopIngKey(g[0].text); const s = staples(); if (!s.includes(k)) { s.push(k); setStaples(s); } toast(`${k} räknas nu alltid som hemma`); }]]);
+  });
+  box.querySelectorAll('[data-act="unhome"]').forEach(b => b.onclick = () => { const g = findG(b); save(g, i => ({ section: realSection(i) })); });
+  $id("shpAdd").onsubmit = async e => {
+    e.preventDefault();
+    const texts = $id("shpNew").value.split(",").map(s => s.trim()).filter(Boolean); if (!texts.length) return;
+    $id("shpNew").value = "";
+    const list = await ensureShopList(l && l.id); if (!list) return;
+    shopListId = list.id; shopRemember(texts);
+    await shopAdd(list, texts.map(text => ({ text })));
+    drawShop(); setTimeout(() => { const i = $id("shpNew"); if (i) i.focus(); }, 30);
+  };
+  box.querySelectorAll(".sh-foot [data-act], .sh-tabs [data-act]").forEach(b => b.onclick = async () => {
+    const a = b.dataset.act;
+    if (a === "share") {
+      const text = shopText2(l);
+      try { if (navigator.share && deviceInfo().touch) { await navigator.share({ title: l.name, text }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+      try { await navigator.clipboard.writeText(text); toast("Listan är kopierad – klistra in var du vill"); } catch { toast("Kunde inte kopiera"); }
+    } else if (a === "clear") {
+      const ids = l.items.filter(i => i.done && !isHomeItem(i)).map(i => i.id);
+      const { error } = await sb.from("recipe_list_items").delete().in("id", ids);
+      if (!error) { l.items = l.items.filter(i => !ids.includes(i.id)); drawShop(); renderShopFab(); }
+    } else if (a === "newlist") {
+      const name = (prompt("Namn på listan", "Ny lista") || "").trim(); if (!name) return;
+      const nl = await createShopList(name.slice(0, 60)); if (nl) { shopListId = nl.id; drawShop(); renderShopFab(); }
+    } else if (a === "rename") {
+      const name = (prompt("Nytt namn", l.name) || "").trim(); if (!name || name === l.name) return;
+      const { error } = await sb.from("recipe_lists").update({ name: name.slice(0, 60) }).eq("id", l.id);
+      if (!error) { l.name = name.slice(0, 60); drawShop(); }
+    } else if (a === "delete" || a === "leave") {
+      if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Säker? Tryck igen"; return; }
+      const { error } = a === "delete" ? await sb.from("recipe_lists").delete().eq("id", l.id) : await sb.from("recipe_list_members").delete().eq("list_id", l.id).eq("email", myEmail());
+      if (!error) { shopLists = shopLists.filter(x => x.id !== l.id); shopListId = null; drawShop(); renderShopFab(); }
+    } else if (a === "members") drawShopMembers(l);
+  });
+}
+function shopText2(l){
+  const groups = shopGroups(l.items.filter(i => !i.done && !isHomeItem(i)));
+  const titles = [...new Set(l.items.map(i => i.recipe_title).filter(Boolean))];
+  const out = [`${l.name}${titles.length ? " – " + titles.join(", ") : ""}`];
+  SHOP_SECTIONS.forEach(s => { const gs = groups.filter(g => realSection(g[0]) === s); if (gs.length) out.push("", s, ...gs.map(g => { const lb = groupLabel(g); return "☐ " + lb.text + (lb.qty ? " " + lb.qty : ""); })); });
+  return out.join("\n");
+}
+// Kort meddelande med knappar (Ångra / Alltid hemma)
+function toastActions(msg, actions){
+  let t = document.getElementById("toastAct");
+  if (t) t.remove();
+  t = document.createElement("div"); t.id = "toastAct"; t.className = "toast-act";
+  t.innerHTML = `<span>${esc(msg)}</span>${actions.map((a, i) => `<button data-i="${i}">${esc(a[0])}</button>`).join("")}`;
+  document.body.appendChild(t);
+  t.querySelectorAll("button").forEach(b => b.onclick = () => { t.remove(); actions[+b.dataset.i][1](); });
+  setTimeout(() => { if (t.parentNode) t.remove(); }, 6000);
 }
