@@ -3182,7 +3182,7 @@ function renderShopFab(){
   // stora skärmar: under sista bokstaven (T) i rubriken
   const nav = hdr && hdr.querySelector(":scope > .row");
   let edge = null;
-  if (hdr && hdr.matches("header.top") && window.innerWidth > 900) {
+  if (false && hdr && hdr.matches("header.top") && window.innerWidth > 900) {
     const h1 = hdr.querySelector("h1"), tn = h1 && (h1.querySelector(".t-rp") || [...h1.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()));
     if (tn) { const rg = document.createRange(); rg.selectNodeContents(tn); const rr = rg.getBoundingClientRect(); const ls = parseFloat(getComputedStyle(h1).letterSpacing) || 0; if (rr.width) edge = rr.right - ls; }
   }
