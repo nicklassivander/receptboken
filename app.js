@@ -2009,8 +2009,12 @@ function activityHtml(){
       <span class="avs">${who.map(e => avHtml(e)).join("")}</span>
       <span class="lab">Senaste i köket</span>
       ${(() => { const ck = ev.filter(e => e.kind === "cooked").slice(0, 3);   // minst tre tillagningar om det finns
-        const top = ck.concat(ev.filter(e => !ck.includes(e)).slice(0, 5 - ck.length)).sort((a, b) => b.ts - a.ts); const line = e => `<span class="tk">${evIcon(e.kind)}<b>${nm(e)}</b> ${verb(e)} ${title(e)} · ${relDay(e.ts)}</span>`;
-        return `<span class="latest ${top.length > 1 ? "ticker n" + top.length : ""}"><span class="tk-in">${top.map(line).join("")}${top.length > 1 ? line(top[0]) : ""}</span></span>`; })()}
+        const top = ck.concat(ev.filter(e => !ck.includes(e)).slice(0, 5 - ck.length)).sort((a, b) => b.ts - a.ts); // Flöde som glider från höger till vänster; gruppen ligger två gånger i rad så att det går runt utan skarv
+        const line = e => `<span class="mq-it" data-a="open" data-id="${esc(e.r.id)}">${evIcon(e.kind)}<b>${nm(e)}</b>${verb(e)}&nbsp;<span class="t">${title(e)}</span>&nbsp;· ${relDay(e.ts)}</span><span class="mq-sep"></span>`;
+        const grp = top.map(line).join("");
+        const chars = top.reduce((n, e) => n + (e.by === me ? 2 : nameOf(e.by).length) + verb(e).length + (e.r.title || "").length + 14, 0);
+        const dur = Math.max(14, Math.round(chars * 7.5 / 40));   // ca 40 px per sekund
+        return `<span class="latest mq" style="--d:${dur}s"><span class="mq-track"><span class="mq-grp">${grp}</span><span class="mq-grp" aria-hidden="true">${grp}</span></span></span>`; })()}
       ${newCount ? `<span class="new">${newCount} ${newCount === 1 ? "ny" : "nya"}</span>` : ""}
       <span class="chev" aria-hidden="true">▼</span>
     </button>

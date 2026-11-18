@@ -536,6 +536,19 @@ header.top h1{font-weight:600}
 .act-row:hover .latest .tk-in{animation-play-state:paused}
 .act.open .latest .tk-in{animation:none}
 @media(prefers-reduced-motion:reduce){.act-row .latest .tk-in{animation:none!important}}
+/* Senaste i köket som flöde höger → vänster */
+.act-row .latest.mq{display:block;position:relative;height:28px;line-height:28px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent)}
+.act-row .latest .mq-track{display:flex;width:max-content;animation:mqslide var(--d,30s) linear infinite}
+.act-row:hover .latest .mq-track,.act-row .latest:active .mq-track{animation-play-state:paused}
+.act.open .latest .mq-track{animation-play-state:paused}
+.act-row .latest .mq-grp{display:flex;align-items:center;flex:none}
+.act-row .latest .mq-it{display:inline-flex;align-items:center;white-space:nowrap;height:28px;cursor:pointer}
+.act-row .latest .mq-it b{color:var(--ink);font-weight:500;margin-right:4px}
+.act-row .latest .mq-it .t{color:var(--ink)}
+.act-row .latest .mq-it:hover .t{text-decoration:underline}
+.act-row .latest .mq-sep{display:inline-block;width:5px;height:5px;border-radius:50%;background:#c9b48a;margin:0 16px;flex:none}
+@keyframes mqslide{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.act-row .latest .mq-track{animation:none}}
 .evi{display:inline-flex!important;align-items:center;justify-content:center;width:26px!important;height:26px!important;min-width:26px;border-radius:50%!important;background:#efe2c6;color:#7a5a1e;vertical-align:middle;margin:0 8px 0 0;padding:0;flex:none;line-height:0}
 .evi svg{width:21px;height:21px;display:block}
 .act-row .latest,.act-row .latest .tk{height:28px;line-height:28px}
