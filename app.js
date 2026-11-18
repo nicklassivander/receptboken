@@ -447,6 +447,7 @@ function renderDetail(){
     <div class="hero ${r.photo ? "" : "noimg"}">
       ${r.photo ? `<img src="${esc(r.photo)}" alt="">` : ""}
       <button class="fback" data-a="home" aria-label="Tillbaka till alla recept"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+      ${r.photo && canEdit(r) ? `<button class="hdrpick ${r.hdr ? "on" : ""}" data-a="hdrpick" aria-pressed="${r.hdr ? "true" : "false"}" title="${r.hdr ? "Visas i sidhuvudet – tryck för att ta bort" : "Visa bilden i sidhuvudet på startsidan"}"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="1.5"/><path d="M3 9h18"/><path d="M7.5 15.5l3-3 2.5 2 2-1.5 2.5 2.5"/></svg><span>${r.hdr ? "I sidhuvudet" : "Till sidhuvudet"}</span></button>` : ""}
       <div class="hero-cap">
         <div class="row">${sourceBadge(r)}${isModified(r) ? `<span class="badge mod">Min version</span>` : ""}
           ${(r.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join("")}</div>
@@ -973,6 +974,7 @@ document.addEventListener("click", async e => {
     case "import": openImport(); break;
     case "pickimport": menuOpen = false; render(); openPicker("import"); break;
     case "pickcomplete": openPicker("complete"); break;
+    case "hdrpick": if (cur) toggleHdr(cur); break;
     case "pickdish": openPhotoSheet(async url => { if (await patch(cur.id, { photo: url })) toast("Bilden sparad"); }); break;
     case "editphoto": readForm(); openPhotoSheet(url => { draft.photo = url; renderEdit(); }); break;
     case "new":
@@ -2051,6 +2053,7 @@ function renderHelp(){
       <ul>
         <li>Recepten sparas på enheten och går att läsa <b>utan nät</b>.</li>
         <li><b>Senaste i köket</b> överst i receptlistan rullar de fem senaste händelserna. Ikonen visar vad som hänt: ${evIcon("added")} lade till, ${evIcon("variant")} gjorde en variant, ${evIcon("cooked")} lagade. Tryck på raden för att fälla ut den – fliken <b>Nya recept</b> visar tillagda recept och varianter, <b>Senast lagade</b> vem som har lagat vad. Röda prickar och <b>Nytt</b> visar vad som har hänt sedan du var här sist.</li>
+        <li><b>Bilden överst</b> växlar mellan receptens bilder. Tryck på receptnamnet i hörnet för att öppna receptet. På en receptbild kan du trycka <b>Till sidhuvudet</b> – har någon bild valts så visas bara de valda, annars alla tillräckligt stora liggande bilder.</li>
         <li>Det andra sparar syns direkt hos dig.</li>
         <li><b>Tillbaka</b> (knappen i appen, webbläsarens pil, musens bakåtknapp eller svep) tar dig tillbaka dit du var i listan. Är en ruta öppen stängs den först. Alla rutor kan också stängas med <b>×</b> uppe till höger.</li>
         <li>Under <b>Konto</b> hittar du Aviseringar, Hjälp, Byt lösenord och Logga ut. Superanvändare ser också <b>Användare</b>, <b>Aktivitet</b> (vem som gjort vad, och från vilken enhet) och verktygen för nyckelord och tider.</li>
@@ -3600,34 +3603,49 @@ function toastActions(msg, actions){
   t.querySelectorAll("button").forEach(b => b.onclick = () => { t.remove(); actions[+b.dataset.i][1](); });
   setTimeout(() => { if (t.parentNode) t.remove(); }, 6000);
 }
-// ---------- Förhandsvisning: växlande receptbilder i sidhuvudet (?bild=demo, av med ?bild=av) ----------
-var hdrDemoOn = (function(){ try { if (/[?&]bild=demo\b/.test(location.search)) sessionStorage.setItem("hdrDemo", "1"); if (/[?&]bild=av\b/.test(location.search)) sessionStorage.removeItem("hdrDemo"); return sessionStorage.getItem("hdrDemo") === "1"; } catch { return false; } })();
-var hdrEl = null, hdrCap = null, hdrList = [], hdrIdx = -1, hdrTimer = null, hdrFlip = false;
+// ---------- Växlande receptbilder i sidhuvudet ----------
+// Startar med standardbilden. Har någon bild markerats "I sidhuvudet" visas bara de, annars alla
+// receptbilder som är tillräckligt stora och liggande. Av för en enhet med ?bild=av (på igen med ?bild=pa).
+var hdrOff = (function(){ try { if (/[?&]bild=av\b/.test(location.search)) localStorage.setItem("hdrOff", "1"); if (/[?&]bild=(pa|på|demo)\b/.test(location.search)) localStorage.removeItem("hdrOff"); return localStorage.getItem("hdrOff") === "1"; } catch { return false; } })();
+var hdrEl = null, hdrCap = null, hdrList = [], hdrIdx = -1, hdrTimer = null, hdrFlip = false, hdrSig = "", hdrBad = new Set(), hdrTries = 0;
+function hdrPool(){
+  const ph = recipes.filter(r => r.photo && !hdrBad.has(r.id));
+  const picked = ph.filter(r => r.hdr);
+  return picked.length ? picked : ph;
+}
 function hdrSlides(){
-  if (!hdrDemoOn) return;
+  if (hdrOff) return;
   const hdr = document.querySelector("#app header.top");
   if (!hdr) return;
   if (!hdrEl) {
-    hdrList = recipes.filter(r => r.photo).sort(() => Math.random() - 0.5);
-    if (!hdrList.length) return;
+    if (!recipes.some(r => r.photo)) return;
     hdrEl = document.createElement("div"); hdrEl.className = "hdr-slides"; hdrEl.setAttribute("aria-hidden", "true");
     hdrEl.innerHTML = '<img alt=""><img alt=""><i class="hs-veil"></i>';
     hdrCap = document.createElement("button"); hdrCap.type = "button"; hdrCap.className = "hdr-cap"; hdrCap.dataset.a = "open";
     hdr.classList.add("has-slides"); hdr.prepend(hdrEl); hdr.appendChild(hdrCap);
-    hdrNext();
-    hdrTimer = setInterval(() => { if (!document.hidden && document.querySelector("#app header.top .hdr-slides")) hdrNext(); }, 9000);
+    // standardbilden syns först, sedan börjar bildspelet
+    setTimeout(() => { hdrNext(); hdrTimer = setInterval(() => { if (!document.hidden && document.querySelector("#app header.top .hdr-slides")) hdrNext(); }, 9000); }, 5000);
     return;
   }
   if (!hdr.contains(hdrEl)) { hdr.classList.add("has-slides"); hdr.prepend(hdrEl); hdr.appendChild(hdrCap); }
 }
 function hdrNext(){
+  const pool = hdrPool(), sig = pool.map(r => r.id).sort().join(",");
+  if (pool.length === 1 && hdrEl.classList.contains("live") && hdrList[hdrIdx] && hdrList[hdrIdx].id === pool[0].id) return;
+  if (sig !== hdrSig || hdrIdx + 1 >= hdrList.length) {
+    // ny blandning när urvalet ändras eller när alla visats; undvik att samma bild kommer två gånger i rad
+    const last = hdrList[hdrIdx];
+    hdrList = pool.slice().sort(() => Math.random() - 0.5);
+    if (last && hdrList.length > 1 && hdrList[0].id === last.id) hdrList.push(hdrList.shift());
+    hdrSig = sig; hdrIdx = -1;
+  }
   if (!hdrList.length) return;
-  hdrIdx = (hdrIdx + 1) % hdrList.length;
+  hdrIdx++;
   const r = hdrList[hdrIdx], imgs = hdrEl.querySelectorAll("img"), inc = imgs[hdrFlip ? 1 : 0], out = imgs[hdrFlip ? 0 : 1];
   let shown = false;
   const go = () => {
     if (shown) return; shown = true;
-    inc.style.zIndex = 2; out.style.zIndex = 1;
+    inc.style.zIndex = 2; out.style.zIndex = 1; hdrEl.classList.add("live");
     inc.classList.remove("kb"); void inc.offsetWidth; inc.classList.add("kb");
     // Den nya tonas in ovanpå den gamla, som ligger kvar tills bytet är klart (ingen mörk dipp)
     requestAnimationFrame(() => requestAnimationFrame(() => { inc.classList.add("on"); setTimeout(() => { if (inc.classList.contains("on")) out.classList.remove("on"); }, 3100); }));
@@ -3637,8 +3655,21 @@ function hdrNext(){
     setTimeout(() => { hdrCap.dataset.id = r.id; hdrCap.innerHTML = `<span>${esc(r.title || "")}</span><b>→</b>`; hdrCap.classList.remove("fade"); }, first ? 0 : 1300);
     const nx = hdrList[(hdrIdx + 1) % hdrList.length]; if (nx) { const p = new Image(); p.src = nx.photo; if (p.decode) p.decode().catch(() => {}); }
   };
-  const show = () => { inc.onload = null; if (inc.decode) inc.decode().then(go, go); else go(); };
-  inc.onload = show; inc.onerror = () => { inc.onerror = null; hdrList.splice(hdrIdx, 1); hdrIdx--; if (hdrList.length) hdrNext(); };
+  const skip = () => { hdrBad.add(r.id); if (++hdrTries < 12) hdrNext(); else hdrTries = 0; };
+  const show = () => {
+    inc.onload = null;
+    // för små eller stående bilder blir suddiga/hårt beskurna i det breda sidhuvudet (gäller inte handplockade)
+    if (!r.hdr && (inc.naturalWidth < 900 || inc.naturalHeight > inc.naturalWidth * 1.05)) { skip(); return; }
+    hdrTries = 0;
+    if (inc.decode) inc.decode().then(go, go); else go();
+  };
+  inc.onload = show; inc.onerror = () => { inc.onerror = null; skip(); };
+  if (inc.getAttribute("src") === r.photo && inc.complete && inc.naturalWidth) { show(); return; }
   inc.src = r.photo;
   if (inc.complete && inc.naturalWidth) show();
+}
+// Välj vilka receptbilder som får visas i sidhuvudet
+async function toggleHdr(r){
+  const on = !r.hdr;
+  if (await patch(r.id, { hdr: on })) toast(on ? "Bilden visas i sidhuvudet" : "Bilden visas inte längre i sidhuvudet");
 }
