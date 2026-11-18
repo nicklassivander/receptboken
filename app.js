@@ -1393,9 +1393,9 @@ async function showApp(session){
   if (roleErr && cache && cache.me === me && (navigator.onLine === false || /fetch|network|load failed/i.test(String(roleErr.message || roleErr)))) { role = cache.role; loadNote = "Du är offline – visar senast sparade recept."; loaded = true; render(); subscribe(); handleShare(); return; }
   if (!role) { storageOk = false; loaded = true; render(); return; }
   await loadAll(); subscribe(); handleShare(); refreshRequests();
+  try { loadShop(); subscribeShop(); } catch (e) { console.warn(e); }
   resumeCooking();
   logOpen();
-  loadShop(); subscribeShop();
   const md = (session.user && session.user.user_metadata) || {};
   if (!md.has_password) openPasswordSheet(true);
 }
@@ -3060,15 +3060,31 @@ function myEmail(){ return String(me || "").toLowerCase(); }
 
 async function loadShop(){
   if (!me || !sb) return;
-  let data = null, error = null;
-  try { ({ data, error } = await sb.from("recipe_lists").select("id, owner, name, created_at, recipe_list_members(email), recipe_list_items(*)").order("created_at")); }
-  catch (e) { error = e; }
+  // Tre enkla frågor i stället för en med inbäddade relationer – tål att databasens schema-cache inte hunnit uppdateras
+  let lists = null, mem = [], items = [], error = null;
+  try {
+    const a = await sb.from("recipe_lists").select("id, owner, name, created_at");
+    if (a.error) throw a.error;
+    lists = a.data || [];
+    if (lists.length) {
+      const ids = lists.map(l => l.id);
+      const [b, c] = await Promise.all([sb.from("recipe_list_members").select("list_id, email").in("list_id", ids), sb.from("recipe_list_items").select("*").in("list_id", ids)]);
+      if (b.error) throw b.error; if (c.error) throw c.error;
+      mem = b.data || []; items = c.data || [];
+    }
+  } catch (e) { error = e; }
   shopLoaded = true;
-  if (error) { shopOff = true; shopErr = String(error.message || error); console.warn("inköpslista", shopErr); renderShopFab(); return; }
+  if (error) {
+    shopErr = String(error.message || error); console.warn("inköpslista", shopErr);
+    // bara "tabellen finns inte" stänger av funktionen; tillfälliga fel behåller det vi har
+    if (/does not exist|relation|schema cache|42P01|PGRST20/i.test(shopErr + " " + (error.code || ""))) shopOff = true;
+    renderShopFab(); return;
+  }
   shopErr = "";
   shopOff = false;
-  shopLists = (data || []).map(l => ({ id: l.id, owner: String(l.owner || "").toLowerCase(), name: l.name, members: (l.recipe_list_members || []).map(m => String(m.email).toLowerCase()),
-    items: (l.recipe_list_items || []).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))) }));
+  shopLists = lists.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).map(l => ({ id: l.id, owner: String(l.owner || "").toLowerCase(), name: l.name,
+    members: mem.filter(m => m.list_id === l.id).map(m => String(m.email).toLowerCase()),
+    items: items.filter(i => i.list_id === l.id).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))) }));
   if (shopListId && !shopLists.some(l => l.id === shopListId)) shopListId = null;
   renderShopFab();
   if (document.querySelector(".shop-body") && shopMode === "list") drawShop();
@@ -3089,7 +3105,7 @@ function shopLeft(){ return shopLists.reduce((n, l) => n + l.items.filter(i => !
 // Flytande korgknapp nere till höger (ovanför + i receptlistan)
 function renderShopFab(){
   let b = document.getElementById("shopfab");
-  const show = me && shopLoaded && !shopOff && view.name !== "edit" && view.name !== "help";
+  const show = me && !shopOff && view.name !== "edit" && view.name !== "help";
   if (!show) { if (b) b.remove(); return; }
   if (!b) { b = document.createElement("button"); b.id = "shopfab"; b.className = "shopfab"; b.dataset.a = "shopfab"; document.body.appendChild(b); }
   const n = shopLeft();
@@ -3120,7 +3136,7 @@ async function createShopList(name){
   const { data, error } = await sb.from("recipe_lists").insert({ owner: myEmail(), name }).select("id, owner, name").single();
   if (error) { toast("Kunde inte skapa listan: " + (error.message || "okänt fel")); return null; }
   const l = { id: data.id, owner: myEmail(), name: data.name, members: [], items: [] };
-  shopLists.push(l); return l;
+  shopLists.push(l); shopOff = false; shopLoaded = true; renderShopFab(); return l;
 }
 const normItem = t => String(t).toLowerCase().replace(/\s+/g, " ").trim();
 async function shopAdd(list, entries){
