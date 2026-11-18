@@ -526,12 +526,9 @@ function renderDetail(){
     ${can("contributor") ? `<div class="panel ai">
       <h2>Fråga eller ändra</h2>
       <p class="meta" style="justify-content:flex-start;margin:-4px 0 10px">Fråga kocken och sommelieren – eller skriv vad du vill ändra i receptet. Ändringar kontrolleras och du granskar innan något sparas.</p>
-      <div class="chips">
-        <button class="chip" data-a="ai" data-q="wine">Vilket vin passar?</button>
-        <button class="chip" data-a="ai" data-q="subs">Alternativ till ingredienser</button>
-        <button class="chip" data-a="ai" data-q="similar">Liknande recept</button>
-        <button class="chip" data-a="ai" data-q="vary">Andra varianter</button>
-        <button class="chip" data-a="ai" data-q="sides">Vad serverar jag till?</button>
+      <div class="aiq-btns">
+        <button class="aiq" data-a="ai" data-q="wine"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-.5 5.5a3.5 3.5 0 0 1-7 0z"/><path d="M8.2 6.5h7.6"/><path d="M12 12v8M8.5 20.5h7"/></svg>Vilket vin passar?</button>
+        <button class="aiq" data-a="ai" data-q="sides"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="3.8"/><path d="M3 4v6a1.6 1.6 0 0 0 1.6 1.6M4.6 4v16M21 4c-1.8.8-2 6-.4 7.2V20"/></svg>Vad serverar jag till?</button>
       </div>
       <form class="ai-ask" id="ai-form"><input id="ai-input" placeholder="t.ex. kan jag frysa den? eller: gör den utan grädde" autocomplete="off"><button class="btn small" type="submit">Skicka</button></form>
       <div id="ai-out">${aiOutHtml(r.id)}</div>

@@ -1144,6 +1144,14 @@ header.top{overflow:hidden}
 @keyframes awshim{from{background-position:100% 0}to{background-position:-150% 0}}
 @media(prefers-reduced-motion:reduce){.aw-s{animation:none}}
 @media(max-width:620px){.aw-s{font-size:16px}}
+/* Fråga eller ändra: snabbfrågor som guldkantade piller */
+.aiq-btns{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 14px}
+.aiq{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid #c9a55c;border-radius:20px;padding:8px 15px 8px 11px;font:400 14px/1.1 var(--sans);color:#5a4521;cursor:pointer;transition:background .15s,border-color .15s}
+.aiq svg{color:var(--brass,#9c7a3c);flex:none}
+.aiq:hover{background:#fdf6e8;border-color:var(--brass,#9c7a3c)}
+.aiq:active{transform:scale(.97)}
+@media(max-width:430px){.aiq-btns{flex-wrap:nowrap;gap:7px}.aiq{flex:1 1 0;min-width:0;justify-content:center;white-space:nowrap;font-size:12.5px;padding:8px 8px 8px 7px;gap:5px}.aiq svg{width:18px;height:18px}}
+@media(max-width:374px){.aiq-btns{flex-wrap:wrap}.aiq{flex:1 1 100%}}
 </style>
 </head>
 <body>
