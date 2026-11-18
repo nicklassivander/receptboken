@@ -3117,7 +3117,8 @@ function renderShopFab(){
   b.setAttribute("aria-label", n ? `Inköpslista, ${n} varor kvar` : "Inköpslista");
   b.classList.toggle("empty", !n);
   // I receptlistan sitter korgen nere till höger i rubrikfältet; på andra sidor flyter den nere till höger
-  const hdr = document.querySelector("#app header.top");
+  // I ett recept: på motsvarande ställe, nere till höger i receptbilden
+  const hdr = document.querySelector("#app header.top") || (view.name === "detail" ? document.querySelector("#app .hero") : null);
   if (hdr) { if (b.parentNode !== hdr) hdr.appendChild(b); }
   else if (b.parentNode !== document.body) document.body.appendChild(b);
   b.classList.toggle("inhead", !!hdr);
