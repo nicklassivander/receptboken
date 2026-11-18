@@ -3112,7 +3112,12 @@ function renderShopFab(){
   b.innerHTML = BASKET_SVG + (n ? `<span class="cnt">${n}</span>` : "");
   b.setAttribute("aria-label", n ? `Inköpslista, ${n} varor kvar` : "Inköpslista");
   b.classList.toggle("empty", !n);
-  b.classList.toggle("above", !!document.querySelector(".fab"));
+  // I receptlistan sitter korgen nere till höger i rubrikfältet; på andra sidor flyter den nere till höger
+  const hdr = document.querySelector("#app header.top");
+  if (hdr) { if (b.parentNode !== hdr) hdr.appendChild(b); }
+  else if (b.parentNode !== document.body) document.body.appendChild(b);
+  b.classList.toggle("inhead", !!hdr);
+  b.classList.toggle("above", !hdr && !!document.querySelector(".fab"));
   b.classList.toggle("cooking", !!document.getElementById("cookbar") && false);
 }
 
