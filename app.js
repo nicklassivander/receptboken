@@ -679,13 +679,26 @@ function aiMd(t){
 function IDEA_SVG(fresh){
   return `<svg class="idea-ico${fresh ? " fresh" : ""}" viewBox="0 0 24 24" width="52" height="52" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><g class="id-bulb"><path class="id-fill" d="M11.5 11a2.6 2.6 0 0 0-1.5 4.7v1h3v-1A2.6 2.6 0 0 0 11.5 11z" fill="currentColor" fill-opacity=".3"/><path d="M10.4 18h2.2"/></g><g class="id-rays"><path d="M20.5 4.5l1.4-1.4M20.8 7.5h1.8M19.5 2.2V1"/></g></svg>`;
 }
+// Medan pappa tänker byts statustexten var 3,5 s så en lång väntan känns levande
+const AW_LINES = ["Pappa tänker …", "Pappa smakar av …", "Pappa rör i grytan …", "Pappa bläddrar i kokboken …", "Pappa kliar sig i huvudet …", "Pappa låter det puttra …"];
+function awLines(wine){ return wine ? [AW_LINES[0], "Sommeliern provsmakar …", ...AW_LINES.slice(1)] : AW_LINES; }
+function awText(t0, wine){ const l = awLines(wine); return l[Math.floor((Date.now() - t0) / 3500) % l.length]; }
+setInterval(() => {
+  document.querySelectorAll(".aw-s[data-t0]").forEach(el => {
+    const t = awText(+el.dataset.t0, el.dataset.wine === "1");
+    if (t === el.textContent || el.classList.contains("swap")) return;
+    el.classList.add("swap");
+    setTimeout(() => { el.textContent = t; el.classList.remove("swap"); }, 350);
+  });
+}, 500);
 function aiOutHtml(id){
   const items = aiState[id] || [];
   return items.map((it, i) => {
     const links = !it.busy && it.a ? recipes.filter(x => x.id !== id && x.title && it.a.toLowerCase().includes(x.title.toLowerCase())) : [];
     // Medan pappa tänker står frågan under ikonen; när svaret kommit står frågan överst som vanligt
     // Medan pappa tänker: frågan bredvid ikonen, "Pappa tänker" som liten status under
-    const wait = `<div class="ai-wait">${THINK_SVG}<div><div class="aw-q">${esc(it.q)}</div><div class="aw-s">Pappa tänker</div></div></div>`;
+    if (!it._t0) it._t0 = Date.now();
+    const wait = `<div class="ai-wait">${THINK_SVG}<div><div class="aw-q">${esc(it.q)}</div><div class="aw-s" data-t0="${it._t0}" data-wine="${/vin|dryck|öl\b|sommelier/i.test(it.q || "") ? 1 : 0}">${awText(it._t0, /vin|dryck|öl\b|sommelier/i.test(it.q || ""))}</div></div></div>`;
     if (it.busy && !it.a && !it.err) return wait;
     if (!it.err && !it.a) return wait;
     if (it.err) return `<div class="ai-q">${esc(it.q)}</div><div class="ai-a"><span class="err">${esc(it.err)}</span></div>`;
