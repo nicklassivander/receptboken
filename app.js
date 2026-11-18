@@ -3100,6 +3100,7 @@ function subscribeShop(){
     .subscribe();
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") loadShop(); });
 }
+window.addEventListener("resize", () => { try { renderShopFab(); } catch {} });
 function shopLeft(){ return shopLists.reduce((n, l) => n + l.items.filter(i => !i.done).length, 0); }
 
 // Flytande korgknapp nere till höger (ovanför + i receptlistan)
@@ -3117,6 +3118,9 @@ function renderShopFab(){
   if (hdr) { if (b.parentNode !== hdr) hdr.appendChild(b); }
   else if (b.parentNode !== document.body) document.body.appendChild(b);
   b.classList.toggle("inhead", !!hdr);
+  // Högerkanten i linje med Hjälp/Konto
+  const nav = hdr && hdr.querySelector(":scope > .row");
+  if (nav) b.style.right = Math.max(10, Math.round(hdr.getBoundingClientRect().right - nav.getBoundingClientRect().right)) + "px"; else b.style.right = "";
   b.classList.toggle("above", !hdr && !!document.querySelector(".fab"));
   b.classList.toggle("cooking", !!document.getElementById("cookbar") && false);
 }
