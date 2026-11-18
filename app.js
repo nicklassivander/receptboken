@@ -675,14 +675,23 @@ function aiMd(t){
   }
   return html + (inList ? "</ul>" : "");
 }
+// "Pappa har tänkt klart": samma huvud, kugghjulet har blivit en glödlampa som tänds
+function IDEA_SVG(fresh){
+  return `<svg class="idea-ico${fresh ? " fresh" : ""}" viewBox="0 0 24 24" width="52" height="52" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><g class="id-bulb"><path class="id-fill" d="M11.5 11a2.6 2.6 0 0 0-1.5 4.7v1h3v-1A2.6 2.6 0 0 0 11.5 11z" fill="currentColor" fill-opacity=".3"/><path d="M10.4 18h2.2"/></g><g class="id-rays"><path d="M20.5 4.5l1.4-1.4M20.8 7.5h1.8M19.5 2.2V1"/></g></svg>`;
+}
 function aiOutHtml(id){
   const items = aiState[id] || [];
   return items.map((it, i) => {
     const links = !it.busy && it.a ? recipes.filter(x => x.id !== id && x.title && it.a.toLowerCase().includes(x.title.toLowerCase())) : [];
     // Medan pappa tänker står frågan under ikonen; när svaret kommit står frågan överst som vanligt
     if (it.busy && !it.a && !it.err) return `<div class="ai-a"><span class="meta thinking">${THINK_SVG}Pappa tänker …</span></div><div class="ai-q">${esc(it.q)}</div>`;
-    return `<div class="ai-q">${esc(it.q)}</div>
-      <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : it.a ? aiMd(it.a) : `<span class="meta thinking">${THINK_SVG}Pappa tänker …</span>`}</div>
+    if (it.err || !it.a) return `<div class="ai-q">${esc(it.q)}</div>
+      <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : `<span class="meta thinking">${THINK_SVG}Pappa tänker …</span>`}</div>`;
+    // Klart: lampan till vänster, svaret bredvid, frågan under svaret. Lampan tänds bara första gången svaret visas.
+    const fresh = !it._lit; it._lit = true;
+    return `<div class="ai-row">${IDEA_SVG(fresh)}<div class="ai-body">
+      <div class="ai-a">${aiMd(it.a)}</div>
+      <div class="ai-q under">${esc(it.q)}</div>
       ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
       ${!it.busy && it.check ? `<div class="aic-check ${it.check.level}"><b>${it.check.level === "warn" ? "⚠ Tänk på" : "💡 Tips"}</b> ${esc(it.check.text)}</div>` : ""}
       ${!it.busy && it.change && !it.dismissed ? (() => { const rr = recipes.find(x => x.id === id); return rr ? `<div class="aic">
@@ -690,7 +699,8 @@ function aiOutHtml(id){
         ${changeLines(rr, it.change)}
         <div class="aic-btns"><button class="btn accent small" data-a="aiapply" data-i="${i}">${canEdit(rr) ? "Använd ändringen" : "Gör min egen variant med ändringen"}</button><button class="linkbtn" data-a="aidismiss" data-i="${i}">Nej tack</button></div>
       </div>` : ""; })() : ""}
-      ${!it.busy && it.a && !it.change && canEdit(recipes.find(x => x.id === id)) ? `<div class="ai-tools"><button class="btn ghost small" data-a="aisave" data-i="${i}">Spara i anteckningar</button></div>` : ""}`;
+      ${!it.busy && it.a && !it.change && canEdit(recipes.find(x => x.id === id)) ? `<div class="ai-tools"><button class="btn ghost small" data-a="aisave" data-i="${i}">Spara i anteckningar</button></div>` : ""}
+      </div></div>`;
   }).reverse().join("");
 }
 function aiRefresh(id){ const el = document.getElementById("ai-out"); if (el && view.id === id) el.innerHTML = aiOutHtml(id); }
