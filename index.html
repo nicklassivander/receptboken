@@ -536,8 +536,13 @@ header.top h1{font-weight:600}
 .act-row:hover .latest .tk-in{animation-play-state:paused}
 .act.open .latest .tk-in{animation:none}
 @media(prefers-reduced-motion:reduce){.act-row .latest .tk-in{animation:none!important}}
+/* Anteckningar medan man lagar */
+.cooknote{flex-basis:100%;display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.cooknote span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8a837b}
+.cooknote textarea{font:inherit;font-size:15px;line-height:1.5;padding:9px 11px;border:1px solid #d9cfbf;background:#fff;color:var(--ink);resize:vertical;min-height:52px;width:100%;box-sizing:border-box}
+.cooknote textarea:focus{outline:none;border-color:var(--brass)}
 /* Knapprutor under receptet: ikon över text, tre i bredd på mobilen */
-.actions.tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.actions.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .atile{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:7px;background:#fff;border:1px solid #e3dccf;border-radius:8px;padding:14px 6px 12px;font:inherit;font-size:13px;line-height:1.25;color:var(--ink);text-align:center;cursor:pointer;transition:border-color .12s,background .12s}
 .atile svg{color:var(--brass,#9c7a3c);flex:none}
 .atile:hover{border-color:var(--brass);background:#fdfaf4}

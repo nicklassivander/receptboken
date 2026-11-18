@@ -472,7 +472,8 @@ function renderDetail(){
       ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
     </div>
     ${variantSwitcher(r)}
-    ${cs ? `<div class="cooking-head"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="ct"><b>Du lagar det här</b><small>sedan ${new Date(cs.startedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}${detailState.servings ? ` · ${detailState.servings} portioner` : ""}</small></span><span class="cr"><button class="timeradd" data-a="timernew" aria-label="Sätt timer">⏱ Timer</button><button class="linkbtn" data-a="cookdone">Klar!</button><button class="linkbtn muted" data-a="cookstop">Avbryt</button></span>${(() => { const real = steps.map((x, i) => [x, i]).filter(([x]) => !x.startsWith("#")); const d = real.filter(([, i]) => detailState.done["s" + i]).length; return real.length ? `<div class="cookprog" title="${d} av ${real.length} steg klara"><i style="width:${Math.round(d / real.length * 100)}%"></i></div>` : ""; })()}</div>`
+    ${cs ? `<div class="cooking-head"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="ct"><b>Du lagar det här</b><small>sedan ${new Date(cs.startedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}${detailState.servings ? ` · ${detailState.servings} portioner` : ""}</small></span><span class="cr"><button class="timeradd" data-a="timernew" aria-label="Sätt timer">⏱ Timer</button><button class="linkbtn" data-a="cookdone">Klar!</button><button class="linkbtn muted" data-a="cookstop">Avbryt</button></span>${(() => { const real = steps.map((x, i) => [x, i]).filter(([x]) => !x.startsWith("#")); const d = real.filter(([, i]) => detailState.done["s" + i]).length; return real.length ? `<div class="cookprog" title="${d} av ${real.length} steg klara"><i style="width:${Math.round(d / real.length * 100)}%"></i></div>` : ""; })()}
+      <label class="cooknote"><span>Anteckningar medan du lagar</span><textarea id="cookNote" rows="2" placeholder="t.ex. tog 2 vitlöksklyftor extra, 10 min längre i ugnen – sparas när du trycker Klar!">${esc(cs.notes || "")}</textarea></label></div>`
       : `<div class="startcook"><button class="cookbtn" data-a="cookstart">${PAN_SVG}<span>Börja laga</span></button></div>`}
 
     ${(!ings.length || !steps.length || (r.tags || []).includes("att komplettera")) && canEdit(r) ? `<div class="panel changes"><h2>Receptet är inte komplett</h2>
@@ -542,7 +543,7 @@ function renderDetail(){
     </div>` : ""}
 
     <div class="actions tiles">
-      ${can("contributor") ? `${actTile("cooked", "check", "Lagad idag")}${actTile("histadd", "note", "Ny tillagning")}` : ""}
+      ${can("contributor") ? actTile("histadd", "note", "Ny tillagning") : ""}
       ${canEdit(r) ? `${actTile("pickdish", "photo", r.photo ? "Byt bild" : "Lägg till bild")}${actTile("edit", "pencil", "Redigera")}` : ""}
       ${can("contributor") ? actTile("variant", "variant", addedByOf(r) === me ? "Gör en variant" : "Gör min egen variant") : ""}
       ${actTile("copy", "copy", "Kopiera")}
@@ -969,7 +970,7 @@ document.addEventListener("click", async e => {
     case "cookstop":
       if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Säker?"; break; }
       logEvent("cook_cancel", cur); endCooking(); toast("Tillagningen avbruten"); render(); break;
-    case "cookdone": { const r0 = cur; logEvent("cook_done", r0); endCooking(); render(); openHistory(r0); toast("Snyggt! Sätt betyg och spara tillagningen"); break; }
+    case "cookdone": { const r0 = cur; const note = (cookSession && cookSession.notes || "").trim(); logEvent("cook_done", r0); endCooking(); render(); openHistory(r0, null, note); toast(note ? "Snyggt! Dina anteckningar är med – sätt betyg och spara" : "Snyggt! Sätt betyg och spara tillagningen"); break; }
     case "timer": startTimer(+el.dataset.ms, el.dataset.label, el.dataset.k); break;
     case "timerstop": stopTimer(el.dataset.id); break;
     case "timernew": openTimerSheet(); break;
@@ -1468,8 +1469,8 @@ function historyHtml(r){
       </li>`).join("")}</ul>
   </div>`;
 }
-function openHistory(r, entryId){
-  const e = histOf(r).find(x => x.id === entryId) || { date: today(), rating: 0, note: "", photo: null };
+function openHistory(r, entryId, prefillNote){
+  const e = histOf(r).find(x => x.id === entryId) || { date: today(), rating: 0, note: prefillNote || "", photo: null };
   let photo = e.photo || null;
   openSheet(`<h2>${entryId ? "Ändra tillagning" : "Ny tillagning"}</h2>
     <p class="sub">${esc(r.title || "")}</p>
@@ -1848,9 +1849,10 @@ function renderHelp(){
         <li>När timern är klar kommer en ruta med steget som är klart och <b>nästa steg</b>. Tryck <b>✓ Steget klart – visa nästa</b>, eller <b>starta nästa timer</b> direkt om nästa steg har en tid. Appen piper tills du kvitterar.</li>
         <li>${d.kind === "ios" ? (d.installed ? "Timern skickar en avisering även när appen är stängd." : "Lägg appen på hemskärmen så kan timern skicka avisering även när appen är stängd.") : "Timern skickar en avisering även när appen är stängd."} Siffran på appikonen försvinner när du öppnar appen.</li>
         <li>Medan du lagar syns en mörk bricka <b>Lagar nu</b> uppe till höger – tryck för att komma tillbaka till receptet. Den följer med till dina andra enheter: börjar du på datorn ser du det på telefonen, med bockar och timrar.</li>
-        <li>Tryck <b>Klar!</b> när du är färdig, så sparar du tillagningen med betyg, anteckning och bild – eller <b>Avbryt</b> (tryck två gånger). Glömmer du att avsluta stängs det av sig självt efter 12 timmar.</li>
+        <li>Skriv i <b>Anteckningar medan du lagar</b> när något avviker – en extra klyfta vitlök, längre tid i ugnen. Anteckningarna följer med till dina andra enheter.</li>
+        <li>Tryck <b>Klar!</b> när du är färdig, så sparar du tillagningen med betyg och bild – dina anteckningar ligger redan ifyllda. Eller tryck <b>Avbryt</b> (två gånger). Glömmer du att avsluta stängs det av sig självt efter 12 timmar.</li>
         <li>Håll skärmen tänd med <b>telefonikonen</b> – se nedan.</li>
-        <li>Lagade du utan att trycka Börja laga: tryck <b>Lagad idag</b>, eller <b>Ny tillagning</b> för att spara datum, betyg, anteckning och bild.</li>
+        <li>Lagade du utan att trycka Börja laga: tryck <b>Ny tillagning</b> under receptet och fyll i datum, betyg, anteckning och bild.</li>
       </ul>`)}
 
     ${sec("Hitta recept och fråga Claude", `
@@ -2020,7 +2022,7 @@ function activityHtml(){
         <button role="tab" class="${activityTab === "added" ? "on" : ""}" data-a="acttab" data-t="added">Nya recept${nAdded ? `<span class="tn">${nAdded}</span>` : ""}</button>
         <button role="tab" class="${activityTab === "cooked" ? "on" : ""}" data-a="acttab" data-t="cooked">Senast lagade${nCooked ? `<span class="tn">${nCooked}</span>` : ""}</button>
       </div>
-      <div class="act-list">${items.length ? "" : `<p class="hnote" style="padding:12px 0">${activityTab === "cooked" ? "Inga tillagningar loggade än – tryck Lagad idag i ett recept." : "Inga recept än."}</p>`}${items.map(e => `
+      <div class="act-list">${items.length ? "" : `<p class="hnote" style="padding:12px 0">${activityTab === "cooked" ? "Inga tillagningar än – tryck Börja laga eller Ny tillagning i ett recept." : "Inga recept än."}</p>`}${items.map(e => `
       <div class="fitem" data-a="open" data-id="${esc(e.r.id)}">
         <span class="nd ${isNew(e) ? "" : "old"}"></span>${avHtml(e.by)}
         <span class="tx">${evIcon(e.kind)}<i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
@@ -2031,6 +2033,11 @@ function activityHtml(){
     </div>` : ""}
   </div>`;
 }
+
+// Anteckningar under matlagningen sparas i sessionen (och synkas) tills man trycker Klar!
+document.addEventListener("input", e => {
+  if (e.target && e.target.id === "cookNote" && cookSession) { cookSession.notes = e.target.value; saveCook(); }
+});
 
 // Knapprutor under receptet: ikon över text
 function actTile(a, ic, label){
