@@ -474,7 +474,7 @@ function renderDetail(){
     ${variantSwitcher(r)}
     ${cs ? `<div class="cooking-head"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="ct"><b>Du lagar det här</b><small>sedan ${new Date(cs.startedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}${detailState.servings ? ` · ${detailState.servings} portioner` : ""}</small></span><span class="cr"><button class="timeradd" data-a="timernew" aria-label="Sätt timer">⏱ Timer</button><button class="linkbtn" data-a="cookdone">Klar!</button><button class="linkbtn muted" data-a="cookstop">Avbryt</button></span>${(() => { const real = steps.map((x, i) => [x, i]).filter(([x]) => !x.startsWith("#")); const d = real.filter(([, i]) => detailState.done["s" + i]).length; return real.length ? `<div class="cookprog" title="${d} av ${real.length} steg klara"><i style="width:${Math.round(d / real.length * 100)}%"></i></div>` : ""; })()}
       <label class="cooknote"><span>Anteckningar medan du lagar</span><textarea id="cookNote" rows="2" placeholder="t.ex. tog 2 vitlöksklyftor extra, 10 min längre i ugnen – sparas när du trycker Klar!">${esc(cs.notes || "")}</textarea></label></div>`
-      : `<div class="startcook">${me && !shopOff ? `<button class="cookbtn shopbtn" data-a="shop"><svg class="panico" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5h17l-1.6 9a2 2 0 0 1-2 1.6H7.1a2 2 0 0 1-2-1.6z"/><path d="M8 9.5 11 4M16 9.5 13 4"/><path d="M9 13v4M12 13v4M15 13v4"/></svg><span>Handla</span></button>` : ""}<button class="cookbtn" data-a="cookstart">${PAN_SVG}<span>Börja laga</span></button></div>`}
+      : `<div class="startcook">${me ? `<button class="cookbtn shopbtn" data-a="shop"><svg class="panico" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5h17l-1.6 9a2 2 0 0 1-2 1.6H7.1a2 2 0 0 1-2-1.6z"/><path d="M8 9.5 11 4M16 9.5 13 4"/><path d="M9 13v4M12 13v4M15 13v4"/></svg><span>Handla</span></button>` : ""}<button class="cookbtn" data-a="cookstart">${PAN_SVG}<span>Börja laga</span></button></div>`}
 
     ${(!ings.length || !steps.length || (r.tags || []).includes("att komplettera")) && canEdit(r) ? `<div class="panel changes"><h2>Receptet är inte komplett</h2>
       <p style="margin:0 0 12px">Ta skärmdumpar av receptet i videon eller på sidan och lägg till dem här, så fyller Claude i det som saknas.</p>
@@ -540,7 +540,7 @@ function renderDetail(){
       ${can("contributor") ? actTile("histadd", "note", "Ny tillagning") : ""}
       ${canEdit(r) ? `${actTile("pickdish", "photo", r.photo ? "Byt bild" : "Lägg till bild")}${actTile("edit", "pencil", "Redigera")}` : ""}
       ${can("contributor") ? actTile("variant", "variant", addedByOf(r) === me ? "Gör en variant" : "Gör min egen variant") : ""}
-      ${me && !shopOff ? actTile("shop", "basket", "Inköpslista") : ""}
+      ${me ? actTile("shop", "basket", "Inköpslista") : ""}
       ${actTile("copy", "copy", "Kopiera")}
     </div>
     ${canEdit(r) ? `<div class="actions-del"><button class="linkbtn del-link" data-a="del">Radera receptet</button></div>` : ""}
@@ -3053,7 +3053,7 @@ async function openNotifySettings(){
 
 // ---------- inköpslistor ----------
 // Varje person har egna listor; ägaren kan dela en lista med valda personer. Tabeller: supabase/shopping.sql
-var shopLists = [], shopLoaded = false, shopOff = false, shopListId = null, shopMode = "list", shopTimer = null;
+var shopErr = "", shopLists = [], shopLoaded = false, shopOff = false, shopListId = null, shopMode = "list", shopTimer = null;
 var SHOP_SECTIONS = ["Frukt och grönt", "Kött och chark", "Fisk och skaldjur", "Mejeri och ägg", "Bröd", "Skafferi", "Kryddor och såser", "Frys", "Dryck", "Hushåll och hygien", "Övrigt"];
 var BASKET_SVG = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5h17l-1.6 9a2 2 0 0 1-2 1.6H7.1a2 2 0 0 1-2-1.6z"/><path d="M8 9.5 11 4M16 9.5 13 4"/><path d="M9 13v4M12 13v4M15 13v4"/></svg>';
 function myEmail(){ return String(me || "").toLowerCase(); }
@@ -3064,7 +3064,8 @@ async function loadShop(){
   try { ({ data, error } = await sb.from("recipe_lists").select("id, owner, name, created_at, recipe_list_members(email), recipe_list_items(*)").order("created_at")); }
   catch (e) { error = e; }
   shopLoaded = true;
-  if (error) { shopOff = true; renderShopFab(); return; }
+  if (error) { shopOff = true; shopErr = String(error.message || error); console.warn("inköpslista", shopErr); renderShopFab(); return; }
+  shopErr = "";
   shopOff = false;
   shopLists = (data || []).map(l => ({ id: l.id, owner: String(l.owner || "").toLowerCase(), name: l.name, members: (l.recipe_list_members || []).map(m => String(m.email).toLowerCase()),
     items: (l.recipe_list_items || []).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))) }));
@@ -3117,7 +3118,7 @@ async function ensureShopList(id){
 }
 async function createShopList(name){
   const { data, error } = await sb.from("recipe_lists").insert({ owner: myEmail(), name }).select("id, owner, name").single();
-  if (error) { toast("Kunde inte skapa listan"); return null; }
+  if (error) { toast("Kunde inte skapa listan: " + (error.message || "okänt fel")); return null; }
   const l = { id: data.id, owner: myEmail(), name: data.name, members: [], items: [] };
   shopLists.push(l); return l;
 }
@@ -3127,7 +3128,7 @@ async function shopAdd(list, entries){
   const rows = entries.filter(e => e.text && !have.has(normItem(e.text))).map(e => ({ list_id: list.id, text: e.text.slice(0, 200), section: "Övrigt", recipe_id: e.recipe_id || null, recipe_title: e.recipe_title || null, added_by: myEmail() }));
   if (!rows.length) { toast("Det finns redan på listan"); return 0; }
   const { data, error } = await sb.from("recipe_list_items").insert(rows).select("*");
-  if (error) { toast("Kunde inte lägga till"); return 0; }
+  if (error) { toast("Kunde inte lägga till: " + (error.message || "okänt fel")); return 0; }
   list.items.push(...data);
   renderShopFab();
   shopClassify(data);
@@ -3146,6 +3147,13 @@ const isStaple = t => { const k = shopIngKey(t), s = staples(); return s.some(w 
 
 function openShopFromRecipe(r){
   if (!r) return;
+  if (shopOff || !shopLoaded) {   // tabellerna saknas eller listan har inte gått att hämta
+    openSheet(`<div class="sheet-head"><h2>Inköpslista</h2><button class="iconbtn fp-x" id="closeSheetBtn" aria-label="Stäng">×</button></div>
+      <p class="hnote">${shopLoaded ? `Inköpslistan är inte påslagen i databasen än. Kör filen <b>supabase/shopping.sql</b> i Supabase (SQL Editor → New query → Run) och ladda om appen.${shopErr ? `<br><small>Fel: ${esc(shopErr)}</small>` : ""}` : "Inköpslistan laddas – försök igen om en sekund."}</p>`);
+    $id("closeSheetBtn").onclick = closeSheet;
+    if (!shopLoaded) loadShop();
+    return;
+  }
   const f = (detailState.servings && r.servings) ? detailState.servings / r.servings : 1;
   const lines = (r.ingredients || []).filter(l => !String(l).startsWith("#")).map(l => scaleLine(l, f));
   const home = new Set(lines.filter(isStaple));
