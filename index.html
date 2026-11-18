@@ -930,6 +930,15 @@ body.sheet-open{overflow:hidden}
 @keyframes tkspin{to{transform:rotate(360deg)}}
 @keyframes tkwave{0%,100%{opacity:0;transform:translateX(-1px)}40%,60%{opacity:1;transform:translateX(0)}}
 @media(prefers-reduced-motion:reduce){.think-ico .tk-gear,.think-ico .tk-w1,.think-ico .tk-w2{animation:none;opacity:1}}
+/* Antal recept: bricka under namnet i sidhuvudet */
+.brand-txt{display:inline-flex;flex-direction:column;align-items:inherit;gap:8px;min-width:0}
+header.top .brand .brand-txt{align-items:center}
+.rcount{display:inline-flex;align-items:center;gap:7px;background:rgba(184,150,79,.2);border:1px solid #b8964f;border-radius:4px;padding:3px 10px;font-family:var(--sans);text-shadow:none;backdrop-filter:blur(2px)}
+.rcount b{font-family:var(--serif);font-weight:400;font-size:16px;color:#f4e3bd;line-height:1}
+.rcount span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#e9d6ab}
+.rcount .rc-dot{width:7px;height:7px;border-radius:50%;background:#8fbf7f;margin-left:3px}
+.rcount em{font-style:normal;font-size:11.5px;color:#cfe3c4}
+@media(max-width:620px){header.top .brand .brand-txt{align-items:flex-start}.rcount{padding:2px 8px;gap:6px}.rcount b{font-size:14px}.rcount span{font-size:10px}}
 </style>
 </head>
 <body>

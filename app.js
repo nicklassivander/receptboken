@@ -376,8 +376,8 @@ function renderList(){
   }
 
   $app.innerHTML = `
-    <header class="top"><a class="brand" href="#" data-a="home" aria-label="Till alla recept"><img src="logo.svg" alt="" class="logo"><h1>Sivander's Recept</h1></a>
-      <span class="row"><span class="meta">${recipes.length ? recipes.length + " recept" : ""}</span><button class="iconbtn" data-a="help" aria-label="Hjälp och instruktioner">Hjälp</button><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button></span></header>
+    <header class="top"><a class="brand" href="#" data-a="home" aria-label="Till alla recept"><img src="logo.svg" alt="" class="logo"><span class="brand-txt"><h1>Sivander's Recept</h1>${recipes.length ? (() => { const nNew = recipes.filter(isNewForMe).length; return `<span class="rcount"><b>${recipes.length}</b><span>recept</span>${nNew ? `<i class="rc-dot"></i><em>+${nNew} ${nNew === 1 ? "ny" : "nya"}</em>` : ""}</span>`; })() : ""}</span></a>
+      <span class="row"><button class="iconbtn" data-a="help" aria-label="Hjälp och instruktioner">Hjälp</button><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button></span></header>
     ${loadNote ? `<div class="notice">${esc(loadNote)}</div>` : ""}
     ${recipes.length ? `
     <div class="search">
