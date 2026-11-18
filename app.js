@@ -1199,8 +1199,52 @@ function openSheet(html){
   document.getElementById("sheet-bg").addEventListener("click", e => { if (e.target.id === "sheet-bg") closeSheet(); });
 }
 // Alla rutor får ett × uppe i högra hörnet (om de inte redan har ett)
+// Dra rutan nedåt för att stänga (telefon). Bara när rutan är scrollad högst upp, så att vanlig scrollning fungerar.
+function attachSheetDrag(m){
+  if (!m || m.dataset.drag || window.matchMedia("(min-width:700px)").matches) return;
+  m.dataset.drag = "1";
+  let y0 = null, dy = 0, t0 = 0, active = false;
+  m.addEventListener("touchstart", e => {
+    if (e.touches.length !== 1) return;
+    const tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return;
+    y0 = e.touches[0].clientY; dy = 0; t0 = Date.now(); active = false;
+  }, { passive: true });
+  m.addEventListener("touchmove", e => {
+    if (y0 == null) return;
+    const d = e.touches[0].clientY - y0;
+    if (!active) {
+      if (d > 6 && m.scrollTop <= 0) { active = true; m.style.transition = "none"; }
+      else if (d < -6 || m.scrollTop > 0) { y0 = null; return; }
+      else return;
+    }
+    dy = Math.max(0, d);
+    m.style.transform = `translateY(${dy}px)`;
+    const bg = document.getElementById("sheet-bg"); if (bg) bg.style.opacity = String(Math.max(.35, 1 - dy / 600));
+    e.preventDefault();
+  }, { passive: false });
+  const end = () => {
+    if (y0 == null) return;
+    y0 = null;
+    if (!active) return;
+    active = false;
+    const fast = dy > 60 && dy / Math.max(1, Date.now() - t0) > .6;
+    m.style.transition = "transform .2s ease-out";
+    const bg = document.getElementById("sheet-bg");
+    if (dy > Math.min(140, m.offsetHeight * .25) || fast) {
+      m.style.transform = "translateY(100%)";
+      if (bg) { bg.style.transition = "opacity .2s"; bg.style.opacity = "0"; }
+      setTimeout(() => closeSheet(), 190);
+    } else {
+      m.style.transform = "";
+      if (bg) bg.style.opacity = "";
+    }
+  };
+  m.addEventListener("touchend", end); m.addEventListener("touchcancel", end);
+}
 function addSheetX(){
   const m = document.querySelector("#modal-root .modal");
+  attachSheetDrag(m);
   if (!m || m.querySelector(".fp-x, .sheet-x")) return;
   const b = document.createElement("button");
   b.className = "sheet-x"; b.type = "button"; b.setAttribute("aria-label", "Stäng"); b.textContent = "×";
