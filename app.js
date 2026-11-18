@@ -2010,7 +2010,7 @@ function activityHtml(){
       <span class="lab">Senaste i köket</span>
       ${(() => { const ck = ev.filter(e => e.kind === "cooked").slice(0, 3);   // minst tre tillagningar om det finns
         const top = ck.concat(ev.filter(e => !ck.includes(e)).slice(0, 5 - ck.length)).sort((a, b) => b.ts - a.ts); // Flöde som glider från höger till vänster; gruppen ligger två gånger i rad så att det går runt utan skarv
-        const line = e => `<span class="mq-it" data-a="open" data-id="${esc(e.r.id)}">${evIcon(e.kind)}<b>${nm(e)}</b>${verb(e)}&nbsp;<span class="t">${title(e)}</span>&nbsp;· ${relDay(e.ts)}</span><span class="mq-sep"></span>`;
+        const line = e => `<span class="mq-it" data-a="open" data-id="${esc(e.r.id)}">${evIcon(e.kind)}<span class="mq-who"><b>${nm(e)}</b>${verb(e)}&nbsp;</span><span class="t">${title(e)}</span>&nbsp;· ${relDay(e.ts)}</span><span class="mq-sep"></span>`;
         const grp = top.map(line).join("");
         const chars = top.reduce((n, e) => n + (e.by === me ? 2 : nameOf(e.by).length) + verb(e).length + (e.r.title || "").length + 14, 0);
         const dur = Math.max(14, Math.round(chars * 7.5 / 40));   // ca 40 px per sekund
