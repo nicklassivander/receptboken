@@ -3107,7 +3107,9 @@ function shopLeft(){ return shopLists.reduce((n, l) => n + l.items.filter(i => !
 // Flytande korgknapp nere till höger (ovanför + i receptlistan)
 function renderShopFab(){
   let b = document.getElementById("shopfab");
-  const show = me && !shopOff && view.name !== "edit" && view.name !== "help";
+  // Startsidan: alltid (ingång till listan). Inne i ett recept m.m.: bara när det finns en aktiv lista med varor kvar
+  const onStart = !!document.querySelector("#app header.top");
+  const show = me && !shopOff && view.name !== "edit" && view.name !== "help" && (onStart || shopLeft() > 0);
   if (!show) { if (b) b.remove(); return; }
   if (!b) { b = document.createElement("button"); b.id = "shopfab"; b.className = "shopfab"; b.dataset.a = "shopfab"; document.body.appendChild(b); }
   const n = shopLeft();
