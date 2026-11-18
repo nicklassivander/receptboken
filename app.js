@@ -1954,7 +1954,7 @@ function activityHtml(){
     <button class="act-row" data-a="acttoggle" aria-expanded="${!!activityOpen}">
       <span class="avs">${who.map(e => avHtml(e)).join("")}</span>
       <span class="lab">Senaste i köket</span>
-      ${(() => { const top = ev.slice(0, 3); const line = e => `<span class="tk"><b>${nm(e)}</b> ${verb(e)} ${title(e)} · ${relDay(e.ts)}</span>`;
+      ${(() => { const top = ev.slice(0, 5); const line = e => `<span class="tk"><b>${nm(e)}</b> ${verb(e)} ${title(e)} · ${relDay(e.ts)}</span>`;
         return `<span class="latest ${top.length > 1 ? "ticker n" + top.length : ""}"><span class="tk-in">${top.map(line).join("")}${top.length > 1 ? line(top[0]) : ""}</span></span>`; })()}
       ${newCount ? `<span class="new">${newCount} ${newCount === 1 ? "ny" : "nya"}</span>` : ""}
       <span class="chev" aria-hidden="true">▼</span>

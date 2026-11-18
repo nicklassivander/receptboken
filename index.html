@@ -525,11 +525,15 @@ header.top h1{font-weight:600}
 .act-row .latest{position:relative;height:1.45em;line-height:1.45em;overflow:hidden;text-overflow:clip}
 .act-row .latest .tk-in{display:flex;flex-direction:column}
 .act-row .latest .tk{display:block;height:1.45em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.act-row .latest.ticker.n3 .tk-in{animation:tick3 9s cubic-bezier(.6,0,.3,1) infinite}
-.act-row .latest.ticker.n2 .tk-in{animation:tick2 6s cubic-bezier(.6,0,.3,1) infinite}
+.act-row .latest.ticker.n2 .tk-in{animation:tick2 8s cubic-bezier(.6,0,.3,1) infinite}
+@keyframes tick2{0.00%,44.38%{transform:translateY(0)}55.62%,94.38%{transform:translateY(-1.45em)}100%{transform:translateY(-2.90em)}}
+.act-row .latest.ticker.n3 .tk-in{animation:tick3 12s cubic-bezier(.6,0,.3,1) infinite}
+@keyframes tick3{0.00%,29.58%{transform:translateY(0)}37.08%,62.92%{transform:translateY(-1.45em)}70.42%,96.25%{transform:translateY(-2.90em)}100%{transform:translateY(-4.35em)}}
+.act-row .latest.ticker.n4 .tk-in{animation:tick4 16s cubic-bezier(.6,0,.3,1) infinite}
+@keyframes tick4{0.00%,22.19%{transform:translateY(0)}27.81%,47.19%{transform:translateY(-1.45em)}52.81%,72.19%{transform:translateY(-2.90em)}77.81%,97.19%{transform:translateY(-4.35em)}100%{transform:translateY(-5.80em)}}
+.act-row .latest.ticker.n5 .tk-in{animation:tick5 20s cubic-bezier(.6,0,.3,1) infinite}
+@keyframes tick5{0.00%,17.75%{transform:translateY(0)}22.25%,37.75%{transform:translateY(-1.45em)}42.25%,57.75%{transform:translateY(-2.90em)}62.25%,77.75%{transform:translateY(-4.35em)}82.25%,97.75%{transform:translateY(-5.80em)}100%{transform:translateY(-7.25em)}}
 .act-row:hover .latest .tk-in{animation-play-state:paused}
-@keyframes tick3{0%,28%{transform:translateY(0)}33%,61%{transform:translateY(-1.45em)}66%,94%{transform:translateY(-2.9em)}100%{transform:translateY(-4.35em)}}
-@keyframes tick2{0%,42%{transform:translateY(0)}50%,92%{transform:translateY(-1.45em)}100%{transform:translateY(-2.9em)}}
 .act.open .latest .tk-in{animation:none}
 @media(prefers-reduced-motion:reduce){.act-row .latest .tk-in{animation:none!important}}
 @media(max-width:620px){.act-row{flex-wrap:wrap;row-gap:2px}.act-row .latest{display:block;order:9;flex:1 0 100%;font-size:13.5px}}
