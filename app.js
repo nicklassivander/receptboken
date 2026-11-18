@@ -3119,8 +3119,15 @@ function renderShopFab(){
   else if (b.parentNode !== document.body) document.body.appendChild(b);
   b.classList.toggle("inhead", !!hdr);
   // Högerkanten i linje med Hjälp/Konto
+  // stora skärmar: under sista bokstaven (T) i rubriken
   const nav = hdr && hdr.querySelector(":scope > .row");
-  if (nav) b.style.right = Math.max(10, Math.round(hdr.getBoundingClientRect().right - nav.getBoundingClientRect().right)) + "px"; else b.style.right = "";
+  let edge = null;
+  if (hdr && window.innerWidth > 900) {
+    const h1 = hdr.querySelector("h1"), tn = h1 && [...h1.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    if (tn) { const rg = document.createRange(); rg.selectNodeContents(tn); const rr = rg.getBoundingClientRect(); const ls = parseFloat(getComputedStyle(h1).letterSpacing) || 0; if (rr.width) edge = rr.right - ls; }
+  }
+  if (edge == null && nav) edge = nav.getBoundingClientRect().right;
+  b.style.right = hdr && edge != null ? Math.max(10, Math.round(hdr.getBoundingClientRect().right - edge)) + "px" : "";
   b.classList.toggle("above", !hdr && !!document.querySelector(".fab"));
   b.classList.toggle("cooking", !!document.getElementById("cookbar") && false);
 }
