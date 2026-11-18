@@ -3162,6 +3162,7 @@ function fitTitle(){
 }
 function renderShopFab(){
   try { fitTitle(); } catch {}
+  try { hdrSlides(); } catch {}
   let b = document.getElementById("shopfab");
   // Startsidan: alltid (ingång till listan). Inne i ett recept m.m.: bara när det finns en aktiv lista med varor kvar
   const onStart = !!document.querySelector("#app header.top");
@@ -3598,4 +3599,40 @@ function toastActions(msg, actions){
   document.body.appendChild(t);
   t.querySelectorAll("button").forEach(b => b.onclick = () => { t.remove(); actions[+b.dataset.i][1](); });
   setTimeout(() => { if (t.parentNode) t.remove(); }, 6000);
+}
+// ---------- Förhandsvisning: växlande receptbilder i sidhuvudet (?bild=demo, av med ?bild=av) ----------
+var hdrDemoOn = (function(){ try { if (/[?&]bild=demo\b/.test(location.search)) sessionStorage.setItem("hdrDemo", "1"); if (/[?&]bild=av\b/.test(location.search)) sessionStorage.removeItem("hdrDemo"); return sessionStorage.getItem("hdrDemo") === "1"; } catch { return false; } })();
+var hdrEl = null, hdrCap = null, hdrList = [], hdrIdx = -1, hdrTimer = null, hdrFlip = false;
+function hdrSlides(){
+  if (!hdrDemoOn) return;
+  const hdr = document.querySelector("#app header.top");
+  if (!hdr) return;
+  if (!hdrEl) {
+    hdrList = recipes.filter(r => r.photo).sort(() => Math.random() - 0.5);
+    if (!hdrList.length) return;
+    hdrEl = document.createElement("div"); hdrEl.className = "hdr-slides"; hdrEl.setAttribute("aria-hidden", "true");
+    hdrEl.innerHTML = '<img alt=""><img alt=""><i class="hs-veil"></i>';
+    hdrCap = document.createElement("button"); hdrCap.type = "button"; hdrCap.className = "hdr-cap"; hdrCap.dataset.a = "open";
+    hdr.classList.add("has-slides"); hdr.prepend(hdrEl); hdr.appendChild(hdrCap);
+    hdrNext();
+    hdrTimer = setInterval(() => { if (!document.hidden && document.querySelector("#app header.top .hdr-slides")) hdrNext(); }, 8000);
+    return;
+  }
+  if (!hdr.contains(hdrEl)) { hdr.classList.add("has-slides"); hdr.prepend(hdrEl); hdr.appendChild(hdrCap); }
+}
+function hdrNext(){
+  if (!hdrList.length) return;
+  hdrIdx = (hdrIdx + 1) % hdrList.length;
+  const r = hdrList[hdrIdx], imgs = hdrEl.querySelectorAll("img"), inc = imgs[hdrFlip ? 1 : 0], out = imgs[hdrFlip ? 0 : 1];
+  const show = () => {
+    inc.onload = null;
+    inc.classList.remove("kb"); void inc.offsetWidth; inc.classList.add("on", "kb"); out.classList.remove("on");
+    hdrFlip = !hdrFlip;
+    hdrCap.classList.add("fade");
+    setTimeout(() => { hdrCap.dataset.id = r.id; hdrCap.innerHTML = `<span>${esc(r.title || "")}</span><b>→</b>`; hdrCap.classList.remove("fade"); }, 450);
+    const nx = hdrList[(hdrIdx + 1) % hdrList.length]; if (nx) { const p = new Image(); p.src = nx.photo; }
+  };
+  inc.onload = show; inc.onerror = () => { inc.onerror = null; hdrList.splice(hdrIdx, 1); hdrIdx--; if (hdrList.length) hdrNext(); };
+  inc.src = r.photo;
+  if (inc.complete && inc.naturalWidth) show();
 }
