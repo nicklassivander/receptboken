@@ -522,15 +522,9 @@ function renderDetail(){
 
     ${historyHtml(r)}
 
-    ${canEdit(r) ? `<div class="panel">
-      <h2>Ändra receptet</h2>
-      <p class="meta" style="justify-content:flex-start;margin:-6px 0 12px">Skriv vad du vill ändra, lägga till eller ta bort. Du granskar ändringen innan den sparas.</p>
-      <form class="ai-ask" id="edit-form"><input id="edit-input" placeholder="Skriv här, t.ex. byt grädde mot crème fraiche" autocomplete="off"><button class="btn small" type="submit" id="edit-btn">Ändra</button></form>
-      <div class="err" id="edit-err"></div>
-    </div>` : ""}
-
     ${can("contributor") ? `<div class="panel ai">
-      <h2>Fråga sommelieren och kocken</h2>
+      <h2>Fråga eller ändra</h2>
+      <p class="meta" style="justify-content:flex-start;margin:-4px 0 10px">Fråga kocken och sommelieren – eller skriv vad du vill ändra i receptet. Ändringar kontrolleras och du granskar innan något sparas.</p>
       <div class="chips">
         <button class="chip" data-a="ai" data-q="wine">Vilket vin passar?</button>
         <button class="chip" data-a="ai" data-q="subs">Alternativ till ingredienser</button>
@@ -538,7 +532,7 @@ function renderDetail(){
         <button class="chip" data-a="ai" data-q="vary">Andra varianter</button>
         <button class="chip" data-a="ai" data-q="sides">Vad serverar jag till?</button>
       </div>
-      <form class="ai-ask" id="ai-form"><input id="ai-input" placeholder="Skriv din fråga här …" autocomplete="off"><button class="btn small" type="submit">Fråga</button></form>
+      <form class="ai-ask" id="ai-form"><input id="ai-input" placeholder="t.ex. kan jag frysa den? eller: gör den utan grädde" autocomplete="off"><button class="btn small" type="submit">Skicka</button></form>
       <div id="ai-out">${aiOutHtml(r.id)}</div>
     </div>` : ""}
 
@@ -683,7 +677,13 @@ function aiOutHtml(id){
     return `<div class="ai-q">${esc(it.q)}</div>
       <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : it.a ? aiMd(it.a) : `<span class="meta">Claude tänker …</span>`}</div>
       ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
-      ${!it.busy && it.a && canEdit(recipes.find(x => x.id === id)) ? `<div class="ai-tools"><button class="btn ghost small" data-a="aisave" data-i="${i}">Spara i anteckningar</button></div>` : ""}`;
+      ${!it.busy && it.check ? `<div class="aic-check ${it.check.level}"><b>${it.check.level === "warn" ? "⚠ Tänk på" : "💡 Tips"}</b> ${esc(it.check.text)}</div>` : ""}
+      ${!it.busy && it.change && !it.dismissed ? (() => { const rr = recipes.find(x => x.id === id); return rr ? `<div class="aic">
+        <div class="aic-h">Föreslagen ändring${it.change.summary ? `<span>${esc(it.change.summary)}</span>` : ""}</div>
+        ${changeLines(rr, it.change)}
+        <div class="aic-btns"><button class="btn accent small" data-a="aiapply" data-i="${i}">${canEdit(rr) ? "Använd ändringen" : "Gör min egen variant med ändringen"}</button><button class="linkbtn" data-a="aidismiss" data-i="${i}">Nej tack</button></div>
+      </div>` : ""; })() : ""}
+      ${!it.busy && it.a && !it.change && canEdit(recipes.find(x => x.id === id)) ? `<div class="ai-tools"><button class="btn ghost small" data-a="aisave" data-i="${i}">Spara i anteckningar</button></div>` : ""}`;
   }).reverse().join("");
 }
 function aiRefresh(id){ const el = document.getElementById("ai-out"); if (el && view.id === id) el.innerHTML = aiOutHtml(id); }
@@ -718,6 +718,73 @@ ${recipeText(r)}${r.notes ? "\n\nANTECKNINGAR: " + r.notes : ""}${others}`;
   item.busy = false; aiRefresh(r.id);
 }
 
+// Fråga eller ändra: Claude avgör om det är en fråga, en ändring eller båda, och kontrollerar ändringen
+async function askOrEdit(r, text){
+  if (!sample) return;
+  const items = aiState[r.id] || (aiState[r.id] = []);
+  if (items.some(x => x.busy)) return;
+  const item = { q: text, a: "", busy: true, err: "" };
+  items.push(item); aiRefresh(r.id);
+  const current = { title: r.title, servings: r.servings || null, time: r.time || "", ingredients: r.ingredients || [], steps: r.steps || [] };
+  const earlier = items.slice(0, -1).filter(x => x.a && !x.err).slice(-3).map(x => `F: ${x.q}\nS: ${x.a}`).join("\n\n");
+  const prompt = `Du är en erfaren kock och sommelier som hjälper en svensk hemmakock med ett recept. Svara på svenska, konkret och utan artighetsfraser.
+Avgör vad användaren vill:
+- "fråga": en fråga om receptet (vin, tillbehör, frysa, teknik …). Svara kort, max 150 ord, gärna punktlista.
+- "ändring": användaren vill ändra receptet (byta, ta bort, lägga till, skala om, dela upp steg …). Gör exakt den ändringen och behåll allt annat ordagrant. Justera mängder, steg och tid när ändringen kräver det.
+- "båda": en fråga om en möjlig ändring ("kan jag byta X mot Y?"). Svara på frågan OCH föreslå ändringen.
+Bedöm alltid en ändring: om den kan misslyckas, bli osäker (t.ex. för låg temperatur eller kort tid för kött/fågel, rå fisk) eller krockar med något i receptet → "kontroll" med nivå "varning". Om den fungerar men kan göras bättre → nivå "tips". Annars null. Var sparsam, inget tjat.
+Svara ENDAST med JSON:
+{"typ": "fråga"|"ändring"|"båda", "svar": "svaret på frågan, eller en mening om vad du ändrade", "ändring": null eller {"title": string, "servings": number|null, "time": string, "ingredients": [string], "steps": [string], "summary": "kort mening om vad som ändrats"}, "kontroll": null eller {"nivå": "varning"|"tips", "text": "max 2 meningar"}}
+Regler för ändring: ingredienser en per rad, mängd först; steg utan numrering; rubriker börjar med "# "; tider i stegen med siffror och enhet (t.ex. "15 min").
+
+RECEPTET:
+${JSON.stringify(current)}${r.notes ? "\nANTECKNINGAR: " + r.notes : ""}${earlier ? "\n\nTIDIGARE I SAMTALET:\n" + earlier : ""}
+
+ANVÄNDAREN SKRIVER:
+${text}`;
+  try {
+    const out = parseJson(await ai(prompt, { mode: "json" }));
+    item.a = String(out.svar || "").trim() || (out["ändring"] ? "Här är ändringen." : "");
+    const ch = out["ändring"];
+    if (ch && Array.isArray(ch.ingredients) && Array.isArray(ch.steps)) item.change = ch;
+    const k = out.kontroll;
+    if (k && k.text) item.check = { level: k["nivå"] === "varning" ? "warn" : "tip", text: String(k.text) };
+    if (!item.a && !item.change) throw { code: "invalid_json" };
+  } catch (e) { item.err = aiErr(e); }
+  item.busy = false; aiRefresh(r.id);
+}
+// Vilka rader ändras: borttagna och tillagda ingredienser/steg
+function changeLines(r, ch){
+  const diff = (a, b) => ({ gone: a.filter(x => !b.includes(x)), added: b.filter(x => !a.includes(x)) });
+  const i = diff(r.ingredients || [], ch.ingredients || []), s = diff(r.steps || [], ch.steps || []);
+  const row = (cls, t) => `<li class="${cls}">${esc(String(t).replace(/^#\s*/, ""))}</li>`;
+  const part = (lbl, d) => d.gone.length || d.added.length ? `<div class="aic-part"><small>${lbl}</small><ul>${d.gone.map(t => row("gone", t)).join("")}${d.added.map(t => row("add", t)).join("")}</ul></div>` : "";
+  const meta = [];
+  if (ch.servings && +ch.servings !== +(r.servings || 0)) meta.push(`Portioner: ${r.servings || "–"} → ${ch.servings}`);
+  if (ch.time && ch.time !== (r.time || "")) meta.push(`Tid: ${r.time || "–"} → ${ch.time}`);
+  if (ch.title && ch.title !== r.title) meta.push(`Namn: ${ch.title}`);
+  return (meta.length ? `<p class="aic-meta">${esc(meta.join(" · "))}</p>` : "") + part("Ingredienser", i) + part("Steg", s);
+}
+function applyAiChange(r, it){
+  const ch = it.change; if (!ch) return;
+  let d;
+  if (canEdit(r)) d = JSON.parse(JSON.stringify(r));
+  else {   // någon annans recept: blir din egen variant
+    d = JSON.parse(JSON.stringify(r));
+    ["id", "createdAt", "updatedAt", "history", "cookLog", "favBy", "favorite", "rating", "timesCooked", "lastCooked", "addedBy", "myChanges", "variantName", "variantNameAuto"].forEach(k => delete d[k]);
+    d.variantOf = r.variantOf || r.id;
+    d.original = { servings: r.servings || null, ingredients: r.ingredients || [], steps: r.steps || [] };
+  }
+  if (ch.title) d.title = String(ch.title).trim();
+  if (Number.isFinite(+ch.servings) && +ch.servings > 0) d.servings = Math.round(+ch.servings);
+  if (typeof ch.time === "string") d.time = ch.time.trim();
+  d.ingredients = ch.ingredients.map(x => String(x).trim()).filter(Boolean);
+  d.steps = ch.steps.map(x => String(x).trim()).filter(Boolean);
+  if (ch.summary) d.myChanges = [d.myChanges, String(ch.summary).trim()].filter(Boolean).join("\n");
+  draft = d; view = d.id ? { name: "edit", id: d.id } : { name: "edit" }; render(); window.scrollTo(0, 0);
+  toast(d.id ? "Granska ändringen och spara" : "Granska och spara din variant");
+}
+
 document.addEventListener("submit", e => {
   if (e.target.id !== "ai-form") return;
   e.preventDefault();
@@ -725,7 +792,7 @@ document.addEventListener("submit", e => {
   const q = inp.value.trim(); if (!q) return;
   const r = recipes.find(x => x.id === view.id); if (!r) return;
   inp.value = "";
-  askAI(r, null, q);
+  askOrEdit(r, q);
 });
 
 // ---------- import modal ----------
@@ -1094,6 +1161,8 @@ document.addEventListener("click", async e => {
       break;
     }
     case "ai": askAI(cur, el.dataset.q); break;
+    case "aiapply": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it) applyAiChange(cur, it); break; }
+    case "aidismiss": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it) { it.dismissed = true; aiRefresh(cur.id); } break; }
     case "aisave": {
       const it = (aiState[cur.id] || [])[+el.dataset.i]; if (!it) break;
       const add = `${it.q}\n${it.a.replace(/\*\*/g, "")}`;
@@ -1900,8 +1969,8 @@ function renderHelp(){
       <ul>
         <li>Rader som börjar med <b>#</b> blir rubriker – bland ingredienserna (<i># Till såsen</i>) och i stegen (<i># Dagen innan</i>, <i># Vid servering</i>).</li>
         <li><b>Anteckningar:</b> tryck <i>Redigera</i> och skriv direkt i receptet.</li>
-        <li><b>Ändra receptet:</b> skriv vad du vill ändra, t.ex. <i>"byt grädde mot crème fraiche"</i> eller <i>"dela upp stegen i dagen innan och vid servering"</i>.</li>
-        <li><b>Fråga sommelieren och kocken:</b> vin, alternativ, tillbehör, liknande recept.</li>
+        <li><b>Fråga eller ändra</b> längst ner i receptet: ställ en fråga (<i>vilket vin passar?</i>, <i>kan jag frysa den?</i>) eller skriv vad du vill ändra (<i>byt grädde mot crème fraiche</i>, <i>gör den för 8 personer</i>, <i>dela upp stegen i dagen innan och vid servering</i>). Claude svarar, eller visar ändringen med de rader som tas bort (−) och läggs till (+).</li>
+        <li>Ändringar kontrolleras: kan något misslyckas eller bli osäkert står det <b>⚠ Tänk på</b>, går det att göra bättre står det <b>💡 Tips</b>. Tryck <b>Använd ändringen</b> för att granska och spara (som variant eller i originalet) – på någon annans recept blir det <b>din egen variant</b>.</li>
       </ul>`)}
 
     ${sec("Dina och andras recept", `
