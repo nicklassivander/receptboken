@@ -1954,7 +1954,7 @@ function activityHtml(){
     <button class="act-row" data-a="acttoggle" aria-expanded="${!!activityOpen}">
       <span class="avs">${who.map(e => avHtml(e)).join("")}</span>
       <span class="lab">Senaste i köket</span>
-      ${(() => { const top = ev.slice(0, 5); const line = e => `<span class="tk"><b>${nm(e)}</b> ${verb(e)} ${title(e)} · ${relDay(e.ts)}</span>`;
+      ${(() => { const top = ev.slice(0, 5); const line = e => `<span class="tk">${evIcon(e.kind)}<b>${nm(e)}</b> ${verb(e)} ${title(e)} · ${relDay(e.ts)}</span>`;
         return `<span class="latest ${top.length > 1 ? "ticker n" + top.length : ""}"><span class="tk-in">${top.map(line).join("")}${top.length > 1 ? line(top[0]) : ""}</span></span>`; })()}
       ${newCount ? `<span class="new">${newCount} ${newCount === 1 ? "ny" : "nya"}</span>` : ""}
       <span class="chev" aria-hidden="true">▼</span>
@@ -1966,13 +1966,27 @@ function activityHtml(){
       <div class="act-list">${items.length ? "" : `<p class="hnote" style="padding:12px 0">${activityTab === "cooked" ? "Inga tillagningar loggade än – tryck Lagad idag i ett recept." : "Inga recept än."}</p>`}${items.map(e => `
       <div class="fitem" data-a="open" data-id="${esc(e.r.id)}">
         <span class="nd ${isNew(e) ? "" : "old"}"></span>${avHtml(e.by)}
-        <span class="tx"><i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
+        <span class="tx">${evIcon(e.kind)}<i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
         <span class="when">${relDay(e.ts)}</span>
         ${e.r.photo ? `<img src="${esc(e.r.photo)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
       </div>`).join("")}
       ${pool.length > items.length ? `<button class="linkbtn act-more" data-a="actmore">Visa fler</button>` : ""}
     </div>` : ""}
   </div>`;
+}
+
+// Ikoner för händelsetyperna: blad med plus = lade till, blad med penna = variant, kastrull med ånga = lagade
+const EV_ICON = {
+  added: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 10.5v6M9 13.5h6"/>',
+  variant: '<path d="M5 3h8l4 4v6"/><path d="M13 3v4h4"/><path d="M5 3v18h6"/><path d="M14.5 20.5l6-6-2-2-6 6-.5 2.5z"/>',
+  cooked: '<path d="M4 12h16v5a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M2.5 12.5H4M20 12.5h1.5"/><path d="M8.5 9c-.8-1 .8-2 0-3M12 9c-.8-1 .8-2 0-3M15.5 9c-.8-1 .8-2 0-3"/>',
+};
+const EV_KIND = { add: "added", added: "added", variant: "variant", cook_done: "cooked", cooked: "cooked", cook_start: "cooked" };
+const EV_LABEL = { added: "Lade till", variant: "Variant", cooked: "Lagade" };
+function evIcon(kind){
+  const k = EV_KIND[kind] || kind; const d = EV_ICON[k];
+  if (!d) return "";
+  return `<span class="evi evi-${k}" title="${EV_LABEL[k]}"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
 }
 
 // ---------- varianter: namn efter skillnaderna och variantrad ----------
@@ -2678,7 +2692,7 @@ async function openActivity(days){
       ${who ? `<p class="aa-filter">Visar ${esc(nameOf(who))} <button class="linkbtn" data-who="">Visa alla</button></p>` : ""}
       ${byDay.length ? byDay.map(g => `<div class="aa-day"><h4>${esc(g.d)}</h4>${g.e.map(e => `<div class="aa-ev">
           <time>${new Date(e.at).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}</time>
-          <span><b>${esc(nameOf(e.email))}</b> ${esc(LOG_TEXT[e.kind] || e.kind)}
+          <span>${evIcon(e.kind)}<b>${esc(nameOf(e.email))}</b> ${esc(LOG_TEXT[e.kind] || e.kind)}
           ${e.title ? (recipes.find(r => r.id === e.recipe_id) ? `<button class="linkbtn aa-r" data-rid="${esc(e.recipe_id)}">${esc(e.title)}</button>` : `<i>${esc(e.title)}</i>`) : ""}
           ${e.kind === "import" && e.detail ? `<small>${esc([e.detail.url, e.detail.bilder ? e.detail.bilder + " bilder" : "", e.detail.text ? "text" : ""].filter(Boolean).join(" · "))}</small>` : ""}
           ${e.device ? `<small class="aa-dev">${esc((DEV_TEXT[String(e.device).replace("-app", "")] || e.device) + (String(e.device).endsWith("-app") ? " · app" : ""))}</small>` : ""}</span></div>`).join("")}</div>`).join("")

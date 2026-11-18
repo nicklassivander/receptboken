@@ -536,6 +536,17 @@ header.top h1{font-weight:600}
 .act-row:hover .latest .tk-in{animation-play-state:paused}
 .act.open .latest .tk-in{animation:none}
 @media(prefers-reduced-motion:reduce){.act-row .latest .tk-in{animation:none!important}}
+.evi{display:inline-flex!important;align-items:center;justify-content:center;width:26px!important;height:26px!important;min-width:26px;border-radius:50%!important;background:#efe2c6;color:#7a5a1e;vertical-align:middle;margin:0 8px 0 0;padding:0;flex:none;line-height:0}
+.evi svg{width:17px;height:17px;display:block}
+.act-row .latest,.act-row .latest .tk{height:28px;line-height:28px}
+.act-row .latest .tk{display:flex!important;align-items:center}
+.act-row .latest .tk b{margin-right:4px}
+@keyframes tick2{0%,44.38%{transform:translateY(0)}55.62%,94.38%{transform:translateY(-28px)}100%{transform:translateY(-56px)}}
+@keyframes tick3{0%,29.58%{transform:translateY(0)}37.08%,62.92%{transform:translateY(-28px)}70.42%,96.25%{transform:translateY(-56px)}100%{transform:translateY(-84px)}}
+@keyframes tick4{0%,22.19%{transform:translateY(0)}27.81%,47.19%{transform:translateY(-28px)}52.81%,72.19%{transform:translateY(-56px)}77.81%,97.19%{transform:translateY(-84px)}100%{transform:translateY(-112px)}}
+@keyframes tick5{0%,17.75%{transform:translateY(0)}22.25%,37.75%{transform:translateY(-28px)}42.25%,57.75%{transform:translateY(-56px)}62.25%,77.75%{transform:translateY(-84px)}82.25%,97.75%{transform:translateY(-112px)}100%{transform:translateY(-140px)}}
+.fitem .tx{display:block}
+.fitem .tx .evi{margin-right:7px;vertical-align:-7px}
 @media(max-width:620px){.act-row{flex-wrap:wrap;row-gap:2px}.act-row .latest{display:block;order:9;flex:1 0 100%;font-size:13.5px}}
 .act-tabs{display:flex;gap:26px;border-top:1px solid var(--line);padding:0 2px}
 .act-tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:10px 0 8px;font:inherit;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);cursor:pointer;margin-bottom:-1px}
