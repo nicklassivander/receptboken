@@ -1986,7 +1986,7 @@ const EV_LABEL = { added: "Lade till", variant: "Variant", cooked: "Lagade" };
 function evIcon(kind){
   const k = EV_KIND[kind] || kind; const d = EV_ICON[k];
   if (!d) return "";
-  return `<span class="evi evi-${k}" title="${EV_LABEL[k]}"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
+  return `<span class="evi evi-${k}" title="${EV_LABEL[k]}"><svg viewBox="2.5 2.5 19 19" width="21" height="21" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
 }
 
 // ---------- varianter: namn efter skillnaderna och variantrad ----------
