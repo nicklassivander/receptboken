@@ -684,9 +684,11 @@ function aiOutHtml(id){
   return items.map((it, i) => {
     const links = !it.busy && it.a ? recipes.filter(x => x.id !== id && x.title && it.a.toLowerCase().includes(x.title.toLowerCase())) : [];
     // Medan pappa tänker står frågan under ikonen; när svaret kommit står frågan överst som vanligt
-    if (it.busy && !it.a && !it.err) return `<div class="ai-a"><span class="meta thinking">${THINK_SVG}Pappa tänker …</span></div><div class="ai-q">${esc(it.q)}</div>`;
-    if (it.err || !it.a) return `<div class="ai-q">${esc(it.q)}</div>
-      <div class="ai-a">${it.err ? `<span class="err">${esc(it.err)}</span>` : `<span class="meta thinking">${THINK_SVG}Pappa tänker …</span>`}</div>`;
+    // Medan pappa tänker: frågan bredvid ikonen, "Pappa tänker" som liten status under
+    const wait = `<div class="ai-wait">${THINK_SVG}<div><div class="aw-q">${esc(it.q)}</div><div class="aw-s">Pappa tänker</div></div></div>`;
+    if (it.busy && !it.a && !it.err) return wait;
+    if (!it.err && !it.a) return wait;
+    if (it.err) return `<div class="ai-q">${esc(it.q)}</div><div class="ai-a"><span class="err">${esc(it.err)}</span></div>`;
     // Klart: lampan till vänster, svaret bredvid, frågan under svaret. Lampan tänds bara första gången svaret visas.
     const fresh = !it._lit; it._lit = true;
     return `<div class="ai-row">${IDEA_SVG(fresh)}<div class="ai-body">
