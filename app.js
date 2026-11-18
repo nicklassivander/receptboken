@@ -3469,6 +3469,7 @@ function drawShop(){
       </div>
     </div>`;
   $id("shopClose").onclick = closeSheet;
+  setTimeout(setupShopScroll, 0); setTimeout(updateShopScroll, 280);
   const findG = el => { const ids = (el.closest("[data-g]").dataset.g || "").split(","); return l.items.filter(i => ids.includes(i.id)); };
   const save = async (rows, patch) => {
     rows.forEach(i => Object.assign(i, patch(i))); drawShop(); renderShopFab();
@@ -3516,6 +3517,58 @@ function drawShop(){
       if (!error) { shopLists = shopLists.filter(x => x.id !== l.id); shopListId = null; drawShop(); renderShopFab(); }
     } else if (a === "members") drawShopMembers(l);
   });
+}
+// Tydlig scroll i långa listor: guldskena till höger (dra för att scrolla) + tonad kant med "↓ N varor till"
+function setupShopScroll(){
+  const m = document.querySelector("#modal-root .modal.shopm"), bg = document.getElementById("sheet-bg");
+  if (!m || !bg) return;
+  let rail = document.getElementById("shopRail");
+  if (!rail) {
+    rail = document.createElement("div"); rail.id = "shopRail"; rail.className = "shop-rail"; rail.innerHTML = '<i id="shopThumb"></i>';
+    const more = document.createElement("button"); more.id = "shopMore"; more.className = "shop-more"; more.type = "button";
+    const fade = document.createElement("div"); fade.id = "shopFade"; fade.className = "shop-fade";
+    bg.append(rail, fade, more);
+    m.addEventListener("scroll", () => requestAnimationFrame(updateShopScroll), { passive: true });
+    window.addEventListener("resize", updateShopScroll);
+    more.onclick = () => m.scrollBy({ top: m.clientHeight * .7, behavior: "smooth" });
+    const thumb = rail.firstElementChild;
+    let drag = null;
+    const move = y => { const r = rail.getBoundingClientRect(), th = thumb.offsetHeight; const p = Math.min(1, Math.max(0, (y - r.top - drag) / Math.max(1, r.height - th))); m.scrollTop = p * (m.scrollHeight - m.clientHeight); };
+    thumb.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); drag = e.clientY - thumb.getBoundingClientRect().top; thumb.setPointerCapture(e.pointerId); thumb.classList.add("on"); });
+    thumb.addEventListener("pointermove", e => { if (drag != null) move(e.clientY); });
+    const up = () => { drag = null; thumb.classList.remove("on"); };
+    thumb.addEventListener("pointerup", up); thumb.addEventListener("pointercancel", up);
+    rail.addEventListener("pointerdown", e => { if (e.target !== rail) return; drag = thumb.offsetHeight / 2; move(e.clientY); drag = null; });
+    rail.addEventListener("touchstart", e => e.stopPropagation(), { passive: true });   // inte dra-för-att-stänga
+  }
+  updateShopScroll();
+}
+function updateShopScroll(){
+  const m = document.querySelector("#modal-root .modal.shopm"), rail = document.getElementById("shopRail");
+  if (!m || !rail) return;
+  const thumb = document.getElementById("shopThumb"), more = document.getElementById("shopMore"), fade = document.getElementById("shopFade");
+  const over = m.scrollHeight - m.clientHeight > 6;
+  const mr = m.getBoundingClientRect(), hero = m.querySelector(".shop-hero"), hb = hero ? hero.getBoundingClientRect().bottom : mr.top;
+  rail.style.display = over ? "" : "none";
+  if (over) {
+    const top = Math.max(mr.top, hb) + 8, bottom = Math.min(innerHeight, mr.bottom) - 12;
+    Object.assign(rail.style, { top: top + "px", height: Math.max(40, bottom - top) + "px", left: (mr.right - 12) + "px" });
+    const h = rail.offsetHeight, th = Math.max(36, h * m.clientHeight / m.scrollHeight);
+    thumb.style.height = th + "px";
+    thumb.style.transform = `translateY(${(h - th) * (m.scrollTop / Math.max(1, m.scrollHeight - m.clientHeight))}px)`;
+  }
+  // varor som ligger nedanför det synliga
+  const visBottom = Math.min(innerHeight, mr.bottom) - 8;
+  const below = [...m.querySelectorAll(".sh-row")].filter(r => r.getBoundingClientRect().top > visBottom).length;
+  const atEnd = m.scrollTop + m.clientHeight >= m.scrollHeight - 6;
+  const showMore = over && !atEnd && below > 0;
+  more.style.display = fade.style.display = showMore ? "" : "none";
+  if (showMore) {
+    more.textContent = `↓ ${below} ${below === 1 ? "vara" : "varor"} till`;
+    const b = Math.min(innerHeight, mr.bottom);
+    Object.assign(fade.style, { left: mr.left + 2 + "px", width: (mr.width - 4) + "px", top: (b - 70) + "px" });
+    Object.assign(more.style, { left: (mr.left + mr.width / 2) + "px", top: (b - 46) + "px" });
+  }
 }
 function shopText2(l){
   const groups = shopGroups(l.items.filter(i => !i.done && !isHomeItem(i)));

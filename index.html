@@ -1041,6 +1041,16 @@ header.top h1 .rcount em{font-style:normal;font-size:1em;color:#d9f0cc}
 @media(prefers-reduced-motion:reduce){.modal,.modal-bg{animation:none}}
 /* Telefon: inköpslistan börjar alltid högt upp, även när den är kort */
 @media(max-width:699px){.modal.shopm{height:92vh;height:92dvh;min-height:0;max-height:none}}
+/* Inköpslistan: guldskena och "varor till" */
+.modal.shopm{scrollbar-width:none}
+.modal.shopm::-webkit-scrollbar{display:none}
+.shop-rail{position:fixed;z-index:70;width:6px;border-radius:3px;background:rgba(156,122,60,.18);touch-action:none;cursor:pointer}
+.shop-rail::before{content:"";position:absolute;inset:0 -12px}
+.shop-rail i{position:absolute;left:-2px;top:0;width:10px;border-radius:5px;background:#c9a55c;box-shadow:0 0 0 2px rgba(201,165,92,.25),0 2px 6px rgba(0,0,0,.2);cursor:grab;touch-action:none}
+.shop-rail i::before{content:"";position:absolute;inset:-6px -14px}
+.shop-rail i.on{background:#b8964f;cursor:grabbing}
+.shop-fade{position:fixed;z-index:68;height:70px;pointer-events:none;background:linear-gradient(rgba(236,231,222,0),#ece7de 75%);border-radius:0 0 18px 18px}
+.shop-more{position:fixed;z-index:69;transform:translateX(-50%);background:#2a1f19;color:#f0dcaa;border:1px solid #c9a55c;border-radius:999px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);white-space:nowrap}
 </style>
 </head>
 <body>
