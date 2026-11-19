@@ -2065,7 +2065,7 @@ function renderHelp(){
         <li><b>Lägg till vara</b> längst ner för sånt som inte står i något recept, t.ex. mjölk. Flera på en gång med komma.</li>
         <li>Listan är <b>din egen</b>. Med <b>Dela med …</b> väljer du vilka som ska se och kunna ändra den – de får en avisering. Du kan ha flera listor (<b>+ Ny lista</b>).</li>
         <li><b>Dela / kopiera</b> skickar listan som text till Meddelanden, Påminnelser, Anteckningar eller vart du vill.</li>
-        <li><b>Töm avbockat</b> när du har handlat klart.</li>
+        <li>När allt är avbockat visas <b>Klart! Allt är handlat.</b> Tryck <b>Töm listan</b> så tas alla varor bort (även de som fanns hemma) och listan är redo till nästa gång – du kan ångra direkt efteråt. <b>Töm avbockat</b> tar bara bort det avbockade.</li>
       </ul>`)}
 
     ${sec("Favoriter", `
@@ -3756,6 +3756,7 @@ function drawShop(){
       ${closeBtn}</div>
     <div class="shop-in">
       ${dots.many ? `<div class="sh-key">${dots.src.map(s => `<span><i style="background:${dots.map[s]}"></i>${esc(s || "Egen vara")}</span>`).join("")}</div>` : ""}
+      ${l && total && doneN === total && shopDoneHide !== l.id ? shopDoneCard() : ""}
       ${items.length ? shopEdTip() : ""}
       ${groups.length ? `<div class="sh-cols">${sections}</div>` : `<p class="shp-empty">${homeGroups.length ? "Allt annat finns hemma." : "Listan är tom. Lägg till varor nedan, eller tryck <b>Handla</b> i ett recept."}</p>`}
       ${homeGroups.length ? `<details class="sh-home"><summary>Fanns hemma · ${homeGroups.length}</summary>${homeGroups.map(g => `<div class="sh-hrow" data-g="${esc(gid(g))}">${HOUSE}<span>${esc(groupLabel(g).text)}</span><button class="linkbtn" data-act="unhome">Tillbaka</button></div>`).join("")}</details>` : ""}
@@ -3788,6 +3789,8 @@ function drawShop(){
   });
   box.querySelectorAll('[data-act="unhome"]').forEach(b => b.onclick = () => { const g = findG(b); save(g, i => ({ section: realSection(i) })); });
   shopEdBind(box, l, findG, save);
+  if (l && !(total && doneN === total) && shopDoneHide === l.id) shopDoneHide = null;
+  shopDoneBind(box, l);
   $id("shpAdd").onsubmit = async e => {
     e.preventDefault();
     const texts = $id("shpNew").value.split(",").map(s => s.trim()).filter(Boolean); if (!texts.length) return;
@@ -4204,19 +4207,37 @@ function shopEdForm(g){
   const inp = f.querySelector(".sh-edt");
   inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch {}
 }
-async function shopEdDelete(g){
+async function shopEdDelete(g, msg){
   const ctx = shopEdCtx; if (!ctx || !ctx.l || !g.length) return;
-  const listId = ctx.l.id, ids = g.map(i => i.id), name = groupLabel(g).text;
+  const listId = ctx.l.id, ids = g.map(i => i.id), name = msg || `Tog bort ${groupLabel(g).text}`;
   const keep = g.map(i => { const o = { id: i.id, list_id: i.list_id || listId, text: i.text, section: i.section || "Övrigt", recipe_id: i.recipe_id || null, recipe_title: i.recipe_title || null, added_by: i.added_by, done: !!i.done }; if (i.created_at) o.created_at = i.created_at; return o; });
   const cur = () => shopLists.find(x => x.id === listId);
   const l = cur(); if (l) l.items = l.items.filter(i => !ids.includes(i.id));
   shopOpenGroup = null; drawShop(); renderShopFab();
   const { error } = await sb.from("recipe_list_items").delete().in("id", ids);
   if (error) { toast("Kunde inte ta bort"); loadShop(); return; }
-  toastActions(`Tog bort ${name}`, [["Ångra", async () => {
+  toastActions(name, [["Ångra", async () => {
     const { data, error } = await sb.from("recipe_list_items").insert(keep).select("*");
     if (error) { toast("Kunde inte ångra"); loadShop(); return; }
     const l2 = cur(); if (l2) { (data || []).forEach(d => { if (!l2.items.some(i => i.id === d.id)) l2.items.push(d); }); l2.items.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))); }
     drawShop(); renderShopFab();
   }]]);
+}
+
+// ---------- Inköpslistan: "Klart! Allt är handlat." när allt är avbockat ----------
+var shopDoneHide = null;   // listan där man tryckt "Inte än" (visas igen när något blir oavbockat)
+function shopDoneCard(){
+  return `<div class="sh-done"><span class="sh-done-ic"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+    <div class="sh-done-t"><b>Klart! Allt är handlat.</b><small>Töm listan så är den redo till nästa gång.</small></div>
+    <div class="sh-done-b"><button type="button" class="btn small" data-done="empty">Töm listan</button><button type="button" class="linkbtn" data-done="later">Inte än</button></div></div>`;
+}
+function shopDoneBind(box, l){
+  if (!l) return;
+  const e = box.querySelector('[data-done="empty"]'), later = box.querySelector('[data-done="later"]');
+  if (later) later.onclick = () => { shopDoneHide = l.id; drawShop(); };
+  if (e) e.onclick = () => {
+    const all = l.items.slice(); if (!all.length) return;
+    shopDoneHide = null;
+    shopEdDelete(all, "Listan är tömd");
+  };
 }

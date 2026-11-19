@@ -1297,6 +1297,14 @@ header.top{overflow:hidden}
 .sh-edbtns{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
 .sh-edbtns .sh-eddel{color:#a3402e;border-color:#d8a89c;display:inline-flex;align-items:center;gap:6px}
 .sh-edbtns .sh-edno{margin-left:auto}
+/* Inköpslistan: "Klart! Allt är handlat." när allt är avbockat */
+.sh-done{display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;background:#eaf1e6;border:1.5px solid #4f7a4a;border-radius:12px;padding:12px 14px;margin:12px 0 4px;animation:popin .2s ease-out}
+.sh-done-ic{width:38px;height:38px;border-radius:50%;background:#4f7a4a;display:flex;align-items:center;justify-content:center;flex:none}
+.sh-done-t{flex:1;min-width:180px}
+.sh-done-t b{display:block;font:500 21px/1.2 "Cormorant Garamond",Georgia,serif;color:#2f4f2b}
+.sh-done-t small{font-size:13px;color:#4f6a4a}
+.sh-done-b{display:flex;align-items:center;gap:14px}
+@media(max-width:620px){.sh-done-b{width:100%;padding-left:50px}}
 @media(min-width:700px){.sh-ed-form{align-items:center}.sh-edit{max-width:480px;border-radius:18px;border-bottom:2px solid #c9a55c;box-shadow:0 0 0 6px rgba(201,165,92,.22),0 30px 60px rgba(0,0,0,.45);animation:popin .18s ease-out}}
 </style>
 </head>
