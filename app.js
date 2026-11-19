@@ -2034,11 +2034,13 @@ function renderHelp(){
         <li>Lagade du utan att trycka Börja laga: tryck <b>Ny tillagning</b> under receptet och fyll i datum, betyg, anteckning och bild.</li>
       </ul>`)}
 
-    ${sec("Hitta recept och fråga Claude", `
+    ${sec("Hitta recept och Sök AI-recept", `
       <ul>
-        <li><b>Sökfältet</b> letar i titlar, nyckelord, ingredienser och anteckningar.</li>
-        <li>Hittar du inte rätt dyker raden <b>✦ Fråga Claude</b> upp under sökningen. Claude läser hela receptboken och föreslår de recept som passar bäst – du kan skriva fritt, t.ex. <i>har ägg, potatis och lök</i>, <i>något snabbt till vardags</i> eller <i>den där grytan med rödvin</i>.</li>
-        <li>Claude skriver också ett <b>nytt receptförslag</b> som passar er smak och inte finns i boken. Tryck <b>Visa hela receptet</b>, <b>Spara i receptboken</b> (du granskar innan du sparar) eller <b>Ge mig ett annat</b>.</li>
+        <li><b>Sökfältet</b> letar i titlar, nyckelord, ingredienser och anteckningar medan du skriver.</li>
+        <li>Stämmer inte alla ord visas <b>Närmast i receptboken</b> direkt, med vad receptet har och vad som saknas (<i>Har torsk – saknar kapris</i>). Brickan visar hur bra det passar: <b>Bra träff</b> eller <b>Delvis</b>. Allt detta är gratis och sker av sig självt.</li>
+        <li>Hittar du inte rätt: tryck <b>Sök AI-recept</b> i raden under sökfältet. Pappa letar då bra recept på nätet (ICA, Köket.se, Arla m.fl.). Det är det enda i sökningen som kostar, så det händer bara när du trycker.</li>
+        <li>Tryck <b>Visa receptet</b> för att se receptet som om det fanns i appen – med bild, ingredienser och steg – innan du väljer <b>Spara i receptboken</b>. Du granskar och kan ändra innan det sparas.</li>
+        <li>Inget som passar? <b>Låt pappa skriva ett eget recept</b> som passar er smak.</li>
         <li><b>Filtrera</b> (till höger i filterraden, på mobilen bredvid Bilder/Lista) visar nyckelorden i grupper: <b>Rätt</b>, <b>Mattyp</b> (kött, fläsk, kyckling, fisk, skaldjur, vegetariskt), <b>Tillfälle</b> och <b>Metod</b>. Övriga ord ligger hopfällda under <b>Övrigt</b>. Välj flera för att smalna av, t.ex. <i>fisk + vardag</i>; valda filter tar du bort med ×.</li>
         <li>Snabbfilter överst: <b>Mina favoriter</b>, <b>Tillagda av mig</b> och <b>Lagade av mig</b>.</li>
       </ul>`)}
@@ -2055,9 +2057,10 @@ function renderHelp(){
 
     ${sec("Inköpslista", `
       <ul>
-        <li>Tryck <b>Inköpslista</b> under ett recept. Tryck på det du redan har hemma – det kommer inte med. Mängderna följer antalet portioner du valt.</li>
+        <li>Tryck <b>Handla</b> (bredvid Börja laga) eller <b>Inköpslista</b> under ett recept. Tryck på det du redan har hemma – det kommer inte med. Mängderna följer antalet portioner du valt.</li>
         <li><b>Alltid hemma:</b> salt, peppar och olja prickas av automatiskt. Håll inne (eller dubbeltryck) på en rad för att lägga till eller ta bort en basvara.</li>
-        <li>Listan öppnas med <b>korgen</b> nere till höger – siffran visar hur många varor som är kvar. Varorna sorteras efter avdelning i butiken. Tryck för att bocka av.</li>
+        <li>Listan öppnas med <b>korgen</b> uppe i sidhuvudet (och i receptbilden när du har en lista) – siffran visar hur många varor som är kvar. Varorna sorteras efter avdelning i butiken, och samma vara från flera recept slås ihop. Tryck för att bocka av.</li>
+        <li>Har du något hemma ändå: tryck på huset på raden så flyttas varan till <b>Hemma</b>.</li>
         <li><b>Lägg till vara</b> längst ner för sånt som inte står i något recept, t.ex. mjölk. Flera på en gång med komma.</li>
         <li>Listan är <b>din egen</b>. Med <b>Dela med …</b> väljer du vilka som ska se och kunna ändra den – de får en avisering. Du kan ha flera listor (<b>+ Ny lista</b>).</li>
         <li><b>Dela / kopiera</b> skickar listan som text till Meddelanden, Påminnelser, Anteckningar eller vart du vill.</li>
@@ -2084,13 +2087,15 @@ function renderHelp(){
       ${d.kind === "ios" ? `<p class="hnote">På iPhone kräver det iOS 16.4 eller senare, och strömsparläge kan stoppa det.</p>` : `<p class="hnote">Strömsparläge kan stoppa det. Syns ingen ikon stöder webbläsaren inte funktionen.</p>`}`)}
 
     ${sec("Bild på rätten", `
-      <p>Tryck <b>Byt bild</b> i receptet: ${d.touch ? "<b>Ta foto</b>, " : ""}välj från enheten, <b>klistra in</b> en kopierad bild${d.touch ? "" : ` (eller <span class="k">${d.mod}</span>+<span class="k">V</span>)`} eller <b>hämta från en länk</b>.</p>`)}
+      <p>Tryck <b>Byt bild</b> i receptet: ${d.touch ? "<b>Ta foto</b>, " : ""}välj från enheten, <b>klistra in</b> en kopierad bild${d.touch ? "" : ` (eller <span class="k">${d.mod}</span>+<span class="k">V</span>)`} eller <b>hämta från en länk</b>.</p>
+      <p><b>Förslag från bildbanken</b> överst i samma ruta visar snygga foton som passar receptet, gratis från Pixabay – tryck på den du gillar. Recept utan bild får förslagen direkt i receptet. Fotografens namn visas litet på bilden.</p>`)}
 
     ${sec("Rubriker, anteckningar och AI", `
       <ul>
         <li>Rader som börjar med <b>#</b> blir rubriker – bland ingredienserna (<i># Till såsen</i>) och i stegen (<i># Dagen innan</i>, <i># Vid servering</i>).</li>
         <li><b>Anteckningar:</b> tryck <i>Redigera</i> och skriv direkt i receptet.</li>
-        <li><b>Fråga kocken och sommelieren</b> längst ner i receptet: ställ en fråga (<i>vilket vin passar?</i>, <i>kan jag frysa den?</i>) eller skriv vad du vill ändra (<i>byt grädde mot crème fraiche</i>, <i>gör den för 8 personer</i>, <i>dela upp stegen i dagen innan och vid servering</i>). Claude svarar, eller visar ändringen med de rader som tas bort (−) och läggs till (+).</li>
+        <li><b>Fråga kocken och sommelieren</b> längst ner i receptet: tryck <b>Vilket vin passar?</b> eller <b>Vad serverar jag till?</b>, eller skriv en egen fråga (<i>kan jag frysa den?</i>) eller vad du vill ändra (<i>byt grädde mot crème fraiche</i>, <i>gör den för 8 personer</i>) och tryck <b>Fråga Pappa</b>.</li>
+        <li>Medan pappa tänker snurrar kugghjulet och texten skiftar (<i>Pappa smakar av …</i>). När lampan tänds är svaret klart – det står bredvid lampan, med din fråga under. Gäller det en ändring visas de rader som tas bort (−) och läggs till (+).</li>
         <li>Ändringar kontrolleras: kan något misslyckas eller bli osäkert står det <b>⚠ Tänk på</b>, går det att göra bättre står det <b>💡 Tips</b>. Tryck <b>Använd ändringen</b> för att granska och spara (som variant eller i originalet) – på någon annans recept blir det <b>din egen variant</b>.</li>
       </ul>`)}
 
@@ -2099,7 +2104,7 @@ function renderHelp(){
         <li>Du kan ändra och radera <b>dina egna</b> recept.</li>
         <li>Vill du ändra någon annans: tryck <b>Gör min egen variant</b> – du får en egen kopia. Du kan göra hur många varianter du vill, även av dina egna recept (<b>Gör en variant</b>).</li>
         <li>Varianter får automatiskt ett namn efter vad som skiljer dem från originalet, t.ex. <i>Extra stark</i> eller <i>Utan grädde</i>. Vill du döpa själv skriver du namnet under <b>Redigera</b>. Byt mellan originalet och varianterna med raden <b>Varianter</b> under rubriken.</li>
-        <li>Är grundreceptet ditt kan du föra över en variant till det med <b>Uppdatera grundreceptet</b> längst ner i varianten.</li>
+        <li>Är grundreceptet ditt kan du föra över en variant till det med <b>Uppdatera grundreceptet</b> längst ner i varianten. Varianten tas då bort, om du inte avmarkerar rutan.</li>
         <li>Ändrar du ingredienser, steg eller portioner i ett recept frågar appen om det ska bli en <b>ny variant</b> (originalet lämnas orört) eller om du vill <b>ändra originalet</b> – det senare är för rättelser.</li>
         <li>När du redigerar ett recept väljer du nyckelord genom att trycka på dem, eller skriver ett nytt. Superanvändare ändrar listan under <b>Konto → Nyckelord</b>.</li>
       </ul>`)}
@@ -2110,7 +2115,7 @@ function renderHelp(){
         <li><b>Senaste i köket</b> överst i receptlistan rullar de fem senaste händelserna. Ikonen visar vad som hänt: ${evIcon("added")} lade till, ${evIcon("variant")} gjorde en variant, ${evIcon("cooked")} lagade. Tryck på raden för att fälla ut den – fliken <b>Nya recept</b> visar tillagda recept och varianter, <b>Senast lagade</b> vem som har lagat vad. Röda prickar och <b>Nytt</b> visar vad som har hänt sedan du var här sist.</li>
         <li><b>Bilden överst</b> växlar mellan receptens bilder. Tryck på receptnamnet i hörnet för att öppna receptet. På en receptbild kan du trycka <b>Till sidhuvudet</b> – har någon bild valts så visas bara de valda, annars alla tillräckligt stora liggande bilder.</li>
         <li><b>Recept utan bild</b> får förslag på bilder från en gratis bildbank. Tryck på den du gillar så sparas den, eller sök med egna ord. Via <b>Byt bild</b> → <b>Förslag från bildbanken</b> kan du byta en befintlig bild.</li>
-        <li>Det andra sparar syns direkt hos dig.</li>
+        <li>Det de andra sparar syns direkt hos dig. Siffran under <b>RECEPT</b> i sidhuvudet visar hur många recept som finns, och <b>+ nya</b> hur många som tillkommit sedan sist.</li>
         <li><b>Tillbaka</b> (knappen i appen, webbläsarens pil, musens bakåtknapp eller svep) tar dig tillbaka dit du var i listan. Är en ruta öppen stängs den först. Alla rutor kan också stängas med <b>×</b> uppe till höger.</li>
         <li>Under <b>Konto</b> hittar du Aviseringar, Hjälp, Byt lösenord och Logga ut. Superanvändare ser också <b>Användare</b>, <b>Aktivitet</b> (vem som gjort vad, och från vilken enhet) och verktygen för nyckelord och tider.</li>
         <li>Länken till ett öppet recept kan delas – mottagaren hamnar på just det receptet.</li>
