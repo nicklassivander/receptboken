@@ -2,6 +2,8 @@
 // Bara inloggade som finns i recipe_users (lägst "Lägga till och ändra") får använda den.
 
 const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5-5";
+// Billigare modell för enkla uppgifter (sortering, sökord, namn, utläsning av recept från text)
+const FAST_MODEL = process.env.CLAUDE_FAST_MODEL || "claude-haiku-5-5";
 const MAX_IMAGES = 6;
 const MAX_IMAGE_B64 = 1_500_000; // ca 1,1 MB per bild efter base64
 
@@ -71,9 +73,9 @@ module.exports = async (req, res) => {
         ...(body.fetchUrl ? { "anthropic-beta": "web-fetch-2025-09-10" } : {}),
       },
       body: JSON.stringify({
-        model: MODEL, max_tokens: body.web || body.fetchUrl ? 6000 : maxTokens, messages,
+        model: body.fast && !body.web && !body.fetchUrl ? FAST_MODEL : MODEL, max_tokens: body.web || body.fetchUrl ? 6000 : maxTokens, messages,
         // Webbsökning (Claudes egen sökfunktion) – används när receptboken inte har något som passar
-        ...(body.web ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5, user_location: { type: "approximate", country: "SE" } }] } : {}),
+        ...(body.web ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3, user_location: { type: "approximate", country: "SE" } }] } : {}),
         // Claude hämtar en sida själv – reserv när vår server blockeras av sajten
         ...(body.fetchUrl ? { tools: [{ type: "web_fetch_20250910", name: "web_fetch", max_uses: 2, max_content_tokens: 30000 }] } : {}),
       }),

@@ -3,7 +3,7 @@
 // Claude gör engelska sökord av receptets namn och ingredienser, sedan söker vi i bildbanken.
 // Bara inloggade som får lägga till och ändra recept får använda den.
 
-const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5-5";
+const MODEL = process.env.CLAUDE_FAST_MODEL || "claude-haiku-5-5";
 // Pixabay vill att sökningar cachas i 24 h – vi sparar svaren i minnet så länge funktionen lever
 const cache = new Map();
 const DAY = 24 * 3600 * 1000;

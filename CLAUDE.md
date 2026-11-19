@@ -20,7 +20,7 @@ Familjens receptapp på **https://recept.sivander.com**. Ägare: Nicklas (superu
 - **Supabase** (projekt `vfjjmjureecvfzioxzhu`): tabellen `recipes(id, data jsonb)` – receptet ligger i `data`. Även inställningsrader (`_cook_<email>`, settings, taggrupper) i samma tabell. Övrigt: `recipe_users` (roller viewer/contributor/editor/admin, RLS via `recipe_role_at_least`/`recipe_my_role`), `recipe_log` (aktivitet), notify-tabeller, inköpslistor, timers. SQL-filer i `supabase/`. Bilder i Storage-bucketen `recipe-photos`.
 
 ## Miljövariabler i Vercel
-`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY`, `CLAUDE_MODEL` (valfri, standard `claude-sonnet-5-5`), `PIXABAY_API_KEY`, (`PEXELS_API_KEY` – Pexels har pausat nya nycklar), VAPID-nycklar och cron-hemlighet för push.
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY`, `CLAUDE_MODEL` (valfri, standard `claude-sonnet-5-5`), `CLAUDE_FAST_MODEL` (valfri, standard `claude-haiku-5-5`), `PIXABAY_API_KEY`, (`PEXELS_API_KEY` – Pexels har pausat nya nycklar), VAPID-nycklar och cron-hemlighet för push.
 
 ## Viktiga regler när du ändrar koden
 - **Kör alltid en syntaxkontroll av hela `app.js` innan push.** En enda trasig rad eller en dubbel `const` på toppnivå ger vit skärm för alla.
@@ -30,6 +30,12 @@ Familjens receptapp på **https://recept.sivander.com**. Ägare: Nicklas (superu
 - Ny CSS läggs **sist** i `<style>` (före sista `</style>`), med en kort kommentar.
 - Lokal test: kopiera `app.js`/`index.html` till en testkatalog, byt Supabase-skriptet mot en mock, kör `python3 -m http.server` och Playwright (telefon 390 px + dator 1300 px). Mocken saknar `.order`/`.in` – de felen kan ignoreras.
 - I chattmiljön kan ett integritetsskydd stoppa shell-kommandon som läser `app.js` (filen innehåller ägarens e-post). Använd Read/Edit-verktygen och `git grep`/`git show :app.js` i stället. Skriv aldrig e-postadressen i URL:er eller externa anrop.
+
+## Spara på API-krediter
+- `ai(prompt, { fast: true })` → billigare modellen (Haiku) – används för sortering av inköpslistan, variantnamn, tider i steg, utläsning av recept från text och bildsökord. Sonnet för Fråga Pappa, foton, webbsökning och eget recept.
+- Webbsökning max 3 sökningar per tryck.
+- `recipe_ai_cache` (supabase/ai_cache.sql): sparade svar för `web:<sökning>` (14 dagar) och `page:<url>` (60 dagar). Appen fungerar utan tabellen.
+- Inget AI-anrop sker automatiskt – bara när någon trycker.
 
 ## Design
 - Färger: guld/mässing `#9c7a3c` (var `--brass`), ljusare guld `#c9a55c`/`#e2c48a`, krämig bakgrund `#e8e6e1`/`#faf6ee`, mörk `#1f1712`/`#161818`.

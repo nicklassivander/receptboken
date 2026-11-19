@@ -228,7 +228,7 @@ async function ai(messages, opts = {}){
   let r;
   try {
     r = await fetch("/api/ai", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token },
-      body: JSON.stringify({ messages: typeof messages === "string" ? [{ role: "user", content: messages }] : messages, images: opts.images || [], mode: opts.mode || "text", web: !!opts.web, fetchUrl: opts.fetchUrl || undefined }) });
+      body: JSON.stringify({ messages: typeof messages === "string" ? [{ role: "user", content: messages }] : messages, images: opts.images || [], mode: opts.mode || "text", web: !!opts.web, fetchUrl: opts.fetchUrl || undefined, fast: !!opts.fast }) });
   } catch { throw { code: "network" }; }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw { code: r.status === 401 || r.status === 403 ? "auth" : r.status === 429 ? "rate" : "upstream", message: j.error };
@@ -948,7 +948,7 @@ async function runImport(){
   try {
     const images = [];
     for (const sh of s.shots) images.push(await blobToB64(sh.blob));
-    const out = parseJson(await ai(prompt, { mode: "json", images }));
+    const out = parseJson(await ai(prompt, { mode: "json", images, fast: !images.length }));
     if (!out || out.error) throw { message: out && out.error ? out.error : "Hittade inget recept i texten." };
     const parsed = parseImported(out);
     const target = s.targetId ? recipes.find(x => x.id === s.targetId) : null;
@@ -2315,7 +2315,7 @@ ${fmt(base)}
 
 VARIANTEN:
 ${fmt(v)}`;
-    const out = parseJson(await ai(prompt, { mode: "json" }));
+    const out = parseJson(await ai(prompt, { mode: "json", fast: true }));
     let name = String(out.name || "").replace(/["”“'.*]/g, "").trim();
     name = name.charAt(0).toUpperCase() + name.slice(1);
     const summary = (Array.isArray(out.summary) ? out.summary : []).map(x => String(x).trim()).filter(Boolean).slice(0, 4);
@@ -2685,7 +2685,7 @@ Tid: ${r.time || "-"}
 Anteckningar: ${(r.notes || "-").slice(0, 1500)}
 Steg:
 ${JSON.stringify(before)}`;
-  const out = parseJson(await ai(prompt, { mode: "json" }));
+  const out = parseJson(await ai(prompt, { mode: "json", fast: true }));
   const steps = Array.isArray(out.steps) ? out.steps.map(x => String(x).trim()) : null;
   if (!steps || steps.length !== before.length) return { changed: false, added: 0 };
   // säkerhetskontroll: rubriker orörda och inga stora omskrivningar
@@ -3135,6 +3135,22 @@ function aiWebHtml(s){
     ${!s.nw ? `<p class="ais-more"><button class="linkbtn" data-a="ainew">Låt pappa skriva ett eget recept i stället</button></p>` : ""}
   </div>`;
 }
+// Sparade AI-svar (Supabase-tabellen recipe_ai_cache) – samma sökning/sida kostar inte igen
+var aiCacheOff = false;
+async function aiCacheGet(key, maxDays){
+  if (aiCacheOff) return null;
+  try {
+    const { data, error } = await sb.from("recipe_ai_cache").select("data, created_at").eq("key", key).maybeSingle();
+    if (error) { if (/does not exist|relation|schema cache|42P01|PGRST20/i.test(error.message || "")) aiCacheOff = true; return null; }
+    if (!data || Date.now() - new Date(data.created_at).getTime() > maxDays * 864e5) return null;
+    return data.data;
+  } catch { return null; }
+}
+async function aiCacheSet(key, data){
+  if (aiCacheOff) return;
+  try { const { error } = await sb.from("recipe_ai_cache").upsert({ key, data, created_at: new Date().toISOString() }); if (error && /does not exist|relation|schema cache|42P01|PGRST20/i.test(error.message || "")) aiCacheOff = true; } catch {}
+}
+const aiKey = q => q.toLowerCase().replace(/[.,!?;:]+/g, " ").replace(/\s+/g, " ").trim();
 async function runAiWeb(q){
   q = q || filter.q.trim(); if (!q) return;
   clearTimeout(qIdleTimer);
@@ -3146,10 +3162,21 @@ Föredra seriösa svenska receptsajter (t.ex. ICA, Köket.se, Arla, Coop, Mathem
 Använd BARA sidor du faktiskt hittat i sökningen, med exakt adress till själva receptsidan (inte en söksida eller startsida).
 Svara bara med JSON, utan annan text: {"svar": "en kort mening på svenska", "recept": [{"titel": "receptets namn", "sajt": "t.ex. ICA", "url": "https://...", "beskrivning": "en mening om rätten", "varför": "vad som matchar önskan, max 14 ord"}]}`;
   try {
+    // Samma sökning de senaste två veckorna? Använd det sparade svaret (gratis)
+    const ck = "web:" + aiKey(q);
+    const hit = await aiCacheGet(ck, 14);
+    if (hit && (hit.items || []).length) {
+      if (!aiSearch || aiSearch.q !== q) return;
+      aiSearch.web = { answer: hit.answer || "", items: hit.items };
+      logEvent("ai_web", null, { q, träffar: hit.items.length, sparat: true });
+      if (view.name === "list") renderList();
+      return;
+    }
     const out = parseJson(await ai(prompt, { mode: "json", web: true }));
     if (!aiSearch || aiSearch.q !== q) return;
     const items = (out.recept || []).filter(x => x && /^https?:\/\//.test(x.url || "") && x.titel).slice(0, 4);
     aiSearch.web = { answer: out.svar || "", items };
+    if (items.length) aiCacheSet(ck, { answer: out.svar || "", items });
     logEvent("ai_web", null, { q, träffar: items.length });
   } catch (e) {
     if (!aiSearch || aiSearch.q !== q) return;
@@ -3164,13 +3191,17 @@ async function loadWebRecipe(w){
   webCache[w.url] = { busy: true };
   const done = () => { if (view.name === "web" && webCur && webCur.url === w.url) render(); };
   try {
+    // Har någon i familjen redan öppnat receptet? Använd det sparade (gratis)
+    const ck = "page:" + w.url;
+    const hit = await aiCacheGet(ck, 60);
+    if (hit && hit.r) { webCache[w.url] = { r: hit.r, image: hit.image || null }; done(); return; }
     const { data: { session } } = await sb.auth.getSession();
     const hdr = { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) };
     let j = {};
     try { const r = await fetch("/api/fetch", { method: "POST", headers: hdr, body: JSON.stringify({ url: w.url, withImage: true }) }); j = await r.json().catch(() => ({})); if (!r.ok) j = {}; } catch {}
     let out, image = j.image || null;
     if (j.text && j.text.length > 200) {
-      out = parseJson(await ai(importPrompt({ url: w.url, text: j.text, translate: true }), { mode: "json" }));
+      out = parseJson(await ai(importPrompt({ url: w.url, text: j.text, translate: true }), { mode: "json", fast: true }));
     }
     if (!out || out.error || !(out.ingredients || []).length) {
       // Sajten blockerar vår server (t.ex. ICA): låt Claude hämta sidan själv
@@ -3182,6 +3213,8 @@ async function loadWebRecipe(w){
     }
     if (!out || out.error) throw new Error(out && out.error ? out.error : "Hittade inget recept på sidan");
     webCache[w.url] = { r: parseImported(out), image };
+    // Spara för nästa gång, med bilden förminskad
+    (async () => { let small = null; if (image) { try { small = await compress(await (await fetch(image)).blob(), 1000, 220000); } catch {} } aiCacheSet(ck, { r: webCache[w.url].r, image: small }); })();
   } catch (e) {
     webCache[w.url] = { err: e && e.message ? e.message : aiErr(e) };
   }
@@ -3452,7 +3485,7 @@ async function shopClassify(rows){
   try {
     const out = parseJson(await ai(`Dela in varorna i butiksavdelningar i en svensk mataffär. Använd ENBART: ${SHOP_SECTIONS.join(", ")}.
 Svara bara med JSON där nyckeln är radens nummer: {"0": "Mejeri och ägg", ...}
-${rows.map((r, i) => `${i}: ${r.text}`).join("\n")}`, { mode: "json" }));
+${rows.map((r, i) => `${i}: ${r.text}`).join("\n")}`, { mode: "json", fast: true }));
     await Promise.all(rows.map((r, i) => { const s = out[i] || out[String(i)]; return SHOP_SECTIONS.includes(s) && s !== r.section ? sb.from("recipe_list_items").update({ section: s }).eq("id", r.id) : null; }));
     loadShop();
   } catch {}
