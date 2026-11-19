@@ -34,6 +34,7 @@ Familjens receptapp på **https://recept.sivander.com**. Ägare: Nicklas (superu
 ## Spara på API-krediter
 - `ai(prompt, { fast: true })` → billigare modellen (Haiku) – används för sortering av inköpslistan, variantnamn, tider i steg, utläsning av recept från text och bildsökord. Fråga Pappa: snabbknapparna (vin, tillbehör) går till Haiku. Fritexten (`askOrEdit`) går först till Haiku, som svarar på rena frågor och svarar `{"typ":"ändring"}` vid ändringar – då tar Sonnet över med den fulla ändringsprompten. Sonnet för foton, webbsökning och eget recept.
 - Under svar från Haiku (inte ändringar) finns knappen **Pappa, fundera lite till** för alla (`aiDeepHtml`, `data-a="aideep"`): samma fråga till Sonnet, svaret hamnar överst med rubriken *Pappa har funderat lite till*. En gång per svar.
+- Anteckningar (E1, nov 2026): `r.noteItems = [{id, kind: pappa|own|log|old, q, text, date, by}]` visas som tidslinje med kompakta kort (fäll ut, Redigera/Ta bort, scrollruta vid fler än 3). `r.notes` hålls i synk som ren text för sökning och Pappa. Lägg till via `addNote(r, noteNew(kind, text, q))` eller `notesWith(r, post)` i en patch – skriv inte direkt i `notes`. Kod sist i `app.js` (`notesPanelHtml`).
 - Testläge (`PAPPA_TEST` sist i `app.js`): admin ser etiketten Haiku/Sonnet under svaret. Sätt till `false` när Nicklas är nöjd.
 - Webbsökning max 3 sökningar per tryck.
 - `recipe_ai_cache` (supabase/ai_cache.sql): sparade svar för `web:<sökning>` (14 dagar) och `page:<url>` (60 dagar). Appen fungerar utan tabellen.
