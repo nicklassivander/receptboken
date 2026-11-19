@@ -4076,7 +4076,9 @@ async function toggleHdr(r){
 var SHOP_PEN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
 var SHOP_TRASH = '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>';
 var SHOP_HOUSE_S = '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7v9H4z"/><path d="M10 20v-5h4v5"/></svg>';
-var shopEdCtx = null, shopEdSkip = false, shopEdVV = null;
+var shopEdCtx = null, shopEdSkip = false, shopEdSkipT = null, shopEdVV = null;
+// ett långt tryck pågår: släpp igenom inga klick förrän fingret har lyfts (säkerhetsgräns 5 s)
+function shopEdHoldOn(){ shopEdSkip = true; clearTimeout(shopEdSkipT); shopEdSkipT = setTimeout(() => { shopEdSkip = false; }, 5000); }
 function shopEdTouch(){ return window.matchMedia("(hover: none)").matches; }
 function shopEdTip(){
   try { if (localStorage.getItem("shopEdTip")) return ""; } catch { return ""; }
@@ -4104,7 +4106,7 @@ function shopEdBind(box, l, findG, save){
     const row = rowOf(e.target); if (!row) return;
     sx = e.clientX; sy = e.clientY; stop();
     timer = setTimeout(() => {
-      timer = null; shopEdSkip = true; setTimeout(() => { shopEdSkip = false; }, 700);
+      timer = null; shopEdHoldOn();
       try { if (navigator.vibrate) navigator.vibrate(12); } catch {}
       shopEdMenu(row, sx);
     }, 480);
@@ -4113,14 +4115,19 @@ function shopEdBind(box, l, findG, save){
   box.addEventListener("pointerup", stop);
   box.addEventListener("pointercancel", stop);
   box.addEventListener("scroll", stop, true);
-  // efter ett långt tryck ska varan inte också bockas av
-  // (och klicket som kan komma när fingret släpper ska inte stänga menyn som just öppnats)
-  document.addEventListener("click", e => { if (shopEdSkip) { shopEdSkip = false; e.preventDefault(); e.stopPropagation(); } }, true);
+  // Medan fingret fortfarande håller kvar (och strax efter) ska varken klick eller Androids
+  // egen "långt tryck"-händelse (contextmenu) nå menyn – annars stängs den direkt (Samsung/Android)
+  // eller bockas varan av när fingret släpper.
+  const swallow = e => { if (shopEdSkip && !(e.type === "click" && e.target.closest && e.target.closest(".sh-menu"))) { e.preventDefault(); e.stopPropagation(); } };
+  document.addEventListener("click", swallow, true);
+  document.addEventListener("contextmenu", swallow, true);
+  const release = () => { if (shopEdSkip) { clearTimeout(shopEdSkipT); shopEdSkipT = setTimeout(() => { shopEdSkip = false; }, 450); } };
+  ["pointerup", "pointercancel", "touchend", "touchcancel"].forEach(t => document.addEventListener(t, release, true));
   box.addEventListener("contextmenu", e => {
     const row = rowOf(e.target); if (!row) return;
     e.preventDefault(); stop();
     if ($id("shEdBg")) return;          // redan öppnad av ett långt tryck
-    if (e.pointerType && e.pointerType !== "mouse") shopEdSkip = true;
+    if (e.pointerType === "touch" || e.pointerType === "pen" || (!e.pointerType && shopEdTouch())) shopEdHoldOn();
     shopEdMenu(row, e.clientX);
   });
 }
