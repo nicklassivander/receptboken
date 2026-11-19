@@ -342,6 +342,9 @@ function filtered(){
 
 function renderList(){
   const list = filtered();
+  // Behåll fokus i sökfältet när listan ritas om (t.ex. när Claudes svar kommer)
+  const qa = document.activeElement && document.activeElement.id === "q" ? document.activeElement.selectionStart : null;
+  if (qa != null) setTimeout(() => { const n = document.getElementById("q"); if (n && document.activeElement !== n) { n.focus({ preventScroll: true }); try { n.setSelectionRange(qa, qa); } catch {} } }, 0);
 
   let body;
   if (!storageOk) {
@@ -422,7 +425,17 @@ function renderList(){
   `;
   const q = document.getElementById("q");
   if (q) {
-    q.addEventListener("input", e => { filter.q = e.target.value; const pos = e.target.selectionStart; renderList(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); });
+    q.addEventListener("input", e => {
+      filter.q = e.target.value; const pos = e.target.selectionStart; renderList(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos);
+      // Slutar man skriva och inget recept matchar alla ord: fråga Claude automatiskt
+      clearTimeout(qIdleTimer);
+      const qq = filter.q.trim();
+      if (qq.length >= 3 && sample && !(aiSearch && aiSearch.q === qq)) qIdleTimer = setTimeout(() => {
+        if (filter.q.trim() === qq && view.name === "list" && !filtered().length) runAiSearch();
+      }, 1800);
+    });
+    // Enter/Sök på tangentbordet: fråga Claude direkt
+    q.addEventListener("keydown", e => { if (e.key === "Enter" && filter.q.trim().length >= 2 && sample) { e.preventDefault(); clearTimeout(qIdleTimer); if (!(aiSearch && aiSearch.q === filter.q.trim())) runAiSearch(); } });
     document.getElementById("sort").value = filter.sort;
     document.getElementById("sort").addEventListener("change", e => { filter.sort = e.target.value; renderList(); });
   }
@@ -2979,12 +2992,46 @@ async function openActivity(days){
 
 // ---------- Fråga Claude: smartare sökning när vanliga sökningen inte räcker ----------
 let aiSearch = null;   // { q, busy, items: [{id, why}], answer, err }
+// Lokal, ungefärlig sökning: poäng per ord som finns (eller nästan finns) i titel, taggar och ingredienser
+const NEAR_STOP = new Set("och med i på en ett är men bra till som av för utan gärna optional eller om den det de jag vill ha lite mycket typ samt plus eller".split(" "));
+function nearRecipes(q, exclude){
+  const words = q.toLowerCase().replace(/[^a-zåäöéü0-9\s-]/g, " ").split(/\s+/).filter(w => w.length > 2 && !NEAR_STOP.has(w));
+  if (!words.length) return [];
+  const skip = new Set((exclude || []).map(r => r.id));
+  const stem = w => w.length > 5 ? w.slice(0, Math.max(4, Math.ceil(w.length * .7))) : w;
+  const has = (hay, w) => hay.includes(w) || (w.length > 4 && hay.includes(stem(w)));
+  const out = [];
+  for (const r of recipes) {
+    if (skip.has(r.id)) continue;
+    const title = (r.title || "").toLowerCase(), tags = (r.tags || []).join(" ").toLowerCase();
+    const ings = (r.ingredients || []).filter(x => !x.startsWith("#")).join(" ").toLowerCase();
+    let score = 0; const hit = [];
+    for (const w of words) {
+      let p = 0;
+      if (has(title, w)) p = 3; else if (has(tags, w)) p = 2; else if (has(ings, w)) p = 2;
+      if (p) { score += p; hit.push(w); }
+    }
+    if (score) out.push({ r, score, hit });
+  }
+  out.sort((a, b) => b.score - a.score || (b.r.rating || 0) - (a.r.rating || 0));
+  const best = out[0] ? out[0].score : 0;
+  return out.filter(x => x.score >= Math.max(2, best / 2)).slice(0, 6)
+    .map(x => ({ r: x.r, why: `Har ${x.hit.slice(0, 4).join(", ")}${x.hit.length < words.length ? ` – saknar ${words.filter(w => !x.hit.includes(w)).slice(0, 3).join(", ")}` : ""}` }));
+}
+var qIdleTimer = null;
 function aiSearchHtml(list){
   const q = filter.q.trim();
   if (q.length < 2 || !sample) return "";
   const s = aiSearch && aiSearch.q === q ? aiSearch : null;
   const spark = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z" opacity=".7"/></svg>`;
-  if (!s) return `<button class="aisearch-btn" data-a="aisearch">${spark}<span>${list.length ? "Inte rätt?" : "Inga träffar."} <b>Fråga Claude</b> om "${esc(q)}"</span></button>`;
+  if (!s) {
+    // Direkt medan man skriver: närmaste recept i receptboken, även när inte alla ord stämmer
+    const near = list.length < 4 ? nearRecipes(q, list) : [];
+    const nearHtml = near.length ? `<div class="aisearch near"><div class="ais-sub">Närmast i receptboken</div><div class="ais-list">${near.map(x => `<button class="ais-item" data-a="open" data-id="${esc(x.r.id)}">
+      ${x.r.photo ? `<img src="${esc(x.r.photo)}" alt="" loading="lazy">` : `<span class="ais-ph"></span>`}
+      <span><b>${esc(x.r.title)}${x.r.variantOf ? ` <small class="badge mod">${esc(variantBadge(x.r))}</small>` : ""}</b><small>${esc(x.why)}</small></span></button>`).join("")}</div></div>` : "";
+    return nearHtml + `<button class="aisearch-btn" data-a="aisearch">${spark}<span>${list.length || near.length ? "Inte rätt?" : "Inga träffar."} <b>Fråga Claude</b> om "${esc(q)}"</span></button>`;
+  }
   if (s.busy) return `<div class="aisearch"><div class="ais-head">${spark}<b>Claude letar i receptboken …</b><span class="spinner"></span></div></div>`;
   if (s.err) return `<div class="aisearch"><div class="ais-head">${spark}<b>Det gick inte att fråga Claude</b></div><p class="ais-ans">${esc(s.err)}</p><button class="linkbtn" data-a="aisearch">Försök igen</button></div>`;
   const items = s.items.map(it => ({ ...it, r: recipes.find(r => r.id === it.id) })).filter(x => x.r);
