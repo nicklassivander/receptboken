@@ -2065,7 +2065,7 @@ function renderHelp(){
         <li><b>Lägg till vara</b> längst ner för sånt som inte står i något recept, t.ex. mjölk. Flera på en gång med komma.</li>
         <li>Listan är <b>din egen</b>. Med <b>Dela med …</b> väljer du vilka som ska se och kunna ändra den – de får en avisering. Du kan ha flera listor (<b>+ Ny lista</b>).</li>
         <li><b>Dela / kopiera</b> skickar listan som text till Meddelanden, Påminnelser, Anteckningar eller vart du vill.</li>
-        <li>När allt är avbockat visas <b>Klart! Allt är handlat.</b> Tryck <b>Töm listan</b> så tas alla varor bort (även de som fanns hemma) och listan är redo till nästa gång – du kan ångra direkt efteråt. <b>Töm avbockat</b> tar bara bort det avbockade.</li>
+        <li>När allt är avbockat visas <b>Klart! Allt är handlat.</b> Tryck <b>Töm listan</b> så tas alla varor bort (även de som fanns hemma) och inköpslistan stängs – den är redo till nästa gång. Ångra i meddelandet som visas öppnar listan igen med alla varor. <b>Töm avbockat</b> tar bara bort det avbockade.</li>
       </ul>`)}
 
     ${sec("Favoriter", `
@@ -4207,7 +4207,7 @@ function shopEdForm(g){
   const inp = f.querySelector(".sh-edt");
   inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch {}
 }
-async function shopEdDelete(g, msg){
+async function shopEdDelete(g, msg, reopen){
   const ctx = shopEdCtx; if (!ctx || !ctx.l || !g.length) return;
   const listId = ctx.l.id, ids = g.map(i => i.id), name = msg || `Tog bort ${groupLabel(g).text}`;
   const keep = g.map(i => { const o = { id: i.id, list_id: i.list_id || listId, text: i.text, section: i.section || "Övrigt", recipe_id: i.recipe_id || null, recipe_title: i.recipe_title || null, added_by: i.added_by, done: !!i.done }; if (i.created_at) o.created_at = i.created_at; return o; });
@@ -4220,7 +4220,8 @@ async function shopEdDelete(g, msg){
     const { data, error } = await sb.from("recipe_list_items").insert(keep).select("*");
     if (error) { toast("Kunde inte ångra"); loadShop(); return; }
     const l2 = cur(); if (l2) { (data || []).forEach(d => { if (!l2.items.some(i => i.id === d.id)) l2.items.push(d); }); l2.items.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))); }
-    drawShop(); renderShopFab();
+    if (reopen && !document.querySelector(".shop-body")) openShop(listId); else drawShop();
+    renderShopFab();
   }]]);
 }
 
@@ -4238,6 +4239,7 @@ function shopDoneBind(box, l){
   if (e) e.onclick = () => {
     const all = l.items.slice(); if (!all.length) return;
     shopDoneHide = null;
-    shopEdDelete(all, "Listan är tömd");
+    closeSheet();   // tillbaka dit man var; Ångra öppnar listan igen
+    shopEdDelete(all, "Inköpslistan är tömd", true);
   };
 }
