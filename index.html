@@ -1259,6 +1259,45 @@ header.top{overflow:hidden}
 .aibar.none .ais-big{max-width:none;margin:0}
 @media(min-width:621px){.aibar.none{flex-direction:row;align-items:center}.aibar.none .ais-big{width:auto;min-width:300px}}
 @media(max-width:620px){.ab-long{display:none!important}.aibar{font-size:13.5px;padding:7px 7px 7px 12px}.aibar .aiq{padding:8px 13px 8px 10px;font-size:13px}}
+/* Inköpslistan: ändra / ta bort vara (håll inne, högerklick, penna vid muspekaren) */
+.sh-row,.sh-sub,.sh-hrow{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.sh-row,.sh-sub,.sh-hrow{transition:background .15s}
+.sh-hold{background:#f3e7cc;border-radius:8px}
+.sh-ed{display:none}
+@media (hover:hover) and (pointer:fine){
+  .sh-ed{display:flex;flex:none;width:30px;height:30px;border:0;background:none;color:#9c7a3c;border-radius:6px;cursor:pointer;align-items:center;justify-content:center;opacity:0;margin-right:-6px}
+  .sh-row:hover .sh-ed,.sh-ed:focus-visible,.sh-hold .sh-ed{opacity:.85}
+  .sh-ed:hover{background:#efe4cc;opacity:1}
+}
+.sh-tip{display:flex;align-items:center;gap:8px;margin:10px 0 2px;padding:7px 6px 7px 12px;background:#faf3e2;border:1px dashed #d8bf8a;border-radius:8px;font-size:13px;color:#6b5a3e;line-height:1.35}
+.sh-tip span{flex:1}
+.sh-tip button{flex:none;border:0;background:none;color:#9c7a3c;font-size:20px;line-height:1;width:28px;height:28px;cursor:pointer;border-radius:6px}
+.sh-ed-bg{position:fixed;inset:0;z-index:70;background:rgba(28,26,27,.16);animation:fadein .12s}
+.sh-menu{position:absolute;min-width:214px;max-width:280px;background:#faf6ee;border:1.5px solid #c9a55c;border-radius:14px;box-shadow:0 12px 34px rgba(0,0,0,.28);overflow:hidden;animation:popin .14s ease-out}
+.sh-menu p{margin:0;padding:10px 16px 8px;font-size:12px;letter-spacing:.02em;color:#8a837b;border-bottom:1px solid #e8dfcf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sh-menu button{display:flex;align-items:center;gap:12px;width:100%;padding:12px 16px;border:0;border-bottom:1px solid #ece4d5;background:none;font:inherit;font-size:15px;color:var(--ink,#2a221c);text-align:left;cursor:pointer}
+.sh-menu button:last-child{border-bottom:0}
+.sh-menu button svg{color:#9c7a3c;flex:none}
+.sh-menu button:hover,.sh-menu button:focus-visible{background:#f1e8d6;outline:0}
+.sh-menu button.r,.sh-menu button.r svg{color:#a3402e}
+.sh-ed-form{display:flex;align-items:flex-end;justify-content:center;background:rgba(28,26,27,.42)}
+.sh-edit{width:100%;max-width:620px;max-height:100%;overflow:auto;background:#faf6ee;border:2px solid #c9a55c;border-bottom:0;border-radius:20px 20px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -12px 34px rgba(0,0,0,.3);animation:sheetup .2s ease-out}
+.sh-edit h3{font:500 22px/1.2 "Cormorant Garamond",Georgia,serif;margin:0 0 10px}
+.sh-edn{font-size:13px;color:#8a837b;margin:-4px 0 8px}
+.sh-edrow{margin:0 0 10px}
+.sh-edrow small{display:block;font-size:11.5px;color:#9c7a3c;margin:0 0 3px;letter-spacing:.02em}
+.sh-edin{display:flex;gap:8px;align-items:center}
+.sh-edin input{min-width:0;font:inherit;font-size:16px;border:1px solid #d6cbb8;border-radius:8px;padding:9px 10px;background:#fff;color:var(--ink,#2a221c)}
+.sh-edin input:focus{outline:0;border-color:#c9a55c;box-shadow:0 0 0 3px rgba(201,165,92,.22)}
+.sh-edt{flex:1}
+.sh-edq{flex:0 0 104px}
+.sh-edx{flex:none;width:36px;height:38px;border:1px solid #e3c9c0;border-radius:8px;background:none;color:#a3402e;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.sh-edrow.gone input{text-decoration:line-through;color:#a39c94;background:#f3efe8}
+.sh-edrow.gone .sh-edx{background:#a3402e;color:#fff;border-color:#a3402e}
+.sh-edbtns{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+.sh-edbtns .sh-eddel{color:#a3402e;border-color:#d8a89c;display:inline-flex;align-items:center;gap:6px}
+.sh-edbtns .sh-edno{margin-left:auto}
+@media(min-width:700px){.sh-ed-form{align-items:center}.sh-edit{max-width:480px;border-radius:18px;border-bottom:2px solid #c9a55c;box-shadow:0 0 0 6px rgba(201,165,92,.22),0 30px 60px rgba(0,0,0,.45);animation:popin .18s ease-out}}
 </style>
 </head>
 <body>
