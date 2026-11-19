@@ -1,5 +1,7 @@
 # Receptboken
 
+Se **CLAUDE.md** för hur appen är byggd och hur ändringar görs.
+
 Nicklas och Ann-Sofies receptsamling: spara recept från nätet, Instagram, kokböcker och egna anteckningar, med egna ändringar och AI-stöd för import, vin och alternativ.
 
 - **Frontend:** statisk HTML/JS (`index.html`, `app.js`), utan byggsteg
@@ -13,6 +15,7 @@ Nicklas och Ann-Sofies receptsamling: spara recept från nätet, Instagram, kokb
 | `SUPABASE_ANON_KEY` | Den publika nyckeln (anon/publishable) |
 | `ANTHROPIC_API_KEY` | Nyckeln från console.anthropic.com |
 | `CLAUDE_MODEL` | (valfritt) standard är `claude-sonnet-5-5` |
+| `PIXABAY_API_KEY` | Bildförslag från Pixabay (gratis nyckel på pixabay.com/api/docs) |
 
 ## Lägga till en person
 Enklast i appen: ⚙️ → Hantera användare. Eller i Supabase SQL Editor:
