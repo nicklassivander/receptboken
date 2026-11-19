@@ -361,7 +361,7 @@ function renderList(){
         <button class="btn ${sample ? "ghost" : "accent"}" data-a="new">Skriv eget</button>
       </div></div>`;
   } else if (!list.length) {
-    body = aiSearch && aiSearch.q === filter.q.trim() ? "" : `<div class="empty"><p>Inga recept matchar.</p><button class="btn ghost small" data-a="clear">Rensa filter</button></div>`;
+    body = (aiSearch && aiSearch.q === filter.q.trim()) || (sample && filter.q.trim().length >= 2) ? "" : `<div class="empty"><p>Inga recept matchar.</p><button class="btn ghost small" data-a="clear">Rensa filter</button></div>`;
   } else {
     body = layout === "list" ? listRows(list) : `<div class="grid">${list.map(r => `
       <div class="card" data-a="open" data-id="${esc(r.id)}">
@@ -3023,26 +3023,29 @@ function aiSearchHtml(list){
   const q = filter.q.trim();
   if (q.length < 2 || !sample) return "";
   const s = aiSearch && aiSearch.q === q ? aiSearch : null;
-  const spark = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z" opacity=".7"/></svg>`;
-  if (!s) {
-    // Direkt medan man skriver: närmaste recept i receptboken, även när inte alla ord stämmer
-    const near = list.length < 4 ? nearRecipes(q, list) : [];
-    const nearHtml = near.length ? `<div class="aisearch near"><div class="ais-sub">Närmast i receptboken</div><div class="ais-list">${near.map(x => `<button class="ais-item" data-a="open" data-id="${esc(x.r.id)}">
-      ${x.r.photo ? `<img src="${esc(x.r.photo)}" alt="" loading="lazy">` : `<span class="ais-ph"></span>`}
-      <span><b>${esc(x.r.title)}${x.r.variantOf ? ` <small class="badge mod">${esc(variantBadge(x.r))}</small>` : ""}</b><small>${esc(x.why)}</small></span></button>`).join("")}</div></div>` : "";
-    return nearHtml + `<button class="aisearch-btn" data-a="aisearch">${spark}<span>${list.length || near.length ? "Inte rätt?" : "Inga träffar."} <b>Fråga Claude</b> om "${esc(q)}"</span></button>`;
+  const bulb = `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><path d="M11.5 11a2.6 2.6 0 0 0-1.5 4.7v1h3v-1A2.6 2.6 0 0 0 11.5 11z" fill="currentColor" fill-opacity=".3"/><path d="M10.4 18h2.2"/></svg>`;
+  const card = (r, why) => `<button class="ais-item" data-a="open" data-id="${esc(r.id)}">
+      ${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : `<span class="ais-ph"></span>`}
+      <span><b>${esc(r.title)}${r.variantOf ? ` <small class="badge mod">${esc(variantBadge(r))}</small>` : ""}</b><small>${esc(why || "")}</small></span></button>`;
+  const webBtn = `<div class="ais-webbtn"><button class="aiq aiq-gold" data-a="aiweb"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>Sök recept på nätet</button></div>`;
+  // Direkt medan man skriver: närmaste recept i receptboken, även när inte alla ord stämmer
+  const near = list.length < 4 ? nearRecipes(q, list) : [];
+  const nearList = near.length ? `<div class="ais-sub">Närmast i receptboken</div><div class="ais-list">${near.map(x => card(x.r, x.why)).join("")}</div>` : "";
+  if (!s || s.busy || s.err) {
+    return `<div class="aisearch near">${nearList}
+      ${s && s.web ? aiWebHtml(s) : webBtn}
+      ${s && s.busy ? `<p class="ais-status"><span class="aw-s">Pappa letar också i receptboken …</span></p>` : ""}
+      ${s && s.err ? `<p class="ais-ans">Pappa kunde inte svara just nu. <button class="linkbtn" data-a="aisearch">Försök igen</button></p>` : ""}
+    </div>`;
   }
-  if (s.busy) return `<div class="aisearch"><div class="ais-head">${spark}<b>Claude letar i receptboken …</b><span class="spinner"></span></div></div>`;
-  if (s.err) return `<div class="aisearch"><div class="ais-head">${spark}<b>Det gick inte att fråga Claude</b></div><p class="ais-ans">${esc(s.err)}</p><button class="linkbtn" data-a="aisearch">Försök igen</button></div>`;
   const items = s.items.map(it => ({ ...it, r: recipes.find(r => r.id === it.id) })).filter(x => x.r);
   return `<div class="aisearch">
-    <div class="ais-head">${spark}<b>Claude föreslår</b><button class="iconbtn ais-x" data-a="aisearchclose" aria-label="Stäng">×</button></div>
+    <div class="ais-head"><span class="ais-ico">${bulb}</span><b>Pappa föreslår</b><button class="iconbtn ais-x" data-a="aisearchclose" aria-label="Stäng">×</button></div>
     ${s.good && s.answer ? `<p class="ais-ans">${esc(s.answer)}</p>` : ""}
     ${s.good ? "" : aiWebHtml(s)}
-    ${items.length ? `${s.good ? "" : `<div class="ais-sub">Närmast i receptboken</div>`}<div class="ais-list">${items.map(x => `<button class="ais-item" data-a="open" data-id="${esc(x.r.id)}">
-      ${x.r.photo ? `<img src="${esc(x.r.photo)}" alt="" loading="lazy">` : `<span class="ais-ph"></span>`}
-      <span><b>${esc(x.r.title)}${x.r.variantOf ? ` <small class="badge mod">${esc(variantBadge(x.r))}</small>` : ""}</b><small>${esc(x.why || "")}</small></span></button>`).join("")}</div>` : ""}
-    ${s.good && !s.web && !s.nw ? `<p class="ais-more"><button class="linkbtn" data-a="aiweb">Leta på nätet också</button><button class="linkbtn" data-a="ainew">Låt Claude skriva ett nytt recept</button></p>` : ""}
+    ${items.length ? `${s.good ? "" : `<div class="ais-sub">Närmast i receptboken</div>`}<div class="ais-list">${items.map(x => card(x.r, x.why)).join("")}</div>`
+      : s.webOnly ? nearList : ""}
+    ${s.good && !s.web ? webBtn : ""}
     ${s.good && s.web ? aiWebHtml(s) : ""}
     ${aiNewHtml(s)}
   </div>`;
@@ -3081,7 +3084,7 @@ ${JSON.stringify(cat)}`;
     aiSearch = { ...aiSearch, q, busy: false, answer: out.svar || "", items, good };
     logEvent("ai_search", null, { q, träffar: aiSearch.items.length });
     // Inget riktigt bra i receptboken: leta på nätet
-    if (!good) runAiWeb(q);
+    if (!good && !aiSearch.web) runAiWeb(q);
   } catch (e) {
     if (!aiSearch || aiSearch.q !== q) return;
     aiSearch = { ...aiSearch, q, busy: false, items: [], err: e && e.code === "auth" ? "Logga in igen och försök på nytt." : "Försök igen om en stund." };
@@ -3093,7 +3096,7 @@ ${JSON.stringify(cat)}`;
 function aiWebHtml(s){
   const w = s && s.web; if (!w) return "";
   const globe = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>`;
-  if (w.busy) return `<div class="ais-web"><div class="ais-sub">${globe} Hittade inget riktigt bra i receptboken</div><p class="ais-ans"><span class="spinner"></span> Claude letar efter bra recept på nätet …</p></div>`;
+  if (w.busy) return `<div class="ais-web"><div class="ais-sub">${globe} Från nätet</div><p class="ais-status"><span class="aw-s">Pappa kollar på nätet …</span></p></div>`;
   if (w.err) return `<div class="ais-web"><div class="ais-sub">${globe} Från nätet</div><p class="ais-ans">${esc(w.err)} <button class="linkbtn" data-a="aiweb">Försök igen</button></p></div>`;
   return `<div class="ais-web"><div class="ais-sub">${globe} Från nätet</div>
     ${w.answer ? `<p class="ais-ans">${esc(w.answer)}</p>` : ""}
@@ -3103,11 +3106,13 @@ function aiWebHtml(s){
       ${x.varför ? `<p class="aiw-why">${esc(x.varför)}</p>` : ""}
       <div class="aiw-btns"><button class="btn accent small" data-a="aiwebview" data-i="${i}">Visa receptet</button><button class="btn ghost small" data-a="aiwebimport" data-i="${i}">Spara i receptboken</button></div>
     </div>`).join("")}</div>` : `<p class="ais-ans">Hittade inga bra recept på nätet heller.</p>`}
-    ${!s.nw ? `<p class="ais-more"><button class="linkbtn" data-a="ainew">Låt Claude skriva ett eget recept i stället</button></p>` : ""}
+    ${!s.nw ? `<p class="ais-more"><button class="linkbtn" data-a="ainew">Låt pappa skriva ett eget recept i stället</button></p>` : ""}
   </div>`;
 }
 async function runAiWeb(q){
-  q = q || (aiSearch && aiSearch.q); if (!q || !aiSearch) return;
+  q = q || filter.q.trim(); if (!q) return;
+  clearTimeout(qIdleTimer);
+  if (!aiSearch || aiSearch.q !== q) aiSearch = { q, busy: false, items: [], good: true, webOnly: true, answer: "" };
   aiSearch.web = { busy: true }; if (view.name === "list") renderList();
   const prompt = `En svensk familj letar efter ett recept. Deras önskan: "${q}"
 Sök på nätet och hitta 3 riktigt bra recept som matchar önskan. Tolka den som en önskan, inte ett krav: kärnan (huvudråvara och typ av rätt) ska stämma, det som sägs vara valfritt behöver inte finnas med.
@@ -3206,13 +3211,13 @@ async function saveWebRecipe(){
 // Nytt receptförslag från Claude, utöver det som redan finns i boken
 function aiNewHtml(s){
   const n = s && s.nw; if (!n) return "";
-  if (n.busy) return `<div class="ais-new"><div class="ain-h"><small>Nytt förslag</small></div><p class="ais-ans"><span class="spinner"></span> Claude skriver ett riktigt bra recept åt dig …</p></div>`;
+  if (n.busy) return `<div class="ais-new"><div class="ain-h"><small>Nytt förslag</small></div><p class="ais-ans"><span class="aw-s">Pappa skriver ett riktigt bra recept åt dig …</span></p></div>`;
   if (n.err || !n.r) return `<div class="ais-new"><p class="ais-ans">Kunde inte ta fram ett nytt förslag. <button class="linkbtn" data-a="ainew">Försök igen</button></p></div>`;
   const r = n.r;
   const ings = (r.ingredienser || []).map(l => String(l).startsWith("#") ? `<li class="group">${esc(String(l).replace(/^#\s*/, ""))}</li>` : `<li>${esc(l)}</li>`).join("");
   let k = 0; const steps = (r.steg || []).map(x => String(x).startsWith("#") ? `<li class="group">${esc(String(x).replace(/^#\s*/, ""))}</li>` : `<li data-n="${++k}">${esc(x)}</li>`).join("");
   return `<div class="ais-new">
-    <div class="ain-h"><small>Nytt förslag från Claude</small></div>
+    <div class="ain-h"><small>Nytt förslag från pappa</small></div>
     <h3>${esc(r.titel || "")}</h3>
     ${r.beskrivning ? `<p class="ain-d">${esc(r.beskrivning)}</p>` : ""}
     ${r.receptboken ? `<p class="ain-rel"><span aria-hidden="true">↳</span> ${esc(r.receptboken)}</p>` : ""}
