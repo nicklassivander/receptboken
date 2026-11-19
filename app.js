@@ -524,13 +524,12 @@ function renderDetail(){
     ${historyHtml(r)}
 
     ${can("contributor") ? `<div class="panel ai">
-      <h2>Fråga eller ändra</h2>
-      <p class="meta" style="justify-content:flex-start;margin:-4px 0 10px">Fråga kocken och sommelieren – eller skriv vad du vill ändra i receptet. Ändringar kontrolleras och du granskar innan något sparas.</p>
+      <h2>Fråga kocken och sommelieren</h2>
       <div class="aiq-btns">
         <button class="aiq" data-a="ai" data-q="wine"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-.5 5.5a3.5 3.5 0 0 1-7 0z"/><path d="M8.2 6.5h7.6"/><path d="M12 12v8M8.5 20.5h7"/></svg>Vilket vin passar?</button>
         <button class="aiq" data-a="ai" data-q="sides"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="3.8"/><path d="M3 4v6a1.6 1.6 0 0 0 1.6 1.6M4.6 4v16M21 4c-1.8.8-2 6-.4 7.2V20"/></svg>Vad serverar jag till?</button>
       </div>
-      <form class="ai-ask" id="ai-form"><input id="ai-input" placeholder="t.ex. kan jag frysa den? eller: gör den utan grädde" autocomplete="off"><button class="btn small" type="submit">Skicka</button></form>
+      <form class="ai-ask" id="ai-form"><textarea id="ai-input" rows="1" enterkeyhint="send" placeholder="T.ex. skriv vad du vill ändra i receptet. Ändringar kontrolleras och du granskar innan något sparas." autocomplete="off"></textarea><button class="btn small" type="submit">Skicka</button></form>
       <div id="ai-out">${aiOutHtml(r.id)}</div>
     </div>` : ""}
 
@@ -820,8 +819,17 @@ document.addEventListener("submit", e => {
   const inp = document.getElementById("ai-input");
   const q = inp.value.trim(); if (!q) return;
   const r = recipes.find(x => x.id === view.id); if (!r) return;
-  inp.value = "";
+  inp.value = ""; inp.style.height = ""; if (inp.scrollHeight > inp.clientHeight + 1) inp.style.height = (inp.scrollHeight + 2) + "px";
   askOrEdit(r, q);
+});
+// Frågefältet: växer med texten, Enter skickar (Shift+Enter ger ny rad)
+document.addEventListener("input", e => {
+  if (e.target.id !== "ai-input") return;
+  const t = e.target; t.style.height = ""; if (t.scrollHeight > t.clientHeight + 1) t.style.height = Math.min(t.scrollHeight + 2, 220) + "px";
+});
+document.addEventListener("keydown", e => {
+  if (e.target.id !== "ai-input" || e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+  e.preventDefault(); const f = document.getElementById("ai-form"); if (f) f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
 });
 
 // ---------- import modal ----------
@@ -2057,7 +2065,7 @@ function renderHelp(){
       <ul>
         <li>Rader som börjar med <b>#</b> blir rubriker – bland ingredienserna (<i># Till såsen</i>) och i stegen (<i># Dagen innan</i>, <i># Vid servering</i>).</li>
         <li><b>Anteckningar:</b> tryck <i>Redigera</i> och skriv direkt i receptet.</li>
-        <li><b>Fråga eller ändra</b> längst ner i receptet: ställ en fråga (<i>vilket vin passar?</i>, <i>kan jag frysa den?</i>) eller skriv vad du vill ändra (<i>byt grädde mot crème fraiche</i>, <i>gör den för 8 personer</i>, <i>dela upp stegen i dagen innan och vid servering</i>). Claude svarar, eller visar ändringen med de rader som tas bort (−) och läggs till (+).</li>
+        <li><b>Fråga kocken och sommelieren</b> längst ner i receptet: ställ en fråga (<i>vilket vin passar?</i>, <i>kan jag frysa den?</i>) eller skriv vad du vill ändra (<i>byt grädde mot crème fraiche</i>, <i>gör den för 8 personer</i>, <i>dela upp stegen i dagen innan och vid servering</i>). Claude svarar, eller visar ändringen med de rader som tas bort (−) och läggs till (+).</li>
         <li>Ändringar kontrolleras: kan något misslyckas eller bli osäkert står det <b>⚠ Tänk på</b>, går det att göra bättre står det <b>💡 Tips</b>. Tryck <b>Använd ändringen</b> för att granska och spara (som variant eller i originalet) – på någon annans recept blir det <b>din egen variant</b>.</li>
       </ul>`)}
 
@@ -3188,6 +3196,7 @@ function fitTitle(){
 function renderShopFab(){
   try { fitTitle(); } catch {}
   try { hdrSlides(); } catch {}
+  try { const t = document.getElementById("ai-input"); if (t && !t.value) { t.style.height = ""; if (t.scrollHeight > t.clientHeight + 1) t.style.height = (t.scrollHeight + 2) + "px"; } } catch {}
   let b = document.getElementById("shopfab");
   // Startsidan: alltid (ingång till listan). Inne i ett recept m.m.: bara när det finns en aktiv lista med varor kvar
   const onStart = !!document.querySelector("#app header.top");
