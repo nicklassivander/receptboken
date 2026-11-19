@@ -64,6 +64,7 @@ All AI i appen presenteras som **Pappa**, inte Claude.
 - Rekommenderat men inte gjort av Nicklas än: månadsgräns i Anthropic Console (Settings → Limits).
 - Pexels har pausat nya API-nycklar – Pixabay används.
 - `hjalp.pdf` byggs från en egen A4-layout (Cormorant/Jost via npm `@fontsource`, Playwright `page.pdf`). Uppdatera den när hjälpen i appen ändras.
+- Typ av rätt (nov 2026): = nyckelord i gruppen "Rätt" (`dishTypes()`). Konto → *Typ av rätt* listar recept utan typ, Haiku föreslår vid tryck, spara/ångra alla (`openTypeTool`). Spara utan typ i formuläret → frågan *Vilken typ av rätt?* (`askDishType`, välj / Låt Pappa välja / Spara utan typ). Inläsning och Pappas egna recept måste ge exakt en typ. Kod sist i `app.js`.
 - `runAiSearch` (pappa letar smart i receptboken) finns kvar i koden men har ingen knapp längre – Nicklas valde bort "Fråga pappa" i sökningen.
 
 ## Parkerade idéer

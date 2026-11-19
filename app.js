@@ -1018,7 +1018,7 @@ Svara ENDAST med ett JSON-objekt, utan förklaring:
 Regler:
 - ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ". Behåll ALLA tidsangivelser från källan (koktid, stektid, ugnstid, vila, marinering, jäsning) i det steg där de hör hemma och skriv dem med siffror och enhet, t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek" – aldrig bara "en stund" om källan anger en tid. Står tiden bara i receptets inledning eller i en totaltid, för in den i rätt steg om det framgår vilket.
 - steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
-- tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${tagVocab().join(", ")}. Välj det som stämmer – typ av rätt, mattyp, tillfälle och metod. ${TAG_HINTS}
+- tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${tagVocab().join(", ")}. Välj det som stämmer – typ av rätt, mattyp, tillfälle och metod. ${TAG_HINTS}${dishTypes().length ? ` Exakt en tagg MÅSTE vara typ av rätt: ${dishTypes().join(", ")}.` : ""}
 - notes: eventuella tips från källan, kort. Annars tom sträng.
 - ${s.translate ? "Skriv allt på svenska. Räkna om amerikanska mått (cups, tbsp, tsp, oz, lb, °F) till svenska metriska mått (dl, msk, tsk, g, °C)." : "Behåll originalspråket och måtten."}
 - Hitta inte på något. Saknas receptinnehåll helt, svara {"error": "kort förklaring på svenska"}.
@@ -1215,6 +1215,7 @@ document.addEventListener("click", async e => {
     case "save": {
       readForm();
       if (!draft.title) { toast("Ge receptet ett namn"); document.querySelector('[name=title]').focus(); return; }
+      if (!draft._typeOk && dishTypes().length && !hasDishType(draft.tags)) { askDishType(); return; }
       // Ändrat innehåll i ett grundrecept: fråga om det ska bli en variant
       if (draft.id && !draft.variantOf && !draft._fillIn && !el.dataset.force) {
         const stored = recipes.find(x => x.id === draft.id);
@@ -1224,7 +1225,7 @@ document.addEventListener("click", async e => {
       }
       const btn = document.getElementById("savebtn"); btn.disabled = true; btn.textContent = "Sparar …";
       if (!draft.variantOf) { delete draft.original; if (!draft.id) draft.myChanges = ""; }
-      delete draft._fillIn;
+      delete draft._fillIn; delete draft._typeOk;
       const needName = draft.variantOf && (!draft.variantName || draft.variantNameAuto);
       const isNew = !draft.id;
       const id = await saveRecipe(draft);
@@ -1383,6 +1384,7 @@ function openSettings(){
       ${row("tagEdBtn", "tag", "Nyckelord", "Grupper och ord i Filtrera")}
       ${row("tagsBtn", "merge", "Slå ihop nyckelord", "Claude rensar och slår ihop dubbletter")}
       ${row("timesBtn", "clock", "Tider i gamla recept", "Lägg in tider så att stegen får timers")}
+      ${row("typeBtn", "tag", "Typ av rätt", "Ge recepten utan typ en förrätt, varmrätt …")}
       ${row("importBtn", "file", "Importera från fil", "Läs in recept från en JSON-fil")}
       <input type="file" id="importFile" accept=".json,application/json" hidden></div>` : ""}
     <div class="sgrp"><h3>Ditt konto</h3>
@@ -1396,6 +1398,7 @@ function openSettings(){
   $id("pwBtn").onclick = () => openPasswordSheet(false);
   if ($id("usersBtn")) $id("usersBtn").onclick = openUsers;
   if ($id("timesBtn")) $id("timesBtn").onclick = openTimesTool;
+  if ($id("typeBtn")) $id("typeBtn").onclick = openTypeTool;
   if ($id("actBtn")) $id("actBtn").onclick = () => openActivity();
   if ($id("tagsBtn")) $id("tagsBtn").onclick = openMergeTool;
   if ($id("tagEdBtn")) $id("tagEdBtn").onclick = openTagEditor;
@@ -2840,7 +2843,8 @@ ${JSON.stringify(batch.map(r => ({ id: r.id, titel: r.title, tid: r.time || "", 
 function tagPickHtml(sel){
   const vocab = tagVocab();
   const extra = sel.filter(t => !vocab.includes(t));
-  return tagGroups().concat(extra.length ? [["Övrigt", extra]] : []).map(([g, ts]) => `<div class="tp-grp"><span class="tp-g">${esc(g)}</span>${ts.map(t => `<button type="button" class="ftag ${sel.includes(t) ? "on" : ""}" data-tp="${esc(t)}">${esc(t)}</button>`).join("")}</div>`).join("");
+  const dish = dishTypes();
+  return tagGroups().concat(extra.length ? [["Övrigt", extra]] : []).map(([g, ts]) => `<div class="tp-grp${ts === dish ? " tp-req" : ""}"><span class="tp-g">${ts === dish ? "Typ av rätt" : esc(g)}</span>${ts.map(t => `<button type="button" class="ftag ${sel.includes(t) ? "on" : ""}" data-tp="${esc(t)}">${esc(t)}</button>`).join("")}</div>`).join("");
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-tp]"); if (b && $id("tagsField")) {
@@ -3328,7 +3332,7 @@ ${liked.length ? `Rätter familjen gillar (för att förstå smaken, kopiera dem
 Det här är deras receptbok (titel – nyckelord): ${recipes.filter(r => !r.variantOf).map(r => `${r.title}${(r.tags || []).length ? " – " + r.tags.join("/") : ""}`).join("; ")}.
 Utgå från receptboken: förstå vad de gillar och hur de lagar mat, och föreslå något som passar in men tillför något nytt. Föreslå inte något de redan har.${avoid.length ? ` Föreslå inte heller: ${avoid.join(", ")}.` : ""}
 Om ett av deras recept redan ligger nära sökningen: säg kort vad ditt förslag gör annorlunda, eller vad i boken det passar bra ihop med (t.ex. tillbehör eller förrätt).
-Regler: svenska, svenska mått (g, dl, msk, tsk, st), 4 portioner om inget annat framgår. Skriv tider med siffror i stegen (t.ex. "15 min"), så att appen kan visa timers. Rubriker i ingredienser eller steg skrivs som "# Rubrik". Nyckelord ENBART från listan: ${tagVocab().join(", ")}.
+Regler: svenska, svenska mått (g, dl, msk, tsk, st), 4 portioner om inget annat framgår. Skriv tider med siffror i stegen (t.ex. "15 min"), så att appen kan visa timers. Rubriker i ingredienser eller steg skrivs som "# Rubrik". Nyckelord ENBART från listan: ${tagVocab().join(", ")}.${dishTypes().length ? ` Exakt ett av dem ska vara typ av rätt: ${dishTypes().join(", ")}.` : ""}
 Svara bara med JSON: {"titel": "...", "beskrivning": "en lockande mening", "receptboken": "en kort mening om hur det förhåller sig till eller passar ihop med något av deras recept – nämn receptet vid namn", "portioner": 4, "tid": "t.ex. 45 min", "taggar": ["..."], "ingredienser": ["..."], "steg": ["..."]}`;
   try {
     const r = parseJson(await ai(prompt, { mode: "json" }));
@@ -4386,3 +4390,103 @@ document.addEventListener("click", async e => {
     if (await saveNoteItems(r, items)) toast("Anteckningen är sparad");
   }
 });
+
+// ---------- typ av rätt (nov 2026): gruppen "Rätt" i nyckelorden ----------
+function dishTypes(){ const gs = tagGroups(); const g = gs.find(x => /rätt/i.test(x[0])) || gs[0]; return g ? g[1] : []; }
+function hasDishType(tags){ const d = dishTypes(); return (tags || []).some(t => d.includes(t)); }
+function dishChips(sel, attr){ return dishTypes().map(t => `<button type="button" class="ftag ${sel === t ? "on" : ""}" ${attr}="${esc(t)}">${esc(t)}</button>`).join(""); }
+async function dishTypeAi(items){   // items: [{id, title, time, tags, ingredients}] → {id: typ}
+  const d = dishTypes();
+  const prompt = `Bestäm typ av rätt för varje recept. Välj EXAKT ett ord ur listan: ${d.join(", ")}. ${TAG_HINTS}
+Svara bara med JSON: {"<id>": "<typ>", ...}
+
+Recept:
+${JSON.stringify(items.map(r => ({ id: r.id, titel: r.title, tid: r.time || "", nyckelord: r.tags || [], ingredienser: (r.ingredients || []).filter(x => !x.startsWith("#")).slice(0, 10) })))}`;
+  const out = parseJson(await ai(prompt, { mode: "json", fast: true })) || {};
+  const res = {};
+  for (const r of items) { const t = String(out[r.id] || "").toLowerCase().trim(); if (d.includes(t)) res[r.id] = t; }
+  return res;
+}
+// Spara utan typ: fråga först (inget AI-anrop utan tryck)
+function askDishType(){
+  openSheet(`<h2>Vilken typ av rätt?</h2>
+    <p>Då hittas receptet när någon filtrerar på typ.</p>
+    <div class="ftags dt-chips" id="dtChips">${dishChips(null, "data-dt")}</div>
+    <p class="err" id="dtErr" hidden></p>
+    <div class="row dt-foot"><button class="linkbtn" id="dtSkip">Spara utan typ</button><button class="btn ghost" id="dtAi">Låt Pappa välja</button></div>`);
+  const done = t => {
+    if (!draft) return;
+    if (t && $id("tagsField")) {
+      const cur = $id("tagsField").value.split(",").map(x => x.trim()).filter(Boolean).filter(x => !dishTypes().includes(x)).concat(t);
+      $id("tagsField").value = cur.join(", ");
+      if ($id("tagPick")) $id("tagPick").innerHTML = tagPickHtml(cur);
+    }
+    draft._typeOk = true; closeSheet();
+    const b = $id("savebtn"); if (b) b.click();
+  };
+  $id("dtChips").onclick = e => { const b = e.target.closest("[data-dt]"); if (b) done(b.dataset.dt); };
+  $id("dtSkip").onclick = () => done(null);
+  $id("dtAi").onclick = async () => {
+    const b = $id("dtAi"); b.disabled = true; b.textContent = "Pappa tänker …";
+    try {
+      readForm();
+      const res = await dishTypeAi([{ id: "r", title: draft.title, time: draft.time, tags: draft.tags, ingredients: draft.ingredients }]);
+      if (!$id("dtAi")) return;
+      if (res.r) done(res.r);
+      else { b.disabled = false; b.textContent = "Låt Pappa välja"; $id("dtErr").hidden = false; $id("dtErr").textContent = "Pappa kunde inte bestämma sig – välj själv."; }
+    } catch (e) { if ($id("dtAi")) { b.disabled = false; b.textContent = "Låt Pappa välja"; $id("dtErr").hidden = false; $id("dtErr").textContent = aiErr(e); } }
+  };
+}
+// Konto → Typ av rätt: recept utan typ, Pappa (Haiku) föreslår vid tryck, man rättar och sparar
+function openTypeTool(){
+  const list = recipes.filter(r => canEdit(r) && !hasDishType(r.tags)).sort((a, b) => (a.title || "").localeCompare(b.title || "", "sv"));
+  const sel = {}, saved = [];
+  if (!list.length) { openSheet(`<h2>Typ av rätt</h2><p>Alla recept har en typ av rätt.</p><div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn ghost" id="tyClose">Stäng</button></div>`); $id("tyClose").onclick = closeSheet; return; }
+  openSheet(`<h2>Typ av rätt</h2>
+    <p>${list.length} recept saknar typ. Låt Pappa föreslå, eller välj själv – tryck på en annan om han gissat fel.</p>
+    <div class="row ty-top"><button class="btn small" id="tyAi">Låt Pappa föreslå</button><span class="hnote" id="tyMsg"></span></div>
+    <div id="tyList" class="ttlist tylist">${list.map(r => `<div class="tyrow" data-row="${esc(r.id)}"><b>${esc(r.title || "")}${r.variantOf ? ` <span class="hnote">variant</span>` : ""}</b><div class="ftags">${dishChips(null, "data-ty")}</div></div>`).join("")}</div>
+    <div class="row ty-foot"><span class="hnote">Allt kan ångras</span><span class="row" style="gap:8px"><button class="btn ghost" id="tyClose">Stäng</button><button class="btn accent" id="tyGo" disabled>Spara 0 recept</button></span></div>`);
+  const paint = id => { const row = document.querySelector(`[data-row="${CSS.escape(id)}"]`); if (row) row.querySelectorAll("[data-ty]").forEach(b => b.classList.toggle("on", sel[id] === b.dataset.ty)); };
+  const count = () => { const n = Object.keys(sel).length, g = $id("tyGo"); if (g && !saved.length) { g.disabled = !n; g.textContent = `Spara ${n} recept`; } };
+  $id("tyClose").onclick = closeSheet;
+  $id("tyList").onclick = e => {
+    const b = e.target.closest("[data-ty]"); if (!b || saved.length) return;
+    const id = b.closest("[data-row]").dataset.row;
+    if (sel[id] === b.dataset.ty) delete sel[id]; else sel[id] = b.dataset.ty;
+    paint(id); count();
+  };
+  $id("tyAi").onclick = async () => {
+    const b = $id("tyAi"); b.disabled = true; b.textContent = "Pappa tänker …";
+    const todo = list.filter(r => !sel[r.id]); let got = 0, err = "";
+    for (let i = 0; i < todo.length; i += 15) {
+      if (!$id("tyList")) return;
+      $id("tyMsg").textContent = `${Math.min(i + 15, todo.length)} av ${todo.length}`;
+      try { const res = await dishTypeAi(todo.slice(i, i + 15)); for (const id in res) if (!sel[id]) { sel[id] = res[id]; got++; paint(id); } }
+      catch (e) { err = aiErr(e); }
+    }
+    if (!$id("tyList")) return;
+    count(); b.textContent = "Låt Pappa föreslå"; b.disabled = false;
+    $id("tyMsg").textContent = err ? `! ${err}` : `Pappa föreslog ${got} – kolla och spara`;
+  };
+  $id("tyGo").onclick = async () => {
+    const g = $id("tyGo"); g.disabled = true; g.textContent = "Sparar …";
+    const d = dishTypes();
+    for (const r of list) {
+      const t = sel[r.id]; if (!t) continue;
+      const before = r.tags || [];
+      if (await patch(r.id, { tags: before.filter(x => !d.includes(x)).concat(t), tagsBefore: before })) saved.push(r.id);
+    }
+    if (!$id("tyGo")) return;
+    g.textContent = `Klart – ${saved.length} recept sparade`;
+    $id("tyAi").disabled = true;
+    if (saved.length) {
+      $id("tyMsg").innerHTML = `<button class="linkbtn" id="tyUndo">Ångra alla</button>`;
+      $id("tyUndo").onclick = async () => {
+        const u = $id("tyUndo"); u.disabled = true; u.textContent = "Ångrar …";
+        for (const id of saved) { const r = recipes.find(x => x.id === id); if (r && Array.isArray(r.tagsBefore)) await patch(id, { tags: r.tagsBefore, tagsBefore: null }); }
+        if ($id("tyMsg")) $id("tyMsg").textContent = "Ångrat";
+      };
+    }
+  };
+}
