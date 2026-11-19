@@ -2995,9 +2995,11 @@ async function runAiSearch(){
     anteckning: (r.notes || r.myChanges || "").slice(0, 120) || undefined }));
   const prompt = `Du hjälper en familj att hitta rätt recept i deras egen receptbok. De sökte på: "${q}"
 Tolka frågan fritt: det kan vara ingredienser de har hemma, ett tillfälle, en känsla, en tid, en kategori eller en halvt ihågkommen rätt.
-Välj upp till 6 recept ur listan som passar bäst, bäst först. Använd bara id:n från listan. Hittar du inget som passar, lämna listan tom och föreslå kort vad de kan söka på i stället.
+Sökningen är en ÖNSKAN, inte ett krav. Ett recept behöver inte innehålla allt – det räcker att det träffar kärnan (t.ex. samma huvudråvara, samma typ av rätt eller samma smakriktning). Det som sägs vara valfritt ("optional", "gärna", "om det finns") ska inte styra urvalet alls. Tillbehör kan ofta läggas till eller bytas, så ett recept med rätt huvudråvara men andra tillbehör är en bra träff.
+Välj upp till 6 recept ur listan, bäst först: först de som träffar mest, sedan de som ligger närmast. Lämna listan tom ENDAST om inget recept har någon rimlig koppling till önskan. Använd bara id:n från listan.
+Skriv i "varför" kort vad som stämmer och, om något saknas, vad man kan lägga till eller byta (t.ex. "torsk och brynt smör – lägg till kapris").
 Varje recept du nämner i "svar" MÅSTE också finnas med i "recept", med exakt id från listan.
-Svara bara med JSON: {"svar": "en kort mening på svenska", "recept": [{"id": "...", "titel": "receptets titel", "varför": "kort motivering, max 12 ord"}]}
+Svara bara med JSON: {"svar": "en kort mening på svenska", "recept": [{"id": "...", "titel": "receptets titel", "varför": "kort motivering, max 14 ord"}]}
 
 Receptboken:
 ${JSON.stringify(cat)}`;
@@ -3050,7 +3052,8 @@ async function runAiNew(q){
   aiSearch.nw = { busy: true, tried: avoid }; if (view.name === "list") renderList();
   const liked = recipes.filter(r => (r.rating || 0) >= 4 || (r.timesCooked || 0) >= 2).slice(0, 12).map(r => r.title);
   const prompt = `Du är en skicklig kock och skriver för en svensk familj som gillar att laga god mat. De sökte i sin receptbok på: "${q}"
-Skriv ETT riktigt bra recept som svarar mot sökningen – något du själv skulle rekommendera, med tydlig smak och en detalj som gör det lite extra. Det ska fungera i ett vanligt svenskt hemmakök med råvaror från en välsorterad butik.
+Skriv ETT riktigt bra recept som svarar mot sökningen – något du själv skulle rekommendera, med tydlig smak och en detalj som gör det lite extra.
+Sökningen är en önskan: ta fasta på kärnan. Det som sägs vara valfritt ("optional", "gärna", "om det finns") tar du med som ett tips eller en variant i stegen, inte som ett krav. Det ska fungera i ett vanligt svenskt hemmakök med råvaror från en välsorterad butik.
 ${liked.length ? `Rätter familjen gillar (för att förstå smaken, kopiera dem inte): ${liked.join(", ")}.` : ""}
 Det här är deras receptbok (titel – nyckelord): ${recipes.filter(r => !r.variantOf).map(r => `${r.title}${(r.tags || []).length ? " – " + r.tags.join("/") : ""}`).join("; ")}.
 Utgå från receptboken: förstå vad de gillar och hur de lagar mat, och föreslå något som passar in men tillför något nytt. Föreslå inte något de redan har.${avoid.length ? ` Föreslå inte heller: ${avoid.join(", ")}.` : ""}
