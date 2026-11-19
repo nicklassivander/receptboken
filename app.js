@@ -715,6 +715,7 @@ function aiOutHtml(id){
     return `<div class="ai-row">${IDEA_SVG(fresh)}<div class="ai-body">
       <div class="ai-a">${aiMd(it.a)}</div>
       <div class="ai-q under">${esc(it.q)}</div>
+      ${aiModelHtml(it, i)}
       ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
       ${!it.busy && it.check ? `<div class="aic-check ${it.check.level}"><b>${it.check.level === "warn" ? "⚠ Tänk på" : "💡 Tips"}</b> ${esc(it.check.text)}</div>` : ""}
       ${!it.busy && it.change && !it.dismissed ? (() => { const rr = recipes.find(x => x.id === id); return rr ? `<div class="aic">
@@ -728,12 +729,13 @@ function aiOutHtml(id){
 }
 function aiRefresh(id){ const el = document.getElementById("ai-out"); if (el && view.id === id) el.innerHTML = aiOutHtml(id); }
 
-async function askAI(r, kind, freeText){
+// Snabbknapparna är rena frågor → Haiku. sonnet = true bara för testlägets "Fråga Sonnet i stället".
+async function askAI(r, kind, freeText, sonnet){
   if (!sample) return;
   const items = aiState[r.id] || (aiState[r.id] = []);
   if (items.some(x => x.busy)) return;
   const q = kind ? AI_PRESETS[kind].label : freeText;
-  const item = { q, a: "", busy: true, err: "" };
+  const item = { q, a: "", busy: true, err: "", kind, model: sonnet ? "sonnet" : "haiku", redo: !!sonnet };
   items.push(item); aiRefresh(r.id);
 
   const others = kind === "similar"
@@ -743,7 +745,7 @@ async function askAI(r, kind, freeText){
 
 RECEPTET:
 ${recipeText(r)}${r.notes ? "\n\nANTECKNINGAR: " + r.notes : ""}${others}`;
-  const history = items.slice(0, -1).filter(x => x.a && !x.err).slice(-3);
+  const history = items.slice(0, -1).filter(x => x.a && !x.err && !(sonnet && x.q === q)).slice(-3);
   // Rebuild a short conversation so follow-up questions have context.
   const convo = [];
   history.forEach((h, i) => { convo.push({ role: "user", content: (i === 0 ? context + "\n\nFRÅGA: " : "") + h.q }); convo.push({ role: "assistant", content: h.a }); });
@@ -751,22 +753,46 @@ ${recipeText(r)}${r.notes ? "\n\nANTECKNINGAR: " + r.notes : ""}${others}`;
   convo.push({ role: "user", content: (convo.length ? "" : context + "\n\nFRÅGA: ") + ask });
 
   try {
-    item.a = await ai(convo);
+    item.a = await ai(convo, { fast: !sonnet });
   } catch (e) {
     item.err = aiErr(e);
   }
   item.busy = false; aiRefresh(r.id);
 }
 
-// Fråga eller ändra: Claude avgör om det är en fråga, en ändring eller båda, och kontrollerar ändringen
-async function askOrEdit(r, text){
+// Fråga eller ändra: Haiku svarar på rena frågor. Ser Haiku en ändring (eller "kan jag byta X mot Y?")
+// lämnas den över till Sonnet, som avgör, gör ändringen och kontrollerar den. sonnet = true hoppar över Haiku.
+async function askOrEdit(r, text, sonnet){
   if (!sample) return;
   const items = aiState[r.id] || (aiState[r.id] = []);
   if (items.some(x => x.busy)) return;
-  const item = { q: text, a: "", busy: true, err: "" };
+  const item = { q: text, a: "", busy: true, err: "", model: sonnet ? "sonnet" : "haiku", redo: !!sonnet };
   items.push(item); aiRefresh(r.id);
   const current = { title: r.title, servings: r.servings || null, time: r.time || "", ingredients: r.ingredients || [], steps: r.steps || [] };
-  const earlier = items.slice(0, -1).filter(x => x.a && !x.err).slice(-3).map(x => `F: ${x.q}\nS: ${x.a}`).join("\n\n");
+  const earlier = items.slice(0, -1).filter(x => x.a && !x.err && !(sonnet && x.q === text)).slice(-3).map(x => `F: ${x.q}\nS: ${x.a}`).join("\n\n");
+  const recipeCtx = `RECEPTET:
+${JSON.stringify(current)}${r.notes ? "\nANTECKNINGAR: " + r.notes : ""}${earlier ? "\n\nTIDIGARE I SAMTALET:\n" + earlier : ""}
+
+ANVÄNDAREN SKRIVER:
+${text}`;
+  if (!sonnet) {
+    const triage = `Du är en erfaren kock och sommelier som hjälper en svensk hemmakock med ett recept. Svara på svenska, konkret och utan artighetsfraser.
+Avgör vad användaren vill:
+- En ren fråga om receptet (vin, tillbehör, frysa, hållbarhet, teknik, vad något betyder …): svara kort, max 150 ord, gärna punktlista.
+- Användaren vill ändra receptet (byta, ta bort, lägga till, skala om, fler/färre portioner, dela upp steg …) eller frågar om en möjlig ändring ("kan jag byta X mot Y?", "går det utan Z?"): svara INTE, skriv bara {"typ": "ändring"}.
+Är du osäker, välj "ändring".
+Svara ENDAST med JSON: {"typ": "fråga", "svar": "svaret"} eller {"typ": "ändring"}
+
+${recipeCtx}`;
+    try {
+      const out = parseJson(await ai(triage, { mode: "json", fast: true }));
+      const svar = String(out.svar || "").trim();
+      if (out.typ === "fråga" && svar) { item.a = svar; item.busy = false; aiRefresh(r.id); return; }
+    } catch (e) {
+      if (e && (e.code === "auth" || e.code === "network" || e.code === "rate")) { item.err = aiErr(e); item.busy = false; aiRefresh(r.id); return; }
+    }
+    item.model = "haiku>sonnet";   // ändring, oklart svar eller trasig JSON → Sonnet tar över
+  }
   const prompt = `Du är en erfaren kock och sommelier som hjälper en svensk hemmakock med ett recept. Svara på svenska, konkret och utan artighetsfraser.
 Avgör vad användaren vill:
 - "fråga": en fråga om receptet (vin, tillbehör, frysa, teknik …). Svara kort, max 150 ord, gärna punktlista.
@@ -777,11 +803,7 @@ Svara ENDAST med JSON:
 {"typ": "fråga"|"ändring"|"båda", "svar": "svaret på frågan, eller en mening om vad du ändrade", "ändring": null eller {"title": string, "servings": number|null, "time": string, "ingredients": [string], "steps": [string], "summary": "kort mening om vad som ändrats"}, "kontroll": null eller {"nivå": "varning"|"tips", "text": "max 2 meningar"}}
 Regler för ändring: ingredienser en per rad, mängd först; steg utan numrering; rubriker börjar med "# "; tider i stegen med siffror och enhet (t.ex. "15 min").
 
-RECEPTET:
-${JSON.stringify(current)}${r.notes ? "\nANTECKNINGAR: " + r.notes : ""}${earlier ? "\n\nTIDIGARE I SAMTALET:\n" + earlier : ""}
-
-ANVÄNDAREN SKRIVER:
-${text}`;
+${recipeCtx}`;
   try {
     const out = parseJson(await ai(prompt, { mode: "json" }));
     item.a = String(out.svar || "").trim() || (out["ändring"] ? "Här är ändringen." : "");
@@ -1225,6 +1247,7 @@ document.addEventListener("click", async e => {
     case "shop": openShopFromRecipe(cur); break;
     case "shopfab": openShop(); break;
     case "aiapply": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it) applyAiChange(cur, it); break; }
+    case "aisonnet": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it && can("admin")) { if (it.kind) askAI(cur, it.kind, null, true); else askOrEdit(cur, it.q, true); } break; }
     case "aidismiss": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it) { it.dismissed = true; aiRefresh(cur.id); } break; }
     case "aisave": {
       const it = (aiState[cur.id] || [])[+el.dataset.i]; if (!it) break;
@@ -4240,4 +4263,15 @@ function shopDoneBind(box, l){
     shopDoneHide = null;
     shopEdDelete(all, "Listan är tömd");
   };
+}
+
+// ---------- Testläge: vilken modell svarade i Fråga Pappa (syns bara för admin) ----------
+// Sätt till false (eller ta bort) när testet är klart.
+var PAPPA_TEST = true;
+function aiModelHtml(it, i){
+  if (!PAPPA_TEST || !can("admin") || it.busy || it.err || !it.model) return "";
+  const tag = (m) => `<span class="aim-tag${m === "sonnet" ? " s" : ""}"><i></i>${m === "sonnet" ? "Sonnet" : "Haiku"}</span>`;
+  if (it.model === "haiku>sonnet") return `<div class="ai-model">${tag("haiku")}→${tag("sonnet")}ändring</div>`;
+  if (it.model === "sonnet") return `<div class="ai-model">${tag("sonnet")}${it.redo ? "jämförelse" : ""}</div>`;
+  return `<div class="ai-model">${tag("haiku")}<button type="button" data-a="aisonnet" data-i="${i}">Fråga Sonnet i stället</button></div>`;
 }

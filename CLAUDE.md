@@ -32,7 +32,8 @@ Familjens receptapp på **https://recept.sivander.com**. Ägare: Nicklas (superu
 - I chattmiljön kan ett integritetsskydd stoppa shell-kommandon som läser `app.js` (filen innehåller ägarens e-post). Använd Read/Edit-verktygen och `git grep`/`git show :app.js` i stället. Skriv aldrig e-postadressen i URL:er eller externa anrop.
 
 ## Spara på API-krediter
-- `ai(prompt, { fast: true })` → billigare modellen (Haiku) – används för sortering av inköpslistan, variantnamn, tider i steg, utläsning av recept från text och bildsökord. Sonnet för Fråga Pappa, foton, webbsökning och eget recept.
+- `ai(prompt, { fast: true })` → billigare modellen (Haiku) – används för sortering av inköpslistan, variantnamn, tider i steg, utläsning av recept från text och bildsökord. Fråga Pappa: snabbknapparna (vin, tillbehör) går till Haiku. Fritexten (`askOrEdit`) går först till Haiku, som svarar på rena frågor och svarar `{"typ":"ändring"}` vid ändringar – då tar Sonnet över med den fulla ändringsprompten. Sonnet för foton, webbsökning och eget recept.
+- Testläge (`PAPPA_TEST` sist i `app.js`): admin ser etiketten Haiku/Sonnet under svaret och *Fråga Sonnet i stället*. Sätt till `false` när Nicklas är nöjd.
 - Webbsökning max 3 sökningar per tryck.
 - `recipe_ai_cache` (supabase/ai_cache.sql): sparade svar för `web:<sökning>` (14 dagar) och `page:<url>` (60 dagar). Appen fungerar utan tabellen.
 - Inget AI-anrop sker automatiskt – bara när någon trycker.
