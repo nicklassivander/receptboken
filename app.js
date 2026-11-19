@@ -3011,7 +3011,7 @@ function nearRecipes(q, exclude){
   out.sort((a, b) => b.score - a.score || (b.r.rating || 0) - (a.r.rating || 0));
   const best = out[0] ? out[0].score : 0;
   return out.filter(x => x.score >= Math.max(2, best / 2)).slice(0, 6)
-    .map(x => ({ r: x.r, why: `Har ${x.hit.slice(0, 4).join(", ")}${x.hit.length < words.length ? ` – saknar ${words.filter(w => !x.hit.includes(w)).slice(0, 3).join(", ")}` : ""}` }));
+    .map(x => ({ r: x.r, cov: x.hit.length / words.length, why: `Har ${x.hit.slice(0, 4).join(", ")}${x.hit.length < words.length ? ` – saknar ${words.filter(w => !x.hit.includes(w)).slice(0, 3).join(", ")}` : ""}` }));
 }
 var qIdleTimer = null;
 function aiSearchHtml(list){
@@ -3030,7 +3030,20 @@ function aiSearchHtml(list){
   const near = list.length < 4 ? nearRecipes(q, list) : [];
   const nearList = near.length ? `<div class="ais-sub">Närmast i receptboken</div><div class="ais-list">${near.map(x => card(x.r, x.why)).join("")}</div>` : "";
   if (!s || s.busy || s.err) {
-    return `<div class="aisearch near">${nearList}
+    // Gratis bedömning av hur väl receptboken matchar: bra träff / delvis / inget som passar
+    const best = list.length ? 1 : (near[0] ? near[0].cov : 0);
+    const level = best >= 0.85 ? "ok" : best >= 0.4 ? "mid" : "none";
+    const globe = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>`;
+    const badge = level === "ok" ? `<span class="qbadge ok">Bra träff</span>` : level === "mid" ? `<span class="qbadge mid">Delvis</span>` : "";
+    if (s && s.web) return `<div class="aisearch near">${nearList}${aiWebHtml(s)}</div>`;
+    if (level === "ok") return `<div class="aisearch near ok">
+      ${nearList ? nearList.replace("Närmast i receptboken</div>", `Närmast i receptboken ${badge}</div>`) : `<div class="ais-sub">Receptboken ${badge}</div>`}
+      <div class="ais-okmore"><button class="ais-link" data-a="aiweb">${globe}Vill du se fler? Hitta nya recept</button></div></div>`;
+    if (level === "none") return `<div class="aisearch near none">
+      <p class="ais-none">${near.length ? "Inget i receptboken passar riktigt." : "Inga recept i receptboken matchar."}</p>
+      <button class="ais-big" data-a="aiweb"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span><b>Hitta nya recept</b><small>Pappa letar på nätet</small></span><em>→</em></button>
+      ${nearList}</div>`;
+    return `<div class="aisearch near">${nearList.replace("Närmast i receptboken</div>", `Närmast i receptboken ${badge}</div>`)}
       ${s && s.web ? aiWebHtml(s) : btns(!(s && s.busy))}
       ${s && s.busy ? `<p class="ais-status"><span class="aw-s">Pappa letar i receptboken …</span></p>` : ""}
       ${s && s.err ? `<p class="ais-ans">Pappa kunde inte svara just nu. <button class="linkbtn" data-a="aisearch">Försök igen</button></p>` : ""}
