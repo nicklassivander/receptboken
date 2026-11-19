@@ -3023,8 +3023,9 @@ function aiSearchHtml(list){
       ${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : `<span class="ais-ph"></span>`}
       <span><b>${esc(r.title)}${r.variantOf ? ` <small class="badge mod">${esc(variantBadge(r))}</small>` : ""}</b><small>${esc(why || "")}</small></span></button>`;
   const askBtn = `<button class="aiq" data-a="aisearch"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><path d="M10 12.8a1.6 1.6 0 1 1 2.3 1.4c-.5.3-.8.7-.8 1.2v.4"/><path d="M11.5 17.6h.01"/></svg>Fråga pappa</button>`;
-  const btns = ask => webBtn.replace('<div class="ais-webbtn">', '<div class="ais-webbtn">' + (ask ? askBtn : ""));
-  const webBtn =`<div class="ais-webbtn"><button class="aiq aiq-gold" data-a="aiweb"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>Sök recept på nätet</button></div>`;
+  // "Fråga pappa" är borttagen – bara "Hitta nya recept" (nätet, kostar) under en avdelare
+  const btns = () => webBtn.replace('<div class="ais-webbtn">', '<div class="ais-dv"><span>Hittar du inte rätt?</span></div><div class="ais-webbtn">');
+  const webBtn =`<div class="ais-webbtn"><button class="aiq aiq-gold" data-a="aiweb"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>Hitta nya recept</button></div>`;
   // Direkt medan man skriver: närmaste recept i receptboken, även när inte alla ord stämmer
   const near = list.length < 4 ? nearRecipes(q, list) : [];
   const nearList = near.length ? `<div class="ais-sub">Närmast i receptboken</div><div class="ais-list">${near.map(x => card(x.r, x.why)).join("")}</div>` : "";
