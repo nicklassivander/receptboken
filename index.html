@@ -1383,6 +1383,22 @@ header.top{overflow:hidden}
 .tyrow b{display:block;font-weight:500;font-size:15px;margin-bottom:6px}
 .tyrow .ftags{display:flex;flex-wrap:wrap;gap:6px}
 @media(min-width:900px){.tylist{display:grid;grid-template-columns:1fr 1fr;column-gap:24px;align-content:start}}
+
+/* Påminnelse om aviseringar (kort under sökfältet) */
+.nfp-card{display:flex;gap:14px;align-items:center;border:1px solid #c9a55c;border-radius:14px;background:#faf6ee;padding:14px 16px;margin:14px 0 16px}
+.nfp-ico{color:#9c7a3c;flex:none;display:flex}
+.nfp-txt{flex:1;min-width:0}
+.nfp-txt b{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:#1f1712;display:block}
+.nfp-txt small{font-size:13px;color:#6b5f55;display:block;margin-top:2px;line-height:1.4}
+.nfp-acts{display:flex;gap:8px;align-items:center;flex:none}
+.nfp-x{background:none;border:0;color:#9c7a3c;font-size:13px;font-family:Jost,sans-serif;text-decoration:underline;cursor:pointer;padding:6px}
+@media (max-width:600px){.nfp-card{flex-wrap:wrap}.nfp-acts{width:100%;justify-content:flex-end}}
+.nfp-lead{display:flex;gap:12px;align-items:flex-start}
+.nfp-lead p{font-size:15px;line-height:1.5;margin:4px 0 14px;color:#3a2f27}
+.nfp-steps{counter-reset:s;list-style:none;padding:0;margin:0 0 16px;display:grid;gap:10px}
+.nfp-steps li{counter-increment:s;display:flex;gap:12px;align-items:center;font-size:14.5px;color:#3a2f27}
+.nfp-steps li:before{content:counter(s);width:26px;height:26px;border-radius:50%;border:1px solid #c9a55c;color:#9c7a3c;display:grid;place-items:center;font-family:'Cormorant Garamond',serif;font-size:16px;flex:none}
+.nfp-btns{display:flex;gap:10px}.nfp-btns .btn{flex:1}
 </style>
 </head>
 <body>

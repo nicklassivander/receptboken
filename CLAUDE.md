@@ -65,6 +65,7 @@ All AI i appen presenteras som **Pappa**, inte Claude.
 - Pexels har pausat nya API-nycklar – Pixabay används.
 - `hjalp.pdf` byggs från en egen A4-layout (Cormorant/Jost via npm `@fontsource`, Playwright `page.pdf`). Uppdatera den när hjälpen i appen ändras.
 - Typ av rätt (nov 2026): = nyckelord i gruppen "Rätt" (`dishTypes()`). Konto → *Typ av rätt* listar recept utan typ, Haiku föreslår vid tryck, spara/ångra alla (`openTypeTool`). Spara utan typ i formuläret → frågan *Vilken typ av rätt?* (`askDishType`, välj / Låt Pappa välja / Spara utan typ). Inläsning och Pappas egna recept måste ge exakt en typ. Kod sist i `app.js`.
+- Aviseringar (nov 2026): cron-jobbet `recept-timers` anropar nu `/api/push-due` även när `recipe_notify_queue` har oskickade rader (`supabase/notify-cron.sql`, körd). Påminnelsekortet *Vill du få aviseringar?* under sökfältet (`nfAskHtml`, sist i `app.js`): Slå på kör `ensurePush` direkt, iPhone utan hemskärm får tre steg, Inte nu döljer i 14 dagar (max 3 gånger, `localStorage.nfAsk`).
 - `runAiSearch` (pappa letar smart i receptboken) finns kvar i koden men har ingen knapp längre – Nicklas valde bort "Fråga pappa" i sökningen.
 
 ## Parkerade idéer

@@ -395,6 +395,7 @@ function renderList(){
       </select>
     </div>
     ${aiBarHtml(list)}
+    ${nfAskHtml()}
     <div class="filterbar">
       ${filterBtn("fbtn-mob")}
       <div class="seg layout-seg" role="group" aria-label="Visa som">
@@ -4490,3 +4491,46 @@ function openTypeTool(){
     }
   };
 }
+
+// ---------- påminnelse om aviseringar (kort under sökfältet, förslag B) ----------
+// Visas på enheter som inte svarat ja/nej. "Inte nu" döljer i 14 dagar, efter tre gånger visas den inte mer.
+var NF_ASK_BELL = '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/><path d="M12 3v2"/></svg>';
+function nfAskGet(){ try { return JSON.parse(localStorage.getItem("nfAsk") || "{}") || {}; } catch { return {}; } }
+function nfAskSet(o){ try { localStorage.setItem("nfAsk", JSON.stringify(o)); } catch {} }
+function nfAskMode(){
+  try {
+    if (!me || !storageOk || !loaded || !recipes.length) return "";
+    const a = nfAskGet();
+    if ((a.n || 0) >= 3 || (a.until && Date.now() < a.until)) return "";
+    const d = deviceInfo();
+    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    if (!supported) return d.kind === "ios" && !d.installed ? "ios" : "";
+    return Notification.permission === "default" ? "ask" : "";
+  } catch { return ""; }
+}
+function nfAskHtml(){
+  if (filter.q && filter.q.trim()) return "";
+  const m = nfAskMode(); if (!m) return "";
+  return `<div class="nfp-card"><span class="nfp-ico">${NF_ASK_BELL}</span><span class="nfp-txt"><b>Vill du få aviseringar?</b><small>Nya recept, när någon lagar och timern, även när appen är stängd.</small></span><span class="nfp-acts"><button type="button" class="nfp-x" data-nfp="later">Inte nu</button><button type="button" class="btn accent small" data-nfp="on">Slå på</button></span></div>`;
+}
+function nfAskIosSheet(){
+  openSheet(`<div class="sheet-head"><h2>Vill du få aviseringar?</h2><button class="iconbtn fp-x" id="closeSheetBtn" aria-label="Stäng">×</button></div>
+    <div class="nfp-lead"><span class="nfp-ico">${NF_ASK_BELL}</span><p>På iPhone fungerar aviseringar bara när appen ligger på hemskärmen. Det tar tio sekunder:</p></div>
+    <ol class="nfp-steps"><li><span>Tryck på <b>Dela</b> ⬆︎ längst ner i Safari</span></li><li><span>Välj <b>Lägg till på hemskärmen</b></span></li><li><span>Öppna appen från ikonen och tryck <b>Slå på</b></span></li></ol>
+    <div class="nfp-btns"><button type="button" class="btn ghost" id="nfpIosOk">Okej</button></div>`);
+  $id("closeSheetBtn").onclick = closeSheet;
+  $id("nfpIosOk").onclick = closeSheet;
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest && e.target.closest("[data-nfp]"); if (!b) return;
+  if (b.dataset.nfp === "later") {
+    const a = nfAskGet(); nfAskSet({ n: (a.n || 0) + 1, until: Date.now() + 14 * 864e5 });
+    toast("Okej. Du kan slå på aviseringar under Konto → Aviseringar");
+    render(); return;
+  }
+  if (nfAskMode() === "ios") { nfAskIosSheet(); return; }
+  b.disabled = true;
+  const st = await ensurePush();
+  toast(st === "ok" ? "Aviseringar påslagna" : st === "denied" ? "Aviseringar blockerades. Ändra i telefonens inställningar." : "Det gick inte att slå på aviseringar");
+  render();
+});
