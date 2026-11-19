@@ -1318,6 +1318,60 @@ header.top{overflow:hidden}
 .sh-done-b{display:flex;align-items:center;gap:14px}
 @media(max-width:620px){.sh-done-b{width:100%;padding-left:50px}}
 @media(min-width:700px){.sh-ed-form{align-items:center}.sh-edit{max-width:480px;border-radius:18px;border-bottom:2px solid #c9a55c;box-shadow:0 0 0 6px rgba(201,165,92,.22),0 30px 60px rgba(0,0,0,.45);animation:popin .18s ease-out}}
+/* Testläge Fråga Pappa: vilken modell svarade (bara admin) */
+.ai-model{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--sans);font-size:12px;letter-spacing:.04em;color:#8a8076;margin:2px 0 8px}
+.aim-tag{display:inline-flex;align-items:center;gap:5px;border:1px solid #e3d6bb;border-radius:999px;padding:2px 9px;background:#fffdf8;text-transform:uppercase;font-size:10.5px;letter-spacing:.08em;color:#7d6a45}
+.aim-tag i{width:6px;height:6px;border-radius:50%;background:#c9a55c;display:inline-block}
+.aim-tag.s i{background:#7d6a45}
+.ai-model button{font:inherit;font-size:12.5px;color:var(--brass,#9c7a3c);background:none;border:0;padding:0;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+/* Anteckningar som tidslinje: kompakta kort på en guldlinje, scrollruta när det blir fler än tre */
+.notes-tl h2{align-items:baseline}
+.nt-cnt{font-family:var(--serif);font-style:italic;font-size:18px;color:var(--muted);margin-left:8px}
+.nt-add{color:var(--brass);font-family:var(--sans);font-size:14px}
+.nt-scroll.end + .nt-hint{visibility:hidden}
+.nt-add:hover{color:var(--brass);border-bottom-color:var(--brass)}
+.nt-scroll.many{max-height:440px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-right:4px;scrollbar-width:thin;scrollbar-color:#c9a55c transparent;-webkit-mask-image:linear-gradient(#000 80%,transparent);mask-image:linear-gradient(#000 80%,transparent)}
+.nt-scroll.many.end{-webkit-mask-image:none;mask-image:none}
+.nt-scroll.many .nt-tl{padding-bottom:28px}
+.nt-hint{font-size:12.5px;color:var(--muted);text-align:center;margin-top:4px}
+.nt-tl{position:relative;padding-left:24px}
+.nt-tl::before{content:"";position:absolute;left:6px;top:16px;bottom:16px;border-left:1px solid #c9a55c}
+.nt-scroll.many .nt-tl::before{bottom:44px}
+.nt-it{position:relative;margin-bottom:10px}
+.nt-it::before{content:"";position:absolute;left:-23px;top:16px;width:10px;height:10px;border-radius:50%;background:var(--bg);border:1.5px solid var(--brass);box-sizing:border-box}
+.nt-it.k-pappa::before{background:#c9a55c;border-color:#c9a55c}
+.nt-date{display:none}
+.nt-card{background:#fff;border:1px solid #e9dfc9;border-radius:12px;padding:9px 14px 10px}
+.nt-it.k-pappa .nt-card{border-left:3px solid #c9a55c}
+.nt-hd{display:flex;align-items:center;gap:9px;cursor:pointer;min-height:30px;-webkit-tap-highlight-color:transparent}
+.nt-ico{width:22px;height:22px;flex:none;color:var(--brass)}
+.nt-ico.pen{width:19px;height:19px;color:var(--muted)}
+.nt-q{font-family:var(--serif);font-style:italic;font-weight:500;font-size:19px;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nt-it:not(.k-pappa) .nt-q{font-family:var(--sans);font-style:normal;font-weight:400;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.nt-m{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap;flex:1}
+.nt-chev{width:8px;height:8px;border-right:1.5px solid var(--brass);border-bottom:1.5px solid var(--brass);transform:rotate(45deg) translate(-2px,-2px);flex:none;margin:0 4px 0 6px;transition:transform .2s}
+.nt-card.open .nt-chev{transform:rotate(-135deg) translate(-2px,-2px)}
+.nt-pv{font-size:14px;line-height:1.5;color:#4a4542;margin:2px 0 0 31px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.nt-body{font-size:15px;line-height:1.6;margin:6px 0 0 31px;max-width:64ch;overflow-wrap:anywhere}
+.nt-body p{margin:0 0 8px}.nt-body ul{margin:2px 0 8px;padding-left:18px}.nt-body li{margin:2px 0}.nt-body strong{font-weight:500}
+.nt-tools{display:flex;gap:18px;margin:2px 0 0 31px}
+.nt-ed{margin-top:8px}
+.nt-ed textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:15px;background:#fffdf8;resize:vertical}
+.nt-ed .row{margin-top:10px;gap:10px}
+.nt-new{margin:0 0 14px}
+@media(min-width:800px){
+  .nt-tl{padding-left:112px}
+  .nt-tl::before{left:92px}
+  .nt-it::before{left:-25px}
+  .nt-date{display:block;position:absolute;left:-112px;width:76px;top:13px;text-align:right;white-space:nowrap;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .nt-m{visibility:hidden}
+  .nt-scroll.many{max-height:480px}
+}
+/* Pappa, fundera lite till: knapp under Haiku-svar + rubrik på det djupare svaret */
+.deep-row{display:flex;margin:4px 0 8px}
+.aiq.deep{flex:none}
+.aiq.deep .deep-ico{color:var(--brass,#9c7a3c);flex:none}
+.deep-head{font:600 11px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--brass,#9c7a3c);margin:0 0 4px}
 </style>
 </head>
 <body>

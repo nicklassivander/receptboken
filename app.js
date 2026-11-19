@@ -527,11 +527,7 @@ function renderDetail(){
         <p style="margin:0 0 12px">Ersätt ingredienser och steg i <b>${esc(base.title || "grundreceptet")}</b> med den här varianten.</p>
         <button class="btn accent small" data-a="mergevariant">Uppdatera grundreceptet</button></div>` : ""; })()}
 
-    ${detailState.notesEdit ? `<div class="panel notes-edit"><h2>Anteckningar</h2>
-        <textarea id="notes-input" rows="6" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(detailState.notesDraft ?? (r.notes || ""))}</textarea>
-        <div class="row" style="margin-top:12px"><button class="btn accent" data-a="notessave">Spara</button><button class="btn ghost" data-a="notescancel">Avbryt</button></div></div>`
-      : r.notes ? `<div class="panel"><h2><span>Anteckningar</span>${canEdit(r) ? `<button class="linkbtn" data-a="notesedit">Redigera</button>` : ""}</h2><div class="prewrap">${esc(r.notes)}</div></div>`
-      : canEdit(r) ? `<div class="panel notes-empty"><button class="linkbtn" data-a="notesedit">+ Lägg till anteckning</button></div>` : ""}
+    ${notesPanelHtml(r)}
 
     ${historyHtml(r)}
 
@@ -594,8 +590,8 @@ function renderEdit(){
       <textarea name="myChanges" rows="3" placeholder="t.ex. Bytte grädde mot crème fraiche, dubbel vitlök, 5 min kortare i ugnen">${esc(d.myChanges)}</textarea>
       <div class="hint">Vad varianten gör annorlunda än originalet.</div>` : `<input type="hidden" name="myChanges" value="${esc(d.myChanges || "")}">`}
 
-      <label>Anteckningar</label>
-      <textarea name="notes" rows="3" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(d.notes)}</textarea>
+      ${Array.isArray(d.noteItems) ? "" : `<label>Anteckningar</label>
+      <textarea name="notes" rows="3" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(d.notes)}</textarea>`}
 
       <label>Bild på rätten</label>
       <div class="photo-pick">
@@ -622,7 +618,7 @@ function readForm(){
   draft.ingredients = linesOf(v("ingredients"));
   draft.steps = linesOf(v("steps")).map(s => s.replace(/^\d+[.)]\s*/, ""));
   draft.myChanges = v("myChanges").trim();
-  draft.notes = v("notes").trim();
+  if (f.elements.notes) draft.notes = v("notes").trim();
   if (f.elements.variantName) {
     const vn = v("variantName").trim();
     if (vn) { draft.variantName = vn; draft.variantNameAuto = false; }
@@ -713,8 +709,11 @@ function aiOutHtml(id){
     // Klart: lampan till vänster, svaret bredvid, frågan under svaret. Lampan tänds bara första gången svaret visas.
     const fresh = !it._lit; it._lit = true;
     return `<div class="ai-row">${IDEA_SVG(fresh)}<div class="ai-body">
+      ${it.deep ? `<div class="deep-head">Pappa har funderat lite till</div>` : ""}
       <div class="ai-a">${aiMd(it.a)}</div>
-      <div class="ai-q under">${esc(it.q)}</div>
+      <div class="ai-q under">${esc(it.q)}${it.deep ? " · pappa funderade lite till" : ""}</div>
+      ${aiModelHtml(it, i)}
+      ${aiDeepHtml(it, i)}
       ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
       ${!it.busy && it.check ? `<div class="aic-check ${it.check.level}"><b>${it.check.level === "warn" ? "⚠ Tänk på" : "💡 Tips"}</b> ${esc(it.check.text)}</div>` : ""}
       ${!it.busy && it.change && !it.dismissed ? (() => { const rr = recipes.find(x => x.id === id); return rr ? `<div class="aic">
@@ -728,12 +727,13 @@ function aiOutHtml(id){
 }
 function aiRefresh(id){ const el = document.getElementById("ai-out"); if (el && view.id === id) el.innerHTML = aiOutHtml(id); }
 
-async function askAI(r, kind, freeText){
+// Snabbknapparna är rena frågor → Haiku. sonnet = true när någon trycker "Pappa, fundera lite till".
+async function askAI(r, kind, freeText, sonnet){
   if (!sample) return;
   const items = aiState[r.id] || (aiState[r.id] = []);
   if (items.some(x => x.busy)) return;
   const q = kind ? AI_PRESETS[kind].label : freeText;
-  const item = { q, a: "", busy: true, err: "" };
+  const item = { q, a: "", busy: true, err: "", kind, model: sonnet ? "sonnet" : "haiku", deep: !!sonnet };
   items.push(item); aiRefresh(r.id);
 
   const others = kind === "similar"
@@ -743,30 +743,54 @@ async function askAI(r, kind, freeText){
 
 RECEPTET:
 ${recipeText(r)}${r.notes ? "\n\nANTECKNINGAR: " + r.notes : ""}${others}`;
-  const history = items.slice(0, -1).filter(x => x.a && !x.err).slice(-3);
+  const history = items.slice(0, -1).filter(x => x.a && !x.err && !(sonnet && x.q === q)).slice(-3);
   // Rebuild a short conversation so follow-up questions have context.
   const convo = [];
   history.forEach((h, i) => { convo.push({ role: "user", content: (i === 0 ? context + "\n\nFRÅGA: " : "") + h.q }); convo.push({ role: "assistant", content: h.a }); });
-  const ask = kind ? AI_PRESETS[kind].prompt : freeText;
+  const ask = (kind ? AI_PRESETS[kind].prompt : freeText) + (sonnet ? "\n\nFundera lite till: ge ett grundligare och mer genomtänkt svar än en snabb första tanke." : "");
   convo.push({ role: "user", content: (convo.length ? "" : context + "\n\nFRÅGA: ") + ask });
 
   try {
-    item.a = await ai(convo);
+    item.a = await ai(convo, { fast: !sonnet });
   } catch (e) {
     item.err = aiErr(e);
   }
   item.busy = false; aiRefresh(r.id);
 }
 
-// Fråga eller ändra: Claude avgör om det är en fråga, en ändring eller båda, och kontrollerar ändringen
-async function askOrEdit(r, text){
+// Fråga eller ändra: Haiku svarar på rena frågor. Ser Haiku en ändring (eller "kan jag byta X mot Y?")
+// lämnas den över till Sonnet, som avgör, gör ändringen och kontrollerar den. sonnet = true hoppar över Haiku.
+async function askOrEdit(r, text, sonnet){
   if (!sample) return;
   const items = aiState[r.id] || (aiState[r.id] = []);
   if (items.some(x => x.busy)) return;
-  const item = { q: text, a: "", busy: true, err: "" };
+  const item = { q: text, a: "", busy: true, err: "", model: sonnet ? "sonnet" : "haiku", deep: !!sonnet };
   items.push(item); aiRefresh(r.id);
   const current = { title: r.title, servings: r.servings || null, time: r.time || "", ingredients: r.ingredients || [], steps: r.steps || [] };
-  const earlier = items.slice(0, -1).filter(x => x.a && !x.err).slice(-3).map(x => `F: ${x.q}\nS: ${x.a}`).join("\n\n");
+  const earlier = items.slice(0, -1).filter(x => x.a && !x.err && !(sonnet && x.q === text)).slice(-3).map(x => `F: ${x.q}\nS: ${x.a}`).join("\n\n");
+  const recipeCtx = `RECEPTET:
+${JSON.stringify(current)}${r.notes ? "\nANTECKNINGAR: " + r.notes : ""}${earlier ? "\n\nTIDIGARE I SAMTALET:\n" + earlier : ""}
+
+ANVÄNDAREN SKRIVER:
+${text}`;
+  if (!sonnet) {
+    const triage = `Du är en erfaren kock och sommelier som hjälper en svensk hemmakock med ett recept. Svara på svenska, konkret och utan artighetsfraser.
+Avgör vad användaren vill:
+- En ren fråga om receptet (vin, tillbehör, frysa, hållbarhet, teknik, vad något betyder …): svara kort, max 150 ord, gärna punktlista.
+- Användaren vill ändra receptet (byta, ta bort, lägga till, skala om, fler/färre portioner, dela upp steg …) eller frågar om en möjlig ändring ("kan jag byta X mot Y?", "går det utan Z?"): svara INTE, skriv bara {"typ": "ändring"}.
+Är du osäker, välj "ändring".
+Svara ENDAST med JSON: {"typ": "fråga", "svar": "svaret"} eller {"typ": "ändring"}
+
+${recipeCtx}`;
+    try {
+      const out = parseJson(await ai(triage, { mode: "json", fast: true }));
+      const svar = String(out.svar || "").trim();
+      if (out.typ === "fråga" && svar) { item.a = svar; item.busy = false; aiRefresh(r.id); return; }
+    } catch (e) {
+      if (e && (e.code === "auth" || e.code === "network" || e.code === "rate")) { item.err = aiErr(e); item.busy = false; aiRefresh(r.id); return; }
+    }
+    item.model = "haiku>sonnet";   // ändring, oklart svar eller trasig JSON → Sonnet tar över
+  }
   const prompt = `Du är en erfaren kock och sommelier som hjälper en svensk hemmakock med ett recept. Svara på svenska, konkret och utan artighetsfraser.
 Avgör vad användaren vill:
 - "fråga": en fråga om receptet (vin, tillbehör, frysa, teknik …). Svara kort, max 150 ord, gärna punktlista.
@@ -777,11 +801,7 @@ Svara ENDAST med JSON:
 {"typ": "fråga"|"ändring"|"båda", "svar": "svaret på frågan, eller en mening om vad du ändrade", "ändring": null eller {"title": string, "servings": number|null, "time": string, "ingredients": [string], "steps": [string], "summary": "kort mening om vad som ändrats"}, "kontroll": null eller {"nivå": "varning"|"tips", "text": "max 2 meningar"}}
 Regler för ändring: ingredienser en per rad, mängd först; steg utan numrering; rubriker börjar med "# "; tider i stegen med siffror och enhet (t.ex. "15 min").
 
-RECEPTET:
-${JSON.stringify(current)}${r.notes ? "\nANTECKNINGAR: " + r.notes : ""}${earlier ? "\n\nTIDIGARE I SAMTALET:\n" + earlier : ""}
-
-ANVÄNDAREN SKRIVER:
-${text}`;
+${recipeCtx}${sonnet ? "\n\n(Användaren bad dig fundera lite till: ge ett grundligare och mer genomtänkt svar än en snabb första tanke.)" : ""}`;
   try {
     const out = parseJson(await ai(prompt, { mode: "json" }));
     item.a = String(out.svar || "").trim() || (out["ändring"] ? "Här är ändringen." : "");
@@ -1137,7 +1157,7 @@ document.addEventListener("click", async e => {
     case "promote": {
       if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Säker? Originalet skrivs över"; break; }
       const note = (cur.myChanges ? cur.myChanges + "\n\n" : "") + `${today()}: Min version blev nytt original.`;
-      if (await patch(cur.id, { original: { servings: cur.servings || null, ingredients: cur.ingredients || [], steps: cur.steps || [] }, myChanges: "" , notes: [cur.notes, note.replace(/^\n+/, "")].filter(Boolean).join("\n\n") })) {
+      if (await patch(cur.id, { original: { servings: cur.servings || null, ingredients: cur.ingredients || [], steps: cur.steps || [] }, myChanges: "" , ...notesWith(cur, noteNew("log", note.replace(/^\n+/, ""))) })) {
         detailState.mode = "mine"; toast("Klart – Min version är nu originalet"); render();
       }
       break;
@@ -1157,7 +1177,7 @@ document.addEventListener("click", async e => {
         const line = `${today()}: Uppdaterad med varianten ${variantLabel(v)} (${nameOf(addedByOf(v))}).` + (v.myChanges ? "\n" + v.myChanges : "");
         const ok = await patch(base.id, {
           ingredients: v.ingredients || [], steps: v.steps || [], servings: v.servings || base.servings || null,
-          notes: [base.notes, line].filter(Boolean).join("\n\n"),
+          ...notesWith(base, noteNew("log", line)),
         });
         if (!ok) { $id("mvYes").disabled = false; return; }
         const del = $id("mvDel") && $id("mvDel").checked;
@@ -1225,11 +1245,17 @@ document.addEventListener("click", async e => {
     case "shop": openShopFromRecipe(cur); break;
     case "shopfab": openShop(); break;
     case "aiapply": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it) applyAiChange(cur, it); break; }
+    case "aideep": {   // "Pappa, fundera lite till": samma fråga till Sonnet, en gång per svar
+      const list = aiState[cur.id] || [], it = list[+el.dataset.i];
+      if (!it || it.deeper || list.some(x => x.busy)) break;
+      it.deeper = true;
+      if (it.kind) askAI(cur, it.kind, null, true); else askOrEdit(cur, it.q, true);
+      break;
+    }
     case "aidismiss": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it) { it.dismissed = true; aiRefresh(cur.id); } break; }
     case "aisave": {
       const it = (aiState[cur.id] || [])[+el.dataset.i]; if (!it) break;
-      const add = `${it.q}\n${it.a.replace(/\*\*/g, "")}`;
-      if (await patch(cur.id, { notes: [cur.notes, add].filter(Boolean).join("\n\n") })) { el.textContent = "✓ Sparat"; el.disabled = true; toast("Sparat i anteckningar"); }
+      if (await addNote(cur, noteNew("pappa", it.a, it.q))) { el.textContent = "✓ Sparat"; el.disabled = true; toast("Sparat i anteckningar"); }
       break;
     }
     case "closeimport": closeImport(); break;
@@ -2095,7 +2121,7 @@ function renderHelp(){
       <ul>
         <li>Rader som börjar med <b>#</b> blir rubriker – bland ingredienserna (<i># Till såsen</i>) och i stegen (<i># Dagen innan</i>, <i># Vid servering</i>).</li>
         <li><b>Anteckningar:</b> tryck <i>Redigera</i> och skriv direkt i receptet.</li>
-        <li><b>Fråga kocken och sommelieren</b> längst ner i receptet: tryck <b>Vilket vin passar?</b> eller <b>Vad serverar jag till?</b>, eller skriv en egen fråga (<i>kan jag frysa den?</i>) eller vad du vill ändra (<i>byt grädde mot crème fraiche</i>, <i>gör den för 8 personer</i>) och tryck <b>Fråga Pappa</b>.</li>
+        <li><b>Fråga kocken och sommelieren</b> längst ner i receptet: tryck <b>Vilket vin passar?</b> eller <b>Vad serverar jag till?</b>, eller skriv en egen fråga (<i>kan jag frysa den?</i>) eller vad du vill ändra (<i>byt grädde mot crème fraiche</i>, <i>gör den för 8 personer</i>) och tryck <b>Fråga Pappa</b>. Vill du ha ett mer genomtänkt svar trycker du <b>Pappa, fundera lite till</b> under svaret.</li>
         <li>Medan pappa tänker snurrar kugghjulet och texten skiftar (<i>Pappa smakar av …</i>). När lampan tänds är svaret klart – det står bredvid lampan, med din fråga under. Gäller det en ändring visas de rader som tas bort (−) och läggs till (+).</li>
         <li>Ändringar kontrolleras: kan något misslyckas eller bli osäkert står det <b>⚠ Tänk på</b>, går det att göra bättre står det <b>💡 Tips</b>. Tryck <b>Använd ändringen</b> för att granska och spara (som variant eller i originalet) – på någon annans recept blir det <b>din egen variant</b>.</li>
       </ul>`)}
@@ -3449,6 +3475,7 @@ function renderShopFab(){
   try { fitTitle(); } catch {}
   try { hdrSlides(); } catch {}
   try { imgSugKick(); } catch {}
+  try { notesScrollRestore(); } catch {}
   try { const t = document.getElementById("ai-input"); if (t && !t.value) { t.style.height = ""; if (t.scrollHeight > t.clientHeight + 1) t.style.height = (t.scrollHeight + 2) + "px"; } } catch {}
   let b = document.getElementById("shopfab");
   // Startsidan: alltid (ingång till listan). Inne i ett recept m.m.: bara när det finns en aktiv lista med varor kvar
@@ -4243,3 +4270,119 @@ function shopDoneBind(box, l){
     shopEdDelete(all, "Inköpslistan är tömd", true);
   };
 }
+
+// ---------- Testläge: vilken modell svarade i Fråga Pappa (syns bara för admin) ----------
+// Sätt till false (eller ta bort) när testet är klart.
+var PAPPA_TEST = true;
+function aiModelHtml(it, i){
+  if (!PAPPA_TEST || !can("admin") || it.busy || it.err || !it.model) return "";
+  const tag = (m) => `<span class="aim-tag${m === "sonnet" ? " s" : ""}"><i></i>${m === "sonnet" ? "Sonnet" : "Haiku"}</span>`;
+  if (it.model === "haiku>sonnet") return `<div class="ai-model">${tag("haiku")}→${tag("sonnet")}ändring</div>`;
+  return `<div class="ai-model">${tag(it.model)}</div>`;
+}
+
+// "Pappa, fundera lite till": under svar från Haiku (inte ändringar), för alla. Ställer samma fråga till Sonnet.
+function aiDeepHtml(it, i){
+  if (it.busy || it.err || it.model !== "haiku" || it.deeper || it.change || !it.a) return "";
+  const ico = THINK_SVG.replace('class="think-ico"', 'class="deep-ico"').replace('width="30" height="30"', 'width="22" height="22"');
+  return `<div class="deep-row"><button type="button" class="aiq deep" data-a="aideep" data-i="${i}">${ico}Pappa, fundera lite till</button></div>`;
+}
+
+// ---------- Anteckningar som tidslinje (förslag E1) ----------
+// r.noteItems = [{ id, kind: "pappa" | "own" | "log" | "old", q, text, date, by }], äldst först.
+// r.notes hålls i synk som ren text, så sökningen, Pappa och äldre appversioner fungerar som förut.
+var noteUi = { open: null, edit: null, scroll: {}, armed: null };
+var NOTE_HAT = `<svg class="nt-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><path d="M11.5 11a2.6 2.6 0 0 0-1.5 4.7v1h3v-1A2.6 2.6 0 0 0 11.5 11z" fill="currentColor" fill-opacity=".3"/><path d="M10.4 18h2.2"/></svg>`;
+var NOTE_PEN = `<svg class="nt-ico pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>`;
+function notesText(items){
+  return items.map(n => ((n.kind === "pappa" && n.q ? n.q + "\n" : "") + String(n.text || "").replace(/\*\*/g, "")).trim()).filter(Boolean).join("\n\n");
+}
+function noteItemsOf(r){
+  if (!r) return [];
+  if (!Array.isArray(r.noteItems)) return r.notes && r.notes.trim() ? [{ id: "old", kind: "old", text: r.notes.trim() }] : [];
+  const items = r.noteItems.slice();
+  // Text som en äldre appversion har lagt till direkt i r.notes visas som en egen post
+  const txt = notesText(items), n = (r.notes || "").trim();
+  if (n && n !== txt && n.startsWith(txt)) { const tail = n.slice(txt.length).trim(); if (tail) items.push({ id: "x" + txt.length, kind: "own", text: tail }); }
+  return items;
+}
+function noteNew(kind, text, q){
+  return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind, q: q || "", text: String(text || "").trim(), date: today(), by: me || "" };
+}
+function notesWith(r, add){ const items = noteItemsOf(r).concat(add ? [add] : []); return { noteItems: items, notes: notesText(items) }; }
+function saveNoteItems(r, items){ return patch(r.id, { noteItems: items, notes: notesText(items) }); }
+function addNote(r, n){ return patch(r.id, notesWith(r, n)); }
+function noteTitle(n){ return n.kind === "pappa" ? (n.q || "Pappa") : n.kind === "old" ? "Äldre anteckningar" : n.kind === "log" ? "Ändring i receptet" : "Egen anteckning"; }
+function noteShortDate(d){
+  if (!d) return "";
+  try { const x = new Date(d); const o = { day: "numeric", month: "short" }; if (x.getFullYear() !== new Date().getFullYear()) o.year = "numeric"; return x.toLocaleDateString("sv-SE", o).replace(".", ""); } catch { return d; }
+}
+function notePreview(t){ return String(t || "").replace(/\*\*/g, "").split("\n").map(l => l.trim().replace(/^([-*•]|\d+[.)]|#+)\s+/, "")).filter(Boolean).join(" · "); }
+function notesPanelHtml(r){
+  const ed = canEdit(r);
+  const items = noteItemsOf(r).slice().reverse();
+  if (noteUi.rid !== r.id) { noteUi.rid = r.id; noteUi.open = null; noteUi.edit = null; noteUi.armed = null; }
+  if (!items.length && noteUi.edit !== "new") return ed ? `<div class="panel notes-empty"><button class="linkbtn" data-a="ntnew">+ Lägg till anteckning</button></div>` : "";
+  const editor = (id, val) => `<div class="nt-ed"><textarea id="nt-input" data-n="${esc(id)}" rows="4" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(noteUi.draftFor === id ? noteUi.draft : val)}</textarea>
+    <div class="row"><button class="btn accent small" data-a="ntsave" data-n="${esc(id)}">Spara</button><button class="btn ghost small" data-a="ntcancel">Avbryt</button></div></div>`;
+  const card = n => {
+    const open = noteUi.open === n.id || noteUi.edit === n.id, editing = noteUi.edit === n.id;
+    const who = n.kind === "pappa" ? "Pappa" : n.by ? nameOf(n.by) : "";
+    const date = noteShortDate(n.date);
+    return `<div class="nt-it k-${n.kind}">
+      <div class="nt-date">${esc(date)}</div>
+      <div class="nt-card${open ? " open" : ""}">
+        <div class="nt-hd" data-a="ntopen" data-n="${esc(n.id)}" role="button" aria-expanded="${open}">
+          ${n.kind === "pappa" ? NOTE_HAT : NOTE_PEN}
+          <span class="nt-q">${esc(noteTitle(n))}</span>
+          <span class="nt-m">${esc([date, open && who && n.kind !== "pappa" ? who : ""].filter(Boolean).join(" · "))}</span>
+          <span class="nt-chev" aria-hidden="true"></span>
+        </div>
+        ${editing ? editor(n.id, n.text || "")
+          : open ? `<div class="nt-body">${aiMd(n.text || "")}</div>${ed ? `<div class="nt-tools"><button class="linkbtn" data-a="ntedit" data-n="${esc(n.id)}">Redigera</button><button class="linkbtn${noteUi.armed === n.id ? " armed" : ""}" data-a="ntdel" data-n="${esc(n.id)}">${noteUi.armed === n.id ? "Säker? Tryck igen" : "Ta bort"}</button></div>` : ""}`
+          : `<div class="nt-pv">${esc(notePreview(n.text))}</div>`}
+      </div></div>`;
+  };
+  const many = items.length > 3;
+  return `<div class="panel notes-tl"><h2><span>Anteckningar${items.length > 1 ? `<span class="nt-cnt">${items.length}</span>` : ""}</span>${ed && noteUi.edit !== "new" ? `<button class="linkbtn nt-add" data-a="ntnew">+ Ny anteckning</button>` : ""}</h2>
+    ${noteUi.edit === "new" ? `<div class="nt-new">${editor("new", "")}</div>` : ""}
+    ${items.length ? `<div class="nt-scroll${many ? " many" : ""}" id="nt-scroll" data-rid="${esc(r.id)}"><div class="nt-tl">${items.map(card).join("")}</div></div>
+    ${many ? `<div class="nt-hint">Scrolla för äldre anteckningar</div>` : ""}` : ""}
+  </div>`;
+}
+function notesScrollRestore(){
+  const s = document.getElementById("nt-scroll"); if (!s) return;
+  const top = noteUi.scroll[s.dataset.rid]; if (top) s.scrollTop = top;
+  if (!s._nt) { s._nt = 1; s.addEventListener("scroll", () => { noteUi.scroll[s.dataset.rid] = s.scrollTop; s.classList.toggle("end", s.scrollTop + s.clientHeight >= s.scrollHeight - 4); }, { passive: true }); }
+  s.classList.toggle("end", s.scrollTop + s.clientHeight >= s.scrollHeight - 4);
+}
+// behåll texten om sidan ritas om medan man skriver
+document.addEventListener("input", e => { if (e.target.id === "nt-input") { noteUi.draftFor = e.target.dataset.n; noteUi.draft = e.target.value; } });
+function noteFocus(){ const t = document.getElementById("nt-input"); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+document.addEventListener("click", async e => {
+  const el = e.target.closest("[data-a^='nt']"); if (!el) return;
+  const a = el.dataset.a; if (!["ntopen", "ntnew", "ntedit", "ntdel", "ntsave", "ntcancel"].includes(a)) return;
+  const r = view.id ? recipes.find(x => x.id === view.id) : null; if (!r) return;
+  const id = el.dataset.n;
+  if (a !== "ntopen" && a !== "ntcancel" && !canEdit(r)) { toast("Det här är " + genitive(nameOf(addedByOf(r))) + " recept – gör din egen variant för att ändra"); return; }
+  if (a !== "ntdel") noteUi.armed = null;
+  if (a === "ntnew" || a === "ntedit" || a === "ntcancel" || a === "ntsave") { if (a !== "ntsave") { noteUi.draftFor = null; noteUi.draft = ""; } }
+  if (a === "ntopen") { if (noteUi.edit === id) return; noteUi.open = noteUi.open === id ? null : id; render(); return; }
+  if (a === "ntcancel") { noteUi.edit = null; render(); return; }
+  if (a === "ntnew") { noteUi.edit = "new"; noteUi.open = null; render(); noteFocus(); return; }
+  if (a === "ntedit") { noteUi.edit = id; noteUi.open = id; render(); noteFocus(); return; }
+  if (a === "ntdel") {
+    if (noteUi.armed !== id) { noteUi.armed = id; render(); setTimeout(() => { if (noteUi.armed === id) { noteUi.armed = null; render(); } }, 3500); return; }
+    noteUi.armed = null; noteUi.open = null;
+    if (await saveNoteItems(r, noteItemsOf(r).filter(n => n.id !== id))) toast("Anteckningen är borttagen");
+    return;
+  }
+  if (a === "ntsave") {
+    const val = ($id("nt-input") ? $id("nt-input").value : "").trim();
+    let items = noteItemsOf(r);
+    if (id === "new") { if (!val) { noteUi.edit = null; render(); return; } items = items.concat(noteNew("own", val)); }
+    else items = val ? items.map(n => n.id === id ? { ...n, text: val } : n) : items.filter(n => n.id !== id);
+    noteUi.edit = null; noteUi.draftFor = null; if (id === "new") { noteUi.open = null; noteUi.scroll[r.id] = 0; }
+    if (await saveNoteItems(r, items)) toast("Anteckningen är sparad");
+  }
+});
