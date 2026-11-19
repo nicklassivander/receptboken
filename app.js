@@ -527,11 +527,7 @@ function renderDetail(){
         <p style="margin:0 0 12px">Ersätt ingredienser och steg i <b>${esc(base.title || "grundreceptet")}</b> med den här varianten.</p>
         <button class="btn accent small" data-a="mergevariant">Uppdatera grundreceptet</button></div>` : ""; })()}
 
-    ${detailState.notesEdit ? `<div class="panel notes-edit"><h2>Anteckningar</h2>
-        <textarea id="notes-input" rows="6" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(detailState.notesDraft ?? (r.notes || ""))}</textarea>
-        <div class="row" style="margin-top:12px"><button class="btn accent" data-a="notessave">Spara</button><button class="btn ghost" data-a="notescancel">Avbryt</button></div></div>`
-      : r.notes ? `<div class="panel"><h2><span>Anteckningar</span>${canEdit(r) ? `<button class="linkbtn" data-a="notesedit">Redigera</button>` : ""}</h2><div class="prewrap">${esc(r.notes)}</div></div>`
-      : canEdit(r) ? `<div class="panel notes-empty"><button class="linkbtn" data-a="notesedit">+ Lägg till anteckning</button></div>` : ""}
+    ${notesPanelHtml(r)}
 
     ${historyHtml(r)}
 
@@ -594,8 +590,8 @@ function renderEdit(){
       <textarea name="myChanges" rows="3" placeholder="t.ex. Bytte grädde mot crème fraiche, dubbel vitlök, 5 min kortare i ugnen">${esc(d.myChanges)}</textarea>
       <div class="hint">Vad varianten gör annorlunda än originalet.</div>` : `<input type="hidden" name="myChanges" value="${esc(d.myChanges || "")}">`}
 
-      <label>Anteckningar</label>
-      <textarea name="notes" rows="3" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(d.notes)}</textarea>
+      ${Array.isArray(d.noteItems) ? "" : `<label>Anteckningar</label>
+      <textarea name="notes" rows="3" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(d.notes)}</textarea>`}
 
       <label>Bild på rätten</label>
       <div class="photo-pick">
@@ -622,7 +618,7 @@ function readForm(){
   draft.ingredients = linesOf(v("ingredients"));
   draft.steps = linesOf(v("steps")).map(s => s.replace(/^\d+[.)]\s*/, ""));
   draft.myChanges = v("myChanges").trim();
-  draft.notes = v("notes").trim();
+  if (f.elements.notes) draft.notes = v("notes").trim();
   if (f.elements.variantName) {
     const vn = v("variantName").trim();
     if (vn) { draft.variantName = vn; draft.variantNameAuto = false; }
@@ -1159,7 +1155,7 @@ document.addEventListener("click", async e => {
     case "promote": {
       if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Säker? Originalet skrivs över"; break; }
       const note = (cur.myChanges ? cur.myChanges + "\n\n" : "") + `${today()}: Min version blev nytt original.`;
-      if (await patch(cur.id, { original: { servings: cur.servings || null, ingredients: cur.ingredients || [], steps: cur.steps || [] }, myChanges: "" , notes: [cur.notes, note.replace(/^\n+/, "")].filter(Boolean).join("\n\n") })) {
+      if (await patch(cur.id, { original: { servings: cur.servings || null, ingredients: cur.ingredients || [], steps: cur.steps || [] }, myChanges: "" , ...notesWith(cur, noteNew("log", note.replace(/^\n+/, ""))) })) {
         detailState.mode = "mine"; toast("Klart – Min version är nu originalet"); render();
       }
       break;
@@ -1179,7 +1175,7 @@ document.addEventListener("click", async e => {
         const line = `${today()}: Uppdaterad med varianten ${variantLabel(v)} (${nameOf(addedByOf(v))}).` + (v.myChanges ? "\n" + v.myChanges : "");
         const ok = await patch(base.id, {
           ingredients: v.ingredients || [], steps: v.steps || [], servings: v.servings || base.servings || null,
-          notes: [base.notes, line].filter(Boolean).join("\n\n"),
+          ...notesWith(base, noteNew("log", line)),
         });
         if (!ok) { $id("mvYes").disabled = false; return; }
         const del = $id("mvDel") && $id("mvDel").checked;
@@ -1251,8 +1247,7 @@ document.addEventListener("click", async e => {
     case "aidismiss": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it) { it.dismissed = true; aiRefresh(cur.id); } break; }
     case "aisave": {
       const it = (aiState[cur.id] || [])[+el.dataset.i]; if (!it) break;
-      const add = `${it.q}\n${it.a.replace(/\*\*/g, "")}`;
-      if (await patch(cur.id, { notes: [cur.notes, add].filter(Boolean).join("\n\n") })) { el.textContent = "✓ Sparat"; el.disabled = true; toast("Sparat i anteckningar"); }
+      if (await addNote(cur, noteNew("pappa", it.a, it.q))) { el.textContent = "✓ Sparat"; el.disabled = true; toast("Sparat i anteckningar"); }
       break;
     }
     case "closeimport": closeImport(); break;
@@ -3472,6 +3467,7 @@ function renderShopFab(){
   try { fitTitle(); } catch {}
   try { hdrSlides(); } catch {}
   try { imgSugKick(); } catch {}
+  try { notesScrollRestore(); } catch {}
   try { const t = document.getElementById("ai-input"); if (t && !t.value) { t.style.height = ""; if (t.scrollHeight > t.clientHeight + 1) t.style.height = (t.scrollHeight + 2) + "px"; } } catch {}
   let b = document.getElementById("shopfab");
   // Startsidan: alltid (ingång till listan). Inne i ett recept m.m.: bara när det finns en aktiv lista med varor kvar
@@ -4275,3 +4271,102 @@ function aiModelHtml(it, i){
   if (it.model === "sonnet") return `<div class="ai-model">${tag("sonnet")}${it.redo ? "jämförelse" : ""}</div>`;
   return `<div class="ai-model">${tag("haiku")}<button type="button" data-a="aisonnet" data-i="${i}">Fråga Sonnet i stället</button></div>`;
 }
+
+// ---------- Anteckningar som tidslinje (förslag E1) ----------
+// r.noteItems = [{ id, kind: "pappa" | "own" | "log" | "old", q, text, date, by }], äldst först.
+// r.notes hålls i synk som ren text, så sökningen, Pappa och äldre appversioner fungerar som förut.
+var noteUi = { open: null, edit: null, scroll: {}, armed: null };
+var NOTE_HAT = `<svg class="nt-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><path d="M11.5 11a2.6 2.6 0 0 0-1.5 4.7v1h3v-1A2.6 2.6 0 0 0 11.5 11z" fill="currentColor" fill-opacity=".3"/><path d="M10.4 18h2.2"/></svg>`;
+var NOTE_PEN = `<svg class="nt-ico pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>`;
+function notesText(items){
+  return items.map(n => ((n.kind === "pappa" && n.q ? n.q + "\n" : "") + String(n.text || "").replace(/\*\*/g, "")).trim()).filter(Boolean).join("\n\n");
+}
+function noteItemsOf(r){
+  if (!r) return [];
+  if (!Array.isArray(r.noteItems)) return r.notes && r.notes.trim() ? [{ id: "old", kind: "old", text: r.notes.trim() }] : [];
+  const items = r.noteItems.slice();
+  // Text som en äldre appversion har lagt till direkt i r.notes visas som en egen post
+  const txt = notesText(items), n = (r.notes || "").trim();
+  if (n && n !== txt && n.startsWith(txt)) { const tail = n.slice(txt.length).trim(); if (tail) items.push({ id: "x" + txt.length, kind: "own", text: tail }); }
+  return items;
+}
+function noteNew(kind, text, q){
+  return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind, q: q || "", text: String(text || "").trim(), date: today(), by: me || "" };
+}
+function notesWith(r, add){ const items = noteItemsOf(r).concat(add ? [add] : []); return { noteItems: items, notes: notesText(items) }; }
+function saveNoteItems(r, items){ return patch(r.id, { noteItems: items, notes: notesText(items) }); }
+function addNote(r, n){ return patch(r.id, notesWith(r, n)); }
+function noteTitle(n){ return n.kind === "pappa" ? (n.q || "Pappa") : n.kind === "old" ? "Äldre anteckningar" : n.kind === "log" ? "Ändring i receptet" : "Egen anteckning"; }
+function noteShortDate(d){
+  if (!d) return "";
+  try { const x = new Date(d); const o = { day: "numeric", month: "short" }; if (x.getFullYear() !== new Date().getFullYear()) o.year = "numeric"; return x.toLocaleDateString("sv-SE", o).replace(".", ""); } catch { return d; }
+}
+function notePreview(t){ return String(t || "").replace(/\*\*/g, "").split("\n").map(l => l.trim().replace(/^([-*•]|\d+[.)]|#+)\s+/, "")).filter(Boolean).join(" · "); }
+function notesPanelHtml(r){
+  const ed = canEdit(r);
+  const items = noteItemsOf(r).slice().reverse();
+  if (noteUi.rid !== r.id) { noteUi.rid = r.id; noteUi.open = null; noteUi.edit = null; noteUi.armed = null; }
+  if (!items.length && noteUi.edit !== "new") return ed ? `<div class="panel notes-empty"><button class="linkbtn" data-a="ntnew">+ Lägg till anteckning</button></div>` : "";
+  const editor = (id, val) => `<div class="nt-ed"><textarea id="nt-input" data-n="${esc(id)}" rows="4" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(noteUi.draftFor === id ? noteUi.draft : val)}</textarea>
+    <div class="row"><button class="btn accent small" data-a="ntsave" data-n="${esc(id)}">Spara</button><button class="btn ghost small" data-a="ntcancel">Avbryt</button></div></div>`;
+  const card = n => {
+    const open = noteUi.open === n.id || noteUi.edit === n.id, editing = noteUi.edit === n.id;
+    const who = n.kind === "pappa" ? "Pappa" : n.by ? nameOf(n.by) : "";
+    const date = noteShortDate(n.date);
+    return `<div class="nt-it k-${n.kind}">
+      <div class="nt-date">${esc(date)}</div>
+      <div class="nt-card${open ? " open" : ""}">
+        <div class="nt-hd" data-a="ntopen" data-n="${esc(n.id)}" role="button" aria-expanded="${open}">
+          ${n.kind === "pappa" ? NOTE_HAT : NOTE_PEN}
+          <span class="nt-q">${esc(noteTitle(n))}</span>
+          <span class="nt-m">${esc([date, open && who && n.kind !== "pappa" ? who : ""].filter(Boolean).join(" · "))}</span>
+          <span class="nt-chev" aria-hidden="true"></span>
+        </div>
+        ${editing ? editor(n.id, n.text || "")
+          : open ? `<div class="nt-body">${aiMd(n.text || "")}</div>${ed ? `<div class="nt-tools"><button class="linkbtn" data-a="ntedit" data-n="${esc(n.id)}">Redigera</button><button class="linkbtn${noteUi.armed === n.id ? " armed" : ""}" data-a="ntdel" data-n="${esc(n.id)}">${noteUi.armed === n.id ? "Säker? Tryck igen" : "Ta bort"}</button></div>` : ""}`
+          : `<div class="nt-pv">${esc(notePreview(n.text))}</div>`}
+      </div></div>`;
+  };
+  const many = items.length > 3;
+  return `<div class="panel notes-tl"><h2><span>Anteckningar${items.length > 1 ? `<span class="nt-cnt">${items.length}</span>` : ""}</span>${ed && noteUi.edit !== "new" ? `<button class="linkbtn nt-add" data-a="ntnew">+ Ny anteckning</button>` : ""}</h2>
+    ${noteUi.edit === "new" ? `<div class="nt-new">${editor("new", "")}</div>` : ""}
+    ${items.length ? `<div class="nt-scroll${many ? " many" : ""}" id="nt-scroll" data-rid="${esc(r.id)}"><div class="nt-tl">${items.map(card).join("")}</div></div>
+    ${many ? `<div class="nt-hint">Scrolla för äldre anteckningar</div>` : ""}` : ""}
+  </div>`;
+}
+function notesScrollRestore(){
+  const s = document.getElementById("nt-scroll"); if (!s) return;
+  const top = noteUi.scroll[s.dataset.rid]; if (top) s.scrollTop = top;
+  if (!s._nt) { s._nt = 1; s.addEventListener("scroll", () => { noteUi.scroll[s.dataset.rid] = s.scrollTop; s.classList.toggle("end", s.scrollTop + s.clientHeight >= s.scrollHeight - 4); }, { passive: true }); }
+  s.classList.toggle("end", s.scrollTop + s.clientHeight >= s.scrollHeight - 4);
+}
+// behåll texten om sidan ritas om medan man skriver
+document.addEventListener("input", e => { if (e.target.id === "nt-input") { noteUi.draftFor = e.target.dataset.n; noteUi.draft = e.target.value; } });
+function noteFocus(){ const t = document.getElementById("nt-input"); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+document.addEventListener("click", async e => {
+  const el = e.target.closest("[data-a^='nt']"); if (!el) return;
+  const a = el.dataset.a; if (!["ntopen", "ntnew", "ntedit", "ntdel", "ntsave", "ntcancel"].includes(a)) return;
+  const r = view.id ? recipes.find(x => x.id === view.id) : null; if (!r) return;
+  const id = el.dataset.n;
+  if (a !== "ntopen" && a !== "ntcancel" && !canEdit(r)) { toast("Det här är " + genitive(nameOf(addedByOf(r))) + " recept – gör din egen variant för att ändra"); return; }
+  if (a !== "ntdel") noteUi.armed = null;
+  if (a === "ntnew" || a === "ntedit" || a === "ntcancel" || a === "ntsave") { if (a !== "ntsave") { noteUi.draftFor = null; noteUi.draft = ""; } }
+  if (a === "ntopen") { if (noteUi.edit === id) return; noteUi.open = noteUi.open === id ? null : id; render(); return; }
+  if (a === "ntcancel") { noteUi.edit = null; render(); return; }
+  if (a === "ntnew") { noteUi.edit = "new"; noteUi.open = null; render(); noteFocus(); return; }
+  if (a === "ntedit") { noteUi.edit = id; noteUi.open = id; render(); noteFocus(); return; }
+  if (a === "ntdel") {
+    if (noteUi.armed !== id) { noteUi.armed = id; render(); setTimeout(() => { if (noteUi.armed === id) { noteUi.armed = null; render(); } }, 3500); return; }
+    noteUi.armed = null; noteUi.open = null;
+    if (await saveNoteItems(r, noteItemsOf(r).filter(n => n.id !== id))) toast("Anteckningen är borttagen");
+    return;
+  }
+  if (a === "ntsave") {
+    const val = ($id("nt-input") ? $id("nt-input").value : "").trim();
+    let items = noteItemsOf(r);
+    if (id === "new") { if (!val) { noteUi.edit = null; render(); return; } items = items.concat(noteNew("own", val)); }
+    else items = val ? items.map(n => n.id === id ? { ...n, text: val } : n) : items.filter(n => n.id !== id);
+    noteUi.edit = null; noteUi.draftFor = null; if (id === "new") { noteUi.open = null; noteUi.scroll[r.id] = 0; }
+    if (await saveNoteItems(r, items)) toast("Anteckningen är sparad");
+  }
+});
