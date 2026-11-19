@@ -1161,6 +1161,12 @@ header.top{overflow:hidden}
   .ai-ask textarea{flex:1 1 100%;min-height:49px;font-size:15px}
   .ai-ask .btn{margin-left:auto;padding-top:10px;padding-bottom:10px}
 }
+/* Fråga Pappa-knappen: guldpiller med pappas huvud och frågetecken */
+.ask-btn{display:inline-flex;align-items:center;gap:8px;flex:none;align-self:stretch;min-height:49px;padding:0 18px 0 12px;border:0;border-radius:25px;background:var(--brass,#9c7a3c);color:#fff;font:500 14px/1 var(--sans);letter-spacing:.02em;white-space:nowrap;cursor:pointer;transition:background .15s,transform .1s}
+.ask-btn svg{flex:none}
+.ask-btn:hover{background:#87682f}
+.ask-btn:active{transform:scale(.97)}
+@media(max-width:620px){.ask-btn{margin-left:auto;align-self:auto;min-height:46px}}
 </style>
 </head>
 <body>
