@@ -55,6 +55,14 @@ All AI i appen presenteras som **Pappa**, inte Claude.
 - **Kostar och kräver ett tryck:** raden under sökfältet med **Sök AI-recept** – pappa letar på nätet (webbsökning), visar recept som kan öppnas i appen (`view: "web"`, *Visa receptet*) och sparas. Inget skickas automatiskt till Claude.
 - Raden anpassas: bra träff → diskret länk, delvis → guldknapp, inget → stor knapp.
 
+## Läge och öppna punkter (uppdatera när något blir klart)
+- Senast gjort (nov 2026): ny rubrik (C2-2/E4), bildspel i sidhuvudet, Pappa-rösten (Fråga Pappa, glödlampa), sökningen med "Sök AI-recept", recept från nätet i appen (`view: "web"`), bildförslag via Pixabay, sparade AI-svar (`recipe_ai_cache` – SQL körd), Haiku för enkla uppgifter, uppdaterad hjälp + `hjalp.pdf`.
+- Kolla: antalet recept gick från 48 till 44 – bekräfta med Nicklas att det var avsiktligt (borttagna/sammanslagna varianter).
+- Rekommenderat men inte gjort av Nicklas än: månadsgräns i Anthropic Console (Settings → Limits).
+- Pexels har pausat nya API-nycklar – Pixabay används.
+- `hjalp.pdf` byggs från en egen A4-layout (Cormorant/Jost via npm `@fontsource`, Playwright `page.pdf`). Uppdatera den när hjälpen i appen ändras.
+- `runAiSearch` (pappa letar smart i receptboken) finns kvar i koden men har ingen knapp längre – Nicklas valde bort "Fråga pappa" i sökningen.
+
 ## Parkerade idéer
 - Spotify-musik vid matlagning (sparad, inte byggd).
 - Fokuspunkt per bild i sidhuvudet.
