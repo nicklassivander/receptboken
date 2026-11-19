@@ -228,7 +228,7 @@ async function ai(messages, opts = {}){
   let r;
   try {
     r = await fetch("/api/ai", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token },
-      body: JSON.stringify({ messages: typeof messages === "string" ? [{ role: "user", content: messages }] : messages, images: opts.images || [], mode: opts.mode || "text" }) });
+      body: JSON.stringify({ messages: typeof messages === "string" ? [{ role: "user", content: messages }] : messages, images: opts.images || [], mode: opts.mode || "text", web: !!opts.web }) });
   } catch { throw { code: "network" }; }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw { code: r.status === 401 || r.status === 403 ? "auth" : r.status === 429 ? "rate" : "upstream", message: j.error };
@@ -1014,6 +1014,8 @@ document.addEventListener("click", async e => {
       view = { name: "edit" }; render(); window.scrollTo(0, 0); break;
     case "aisearch": runAiSearch(); break;
     case "ainew": runAiNew(); break;
+    case "aiweb": runAiWeb(); break;
+    case "aiwebimport": { const w = aiSearch && aiSearch.web && aiSearch.web.items && aiSearch.web.items[+el.dataset.i]; if (w && w.url) { openImport([]); importState.url = w.url; renderImport(); runImport(); } break; }
     case "ainewopen": if (aiSearch && aiSearch.nw) { aiSearch.nw.open = !aiSearch.nw.open; renderList(); } break;
     case "ainewsave": saveAiNew(); break;
     case "aisearchclose": aiSearch = null; filter.q = ""; render(); break;
@@ -2914,7 +2916,7 @@ function logView(id){
 }
 
 const LOG_TEXT = { open: "öppnade appen", view: "tittade på", cook_start: "började laga", cook_done: "lagade klart", cook_cancel: "avbröt tillagningen av",
-  add: "lade till", edit: "ändrade", ai_search: "frågade Claude:", ai_new: "fick ett nytt recept av Claude:", shop_add: "lade till inköpslistan:", variant: "gjorde en variant:", delete: "tog bort", import: "importerade ett recept", fav: "favoritmarkerade", unfav: "tog bort favorit:",
+  add: "lade till", edit: "ändrade", ai_search: "frågade Claude:", ai_web: "lät Claude leta på nätet:", ai_new: "fick ett nytt recept av Claude:", shop_add: "lade till inköpslistan:", variant: "gjorde en variant:", delete: "tog bort", import: "importerade ett recept", fav: "favoritmarkerade", unfav: "tog bort favorit:",
   added: "lade till", cooked: "lagade" };
 const DEV_TEXT = { ios: "iPhone/iPad", android: "Android", mac: "Mac", pc: "Dator" };
 async function openActivity(days){
@@ -2973,22 +2975,24 @@ function aiSearchHtml(list){
   const s = aiSearch && aiSearch.q === q ? aiSearch : null;
   const spark = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z" opacity=".7"/></svg>`;
   if (!s) return `<button class="aisearch-btn" data-a="aisearch">${spark}<span>${list.length ? "Inte rätt?" : "Inga träffar."} <b>Fråga Claude</b> om "${esc(q)}"</span></button>`;
-  if (s.busy) return `<div class="aisearch"><div class="ais-head">${spark}<b>Claude letar i receptboken …</b><span class="spinner"></span></div>${aiNewHtml(s)}</div>`;
+  if (s.busy) return `<div class="aisearch"><div class="ais-head">${spark}<b>Claude letar i receptboken …</b><span class="spinner"></span></div></div>`;
   if (s.err) return `<div class="aisearch"><div class="ais-head">${spark}<b>Det gick inte att fråga Claude</b></div><p class="ais-ans">${esc(s.err)}</p><button class="linkbtn" data-a="aisearch">Försök igen</button></div>`;
   const items = s.items.map(it => ({ ...it, r: recipes.find(r => r.id === it.id) })).filter(x => x.r);
   return `<div class="aisearch">
     <div class="ais-head">${spark}<b>Claude föreslår</b><button class="iconbtn ais-x" data-a="aisearchclose" aria-label="Stäng">×</button></div>
-    ${s.answer ? `<p class="ais-ans">${esc(s.answer)}</p>` : ""}
-    ${items.length ? `<div class="ais-list">${items.map(x => `<button class="ais-item" data-a="open" data-id="${esc(x.r.id)}">
+    ${s.good && s.answer ? `<p class="ais-ans">${esc(s.answer)}</p>` : ""}
+    ${s.good ? "" : aiWebHtml(s)}
+    ${items.length ? `${s.good ? "" : `<div class="ais-sub">Närmast i receptboken</div>`}<div class="ais-list">${items.map(x => `<button class="ais-item" data-a="open" data-id="${esc(x.r.id)}">
       ${x.r.photo ? `<img src="${esc(x.r.photo)}" alt="" loading="lazy">` : `<span class="ais-ph"></span>`}
       <span><b>${esc(x.r.title)}${x.r.variantOf ? ` <small class="badge mod">${esc(variantBadge(x.r))}</small>` : ""}</b><small>${esc(x.why || "")}</small></span></button>`).join("")}</div>` : ""}
+    ${s.good && !s.web && !s.nw ? `<p class="ais-more"><button class="linkbtn" data-a="aiweb">Leta på nätet också</button><button class="linkbtn" data-a="ainew">Låt Claude skriva ett nytt recept</button></p>` : ""}
+    ${s.good && s.web ? aiWebHtml(s) : ""}
     ${aiNewHtml(s)}
   </div>`;
 }
 async function runAiSearch(){
   const q = filter.q.trim(); if (!q) return;
-  aiSearch = { q, busy: true, items: [], nw: { busy: true } }; renderList();
-  runAiNew(q);
+  aiSearch = { q, busy: true, items: [] }; renderList();
   const cat = recipes.map(r => ({ id: r.id, titel: r.title, variant: r.variantOf ? variantLabel(r) : undefined, taggar: r.tags || [], tid: r.time || undefined,
     portioner: r.servings || undefined, betyg: r.rating || undefined, lagad: r.timesCooked || undefined,
     ingredienser: (r.ingredients || []).filter(x => !x.startsWith("#")).slice(0, 18).map(x => x.slice(0, 60)),
@@ -2999,7 +3003,8 @@ Sökningen är en ÖNSKAN, inte ett krav. Ett recept behöver inte innehålla al
 Välj upp till 6 recept ur listan, bäst först: först de som träffar mest, sedan de som ligger närmast. Lämna listan tom ENDAST om inget recept har någon rimlig koppling till önskan. Använd bara id:n från listan.
 Skriv i "varför" kort vad som stämmer och, om något saknas, vad man kan lägga till eller byta (t.ex. "torsk och brynt smör – lägg till kapris").
 Varje recept du nämner i "svar" MÅSTE också finnas med i "recept", med exakt id från listan.
-Svara bara med JSON: {"svar": "en kort mening på svenska", "recept": [{"id": "...", "titel": "receptets titel", "varför": "kort motivering, max 14 ord"}]}
+Sätt "bra" till true bara om minst ett recept verkligen motsvarar kärnan i önskan (rätt huvudråvara OCH ungefär rätt typ av rätt), annars false – då letar appen vidare på nätet.
+Svara bara med JSON: {"svar": "en kort mening på svenska", "bra": true, "recept": [{"id": "...", "titel": "receptets titel", "varför": "kort motivering, max 14 ord"}]}
 
 Receptboken:
 ${JSON.stringify(cat)}`;
@@ -3015,8 +3020,11 @@ ${JSON.stringify(cat)}`;
     // Nämner svaret ett recept som inte kom med i listan? Lägg till det.
     const ans = norm(out.svar);
     recipes.forEach(r => { const t = norm(r.title); if (t.length > 4 && ans.includes(t) && !seen.has(r.id)) { seen.add(r.id); items.push({ id: r.id, why: "" }); } });
-    aiSearch = { ...aiSearch, q, busy: false, answer: out.svar || "", items };
+    const good = out.bra !== false && items.length > 0;
+    aiSearch = { ...aiSearch, q, busy: false, answer: out.svar || "", items, good };
     logEvent("ai_search", null, { q, träffar: aiSearch.items.length });
+    // Inget riktigt bra i receptboken: leta på nätet
+    if (!good) runAiWeb(q);
   } catch (e) {
     if (!aiSearch || aiSearch.q !== q) return;
     aiSearch = { ...aiSearch, q, busy: false, items: [], err: e && e.code === "auth" ? "Logga in igen och försök på nytt." : "Försök igen om en stund." };
@@ -3024,6 +3032,43 @@ ${JSON.stringify(cat)}`;
   if (view.name === "list") renderList();
 }
 
+// Recept från nätet när receptboken inte har något riktigt bra (Claudes webbsökning)
+function aiWebHtml(s){
+  const w = s && s.web; if (!w) return "";
+  const globe = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>`;
+  if (w.busy) return `<div class="ais-web"><div class="ais-sub">${globe} Hittade inget riktigt bra i receptboken</div><p class="ais-ans"><span class="spinner"></span> Claude letar efter bra recept på nätet …</p></div>`;
+  if (w.err) return `<div class="ais-web"><div class="ais-sub">${globe} Från nätet</div><p class="ais-ans">${esc(w.err)} <button class="linkbtn" data-a="aiweb">Försök igen</button></p></div>`;
+  return `<div class="ais-web"><div class="ais-sub">${globe} Från nätet</div>
+    ${w.answer ? `<p class="ais-ans">${esc(w.answer)}</p>` : ""}
+    ${(w.items || []).length ? `<div class="aiw-list">${w.items.map((x, i) => `<div class="aiw-item">
+      <div class="aiw-t"><b>${esc(x.titel || "")}</b><small>${esc(x.sajt || "")}</small></div>
+      ${x.beskrivning ? `<p>${esc(x.beskrivning)}</p>` : ""}
+      ${x.varför ? `<p class="aiw-why">${esc(x.varför)}</p>` : ""}
+      <div class="aiw-btns"><button class="btn accent small" data-a="aiwebimport" data-i="${i}">Spara i receptboken</button><a class="btn ghost small" href="${esc(x.url)}" target="_blank" rel="noopener">Öppna sidan ↗</a></div>
+    </div>`).join("")}</div>` : `<p class="ais-ans">Hittade inga bra recept på nätet heller.</p>`}
+    ${!s.nw ? `<p class="ais-more"><button class="linkbtn" data-a="ainew">Låt Claude skriva ett eget recept i stället</button></p>` : ""}
+  </div>`;
+}
+async function runAiWeb(q){
+  q = q || (aiSearch && aiSearch.q); if (!q || !aiSearch) return;
+  aiSearch.web = { busy: true }; if (view.name === "list") renderList();
+  const prompt = `En svensk familj letar efter ett recept. Deras önskan: "${q}"
+Sök på nätet och hitta 3 riktigt bra recept som matchar önskan. Tolka den som en önskan, inte ett krav: kärnan (huvudråvara och typ av rätt) ska stämma, det som sägs vara valfritt behöver inte finnas med.
+Föredra seriösa svenska receptsajter (t.ex. ICA, Köket.se, Arla, Coop, Mathem, Tasteline, Zeta, Allt om Mat) och kända kockar, men bra utländska sajter går också. Välj recept med tydliga ingredienser och steg.
+Använd BARA sidor du faktiskt hittat i sökningen, med exakt adress till själva receptsidan (inte en söksida eller startsida).
+Svara bara med JSON, utan annan text: {"svar": "en kort mening på svenska", "recept": [{"titel": "receptets namn", "sajt": "t.ex. ICA", "url": "https://...", "beskrivning": "en mening om rätten", "varför": "vad som matchar önskan, max 14 ord"}]}`;
+  try {
+    const out = parseJson(await ai(prompt, { mode: "json", web: true }));
+    if (!aiSearch || aiSearch.q !== q) return;
+    const items = (out.recept || []).filter(x => x && /^https?:\/\//.test(x.url || "") && x.titel).slice(0, 4);
+    aiSearch.web = { answer: out.svar || "", items };
+    logEvent("ai_web", null, { q, träffar: items.length });
+  } catch (e) {
+    if (!aiSearch || aiSearch.q !== q) return;
+    aiSearch.web = { err: aiErr(e) };
+  }
+  if (view.name === "list") renderList();
+}
 // Nytt receptförslag från Claude, utöver det som redan finns i boken
 function aiNewHtml(s){
   const n = s && s.nw; if (!n) return "";

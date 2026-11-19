@@ -69,7 +69,11 @@ module.exports = async (req, res) => {
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
-      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages }),
+      body: JSON.stringify({
+        model: MODEL, max_tokens: body.web ? 6000 : maxTokens, messages,
+        // Webbsökning (Claudes egen sökfunktion) – används när receptboken inte har något som passar
+        ...(body.web ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5, user_location: { type: "approximate", country: "SE" } }] } : {}),
+      }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
