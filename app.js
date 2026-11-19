@@ -453,7 +453,9 @@ function renderDetail(){
           ${(r.tags || []).map(t => `<span class="badge">${esc(t)}</span>`).join("")}</div>
         <h1 class="dtitle">${esc(r.title || "Namnlöst recept")}</h1>
       </div>
+      ${r.photo && r.photoCredit && r.photoCredit.name ? `<a class="photo-credit" href="${esc(r.photoCredit.page || r.photoCredit.url || "https://www.pexels.com")}" target="_blank" rel="noopener">Foto: ${esc(r.photoCredit.name)} / ${esc(r.photoCredit.src || "Pixabay")}</a>` : ""}
     </div>
+    ${!r.photo && canEdit(r) ? `<div id="imgsug" class="imgsug" data-id="${esc(r.id)}">${imgSugInner(r)}</div>` : ""}
     <div class="row ratebar" style="justify-content:center;gap:18px">
       <button class="tolist" data-a="home" aria-label="Tillbaka till alla recept"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span>Alla recept</span></button>
       <div class="stars" ${can("contributor") ? "" : 'style="pointer-events:none"'}>${[1,2,3,4,5].map(n => `<button class="${(r.rating || 0) >= n ? "on" : ""}" data-a="rate" data-n="${n}" aria-label="${n} stjärnor">★</button>`).join("")}</div>
@@ -1005,7 +1007,7 @@ document.addEventListener("click", async e => {
     case "pickimport": menuOpen = false; render(); openPicker("import"); break;
     case "pickcomplete": openPicker("complete"); break;
     case "hdrpick": if (cur) toggleHdr(cur); break;
-    case "pickdish": openPhotoSheet(async url => { if (await patch(cur.id, { photo: url })) toast("Bilden sparad"); }); break;
+    case "pickdish": openPhotoSheet(async url => { if (await patch(cur.id, { photo: url, photoCredit: null })) toast("Bilden sparad"); }, cur); break;
     case "editphoto": readForm(); openPhotoSheet(url => { draft.photo = url; renderEdit(); }); break;
     case "new":
       menuOpen = false; draft = { title: "", sourceUrl: "", servings: 4, time: "", tags: [], ingredients: [], steps: [], myChanges: "", notes: "", photo: null };
@@ -1751,9 +1753,10 @@ async function handleShare(){
 }
 
 // ---------- bild: från enheten, urklipp eller länk ----------
-function openPhotoSheet(onDone){
+function openPhotoSheet(onDone, sugFor){
   openSheet(`
     <h2>Bild på rätten</h2>
+    ${sugFor && imgSug[sugFor.id] && imgSug[sugFor.id].state === "nokey" ? "" : sugFor ? `<button type="button" class="ps-sug" id="ps-sug"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="13" rx="1.5"/><circle cx="9" cy="10.5" r="1.6"/><path d="M4 17l5-4.5 3.5 3 2.5-2 4.5 3.5"/></svg><span><b>Förslag från bildbanken</b><small>Snygga foton som passar receptet, gratis från en bildbank</small></span><em>→</em></button>` : ""}
     <div class="photo-opts">
       ${HAS_CAMERA ? `<label class="btn accent photo-file">Ta foto<input type="file" accept="image/*" capture="environment" id="ps-cam" hidden></label>` : ""}
       <label class="btn ${HAS_CAMERA ? "ghost" : "accent"} photo-file">Välj från enheten<input type="file" accept="image/*" id="ps-file" hidden></label>
@@ -1785,6 +1788,7 @@ function openPhotoSheet(onDone){
   };
   document.addEventListener("paste", onPaste);
   $id("ps-close").onclick = () => { document.removeEventListener("paste", onPaste); closeSheet(); };
+  if ($id("ps-sug")) $id("ps-sug").onclick = () => { document.removeEventListener("paste", onPaste); closeSheet(); setTimeout(() => openImgSugSheet(sugFor), 0); };
   $id("ps-file").onchange = e => { const f = e.target.files[0]; if (f) finish(f); };
   if ($id("ps-cam")) $id("ps-cam").onchange = e => { const f = e.target.files[0]; if (f) finish(f); };
   $id("ps-paste").onclick = async () => {
@@ -2084,6 +2088,7 @@ function renderHelp(){
         <li>Recepten sparas på enheten och går att läsa <b>utan nät</b>.</li>
         <li><b>Senaste i köket</b> överst i receptlistan rullar de fem senaste händelserna. Ikonen visar vad som hänt: ${evIcon("added")} lade till, ${evIcon("variant")} gjorde en variant, ${evIcon("cooked")} lagade. Tryck på raden för att fälla ut den – fliken <b>Nya recept</b> visar tillagda recept och varianter, <b>Senast lagade</b> vem som har lagat vad. Röda prickar och <b>Nytt</b> visar vad som har hänt sedan du var här sist.</li>
         <li><b>Bilden överst</b> växlar mellan receptens bilder. Tryck på receptnamnet i hörnet för att öppna receptet. På en receptbild kan du trycka <b>Till sidhuvudet</b> – har någon bild valts så visas bara de valda, annars alla tillräckligt stora liggande bilder.</li>
+        <li><b>Recept utan bild</b> får förslag på bilder från en gratis bildbank. Tryck på den du gillar så sparas den, eller sök med egna ord. Via <b>Byt bild</b> → <b>Förslag från bildbanken</b> kan du byta en befintlig bild.</li>
         <li>Det andra sparar syns direkt hos dig.</li>
         <li><b>Tillbaka</b> (knappen i appen, webbläsarens pil, musens bakåtknapp eller svep) tar dig tillbaka dit du var i listan. Är en ruta öppen stängs den först. Alla rutor kan också stängas med <b>×</b> uppe till höger.</li>
         <li>Under <b>Konto</b> hittar du Aviseringar, Hjälp, Byt lösenord och Logga ut. Superanvändare ser också <b>Användare</b>, <b>Aktivitet</b> (vem som gjort vad, och från vilken enhet) och verktygen för nyckelord och tider.</li>
@@ -3196,6 +3201,7 @@ function fitTitle(){
 function renderShopFab(){
   try { fitTitle(); } catch {}
   try { hdrSlides(); } catch {}
+  try { imgSugKick(); } catch {}
   try { const t = document.getElementById("ai-input"); if (t && !t.value) { t.style.height = ""; if (t.scrollHeight > t.clientHeight + 1) t.style.height = (t.scrollHeight + 2) + "px"; } } catch {}
   let b = document.getElementById("shopfab");
   // Startsidan: alltid (ingång till listan). Inne i ett recept m.m.: bara när det finns en aktiv lista med varor kvar
@@ -3715,6 +3721,100 @@ function hdrNext(){
   inc.src = r.photo;
   if (inc.complete && inc.naturalWidth) show();
 }
+// ---------- Bildförslag från Pexels för recept utan bild (och via Byt bild) ----------
+var imgSug = {};
+function imgSugInner(r){
+  const s = imgSug[r.id] || { state: "idle" };
+  const src = s.source || "Pixabay";
+  const head = `<div class="is-h"><span class="is-t">Förslag på bild</span><a class="is-src" href="${src === "Pexels" ? "https://www.pexels.com" : "https://pixabay.com"}" target="_blank" rel="noopener">Bilder från ${src}</a></div>`;
+  const tools = `<div class="is-tools">
+      <form class="is-own" data-id="${esc(r.id)}"><input name="q" placeholder="Sök med egna ord, t.ex. kokoscurry" autocomplete="off" value="${esc(s.own || "")}"><button class="btn small ghost" type="submit">Sök</button></form>
+      <div class="is-more">${s.state === "done" && s.photos.length ? `<button class="linkbtn" data-a="sugmore" data-id="${esc(r.id)}">Fler förslag</button>` : ""}<button class="linkbtn" data-a="sugown" data-id="${esc(r.id)}">Ta egen bild</button></div>
+    </div>`;
+  if (s.state === "nokey") return "";
+  let body;
+  if (s.state === "idle" || s.state === "loading") body = `<div class="is-grid">${Array.from({ length: 6 }, () => `<span class="is-ph"></span>`).join("")}</div><p class="is-note"><span class="spinner"></span> Letar efter bilder som passar …</p>`;
+  else if (s.state === "error") body = `<p class="is-note">${esc(s.err || "Kunde inte hämta förslag.")} <button class="linkbtn" data-a="sugretry" data-id="${esc(r.id)}">Försök igen</button></p>`;
+  else if (!s.photos.length) body = `<p class="is-note">Hittade inga bilder som passar. Prova att söka med egna ord.</p>`;
+  else body = `<div class="is-grid">${s.photos.map((p, i) => `<button class="is-pic${s.saving === i ? " saving" : ""}" data-a="sugpick" data-id="${esc(r.id)}" data-i="${i}" title="${esc(p.alt || "")}"><img src="${esc(p.thumb)}" alt="${esc(p.alt || "")}" loading="lazy"><span>${esc(p.photographer)}</span>${s.saving === i ? `<i class="spinner"></i>` : ""}</button>`).join("")}</div>`;
+  return head + body + tools;
+}
+function imgSugDraw(id){
+  document.querySelectorAll(`.imgsug[data-id="${CSS.escape(id)}"]`).forEach(el => {
+    const r = recipes.find(x => x.id === id); if (!r) return;
+    const s = imgSug[id];
+    if (s && s.state === "nokey") { el.remove(); return; }
+    const f = el.querySelector(".is-own input"), had = f && document.activeElement === f;
+    el.innerHTML = imgSugInner(r);
+    if (had) { const g = el.querySelector(".is-own input"); g && g.focus(); }
+  });
+}
+function imgSugKick(){
+  document.querySelectorAll(".imgsug[data-id]").forEach(el => {
+    const id = el.dataset.id;
+    if (!imgSug[id]) { const r = recipes.find(x => x.id === id); if (r) loadImgSug(r); }
+  });
+}
+async function loadImgSug(r, opts = {}){
+  const prev = imgSug[r.id] || {};
+  const page = opts.more ? (prev.page || 1) + 1 : 1;
+  const own = opts.own != null ? opts.own : (opts.more ? prev.own : "");
+  imgSug[r.id] = { state: "loading", photos: [], own, page };
+  imgSugDraw(r.id);
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const resp = await fetch("/api/images", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) },
+      body: JSON.stringify({ title: r.title || "", ingredients: (r.ingredients || []).filter(x => x && !String(x).startsWith("#")).slice(0, 12), q: own || "", page }) });
+    const j = await resp.json().catch(() => ({}));
+    if (resp.status === 503 && j.code === "nokey") { imgSug[r.id] = { state: "nokey" }; imgSugDraw(r.id); return; }
+    if (!resp.ok) throw new Error(j.error || "Kunde inte hämta förslag");
+    imgSug[r.id] = { state: "done", photos: j.photos || [], own, page, source: j.source || "Pixabay" };
+  } catch (e) {
+    imgSug[r.id] = { state: "error", photos: [], own, page, err: e.message };
+  }
+  imgSugDraw(r.id);
+}
+async function pickImgSug(r, i){
+  const s = imgSug[r.id]; const p = s && s.photos[i];
+  if (!p || s.saving != null) return;
+  s.saving = i; imgSugDraw(r.id);
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const resp = await fetch("/api/fetch", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) }, body: JSON.stringify({ url: p.full, imageOnly: true }) });
+    const j = await resp.json().catch(() => ({}));
+    if (!resp.ok || !j.image) throw new Error(j.error || "Kunde inte hämta bilden");
+    const url = await storePhoto(await compress(await (await fetch(j.image)).blob(), 1600, 600000));
+    if (!url) throw new Error("Kunde inte spara bilden");
+    s.saving = null;
+    if (document.querySelector("#sheet-bg .imgsug")) closeSheet();
+    if (await patch(r.id, { photo: url, photoCredit: { name: p.photographer, url: p.photographerUrl, page: p.pageUrl, src: s.source || "Pixabay" } })) toast("Bilden sparad");
+  } catch (e) {
+    s.saving = null; imgSugDraw(r.id); toast(e.message || "Kunde inte spara bilden");
+  }
+}
+function openImgSugSheet(r){
+  openSheet(`<h2>Förslag på bild</h2><div class="imgsug insheet" data-id="${esc(r.id)}">${imgSugInner(r)}</div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn ghost" id="is-close">Stäng</button></div>`);
+  $id("is-close").onclick = closeSheet;
+  const s = imgSug[r.id];
+  if (!s || s.state === "error" || s.state === "nokey") loadImgSug(r);
+}
+document.addEventListener("submit", e => {
+  const f = e.target.closest && e.target.closest(".is-own"); if (!f) return;
+  e.preventDefault();
+  const r = recipes.find(x => x.id === f.dataset.id); const q = f.q.value.trim();
+  if (r && q) loadImgSug(r, { own: q });
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-a^='sug']"); if (!b) return;
+  const r = recipes.find(x => x.id === b.dataset.id); if (!r) return;
+  e.preventDefault(); e.stopPropagation();
+  const a = b.dataset.a;
+  if (a === "sugpick") pickImgSug(r, +b.dataset.i);
+  else if (a === "sugmore") loadImgSug(r, { more: true });
+  else if (a === "sugretry") loadImgSug(r);
+  else if (a === "sugown") { if (document.querySelector("#sheet-bg .imgsug")) closeSheet(); openPhotoSheet(async url => { if (await patch(r.id, { photo: url, photoCredit: null })) toast("Bilden sparad"); }, null); }
+}, true);
 // Välj vilka receptbilder som får visas i sidhuvudet
 async function toggleHdr(r){
   const on = !r.hdr;

@@ -2,6 +2,9 @@
   "functions": {
     "api/ai.js": {
       "maxDuration": 60
+    },
+    "api/images.js": {
+      "maxDuration": 30
     }
   },
   "headers": [
