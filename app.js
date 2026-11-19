@@ -315,6 +315,7 @@ function render(){
   if (view.name === "detail") { logView(view.id); return renderDetail(); }
   if (view.name === "edit") return renderEdit();
   if (view.name === "help") return renderHelp();
+  if (view.name === "web") return renderWebPreview();
   renderList();
 }
 
@@ -934,33 +935,13 @@ async function runImport(){
     }
   }
 
-  const prompt = `Du får ett matrecept som användaren kopierat från en webbsida eller Instagram, i form av text och/eller bilder (skärmdumpar, foton av kokbokssidor eller handskrivna lappar). Flera bilder hör till samma recept – slå ihop dem. Texten kan innehålla skräp som reklam, kommentarer och hashtags – ignorera det.
-Svara ENDAST med ett JSON-objekt, utan förklaring:
-{"title": string, "servings": number eller null, "time": string (t.ex. "45 min", tom om okänt), "tags": [string], "ingredients": [string], "steps": [string], "notes": string}
-Regler:
-- ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ". Behåll ALLA tidsangivelser från källan (koktid, stektid, ugnstid, vila, marinering, jäsning) i det steg där de hör hemma och skriv dem med siffror och enhet, t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek" – aldrig bara "en stund" om källan anger en tid. Står tiden bara i receptets inledning eller i en totaltid, för in den i rätt steg om det framgår vilket.
-- steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
-- tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${tagVocab().join(", ")}. Välj det som stämmer – typ av rätt, mattyp, tillfälle och metod. ${TAG_HINTS}
-- notes: eventuella tips från källan, kort. Annars tom sträng.
-- ${s.translate ? "Skriv allt på svenska. Räkna om amerikanska mått (cups, tbsp, tsp, oz, lb, °F) till svenska metriska mått (dl, msk, tsk, g, °C)." : "Behåll originalspråket och måtten."}
-- Hitta inte på något. Saknas receptinnehåll helt, svara {"error": "kort förklaring på svenska"}.
-${s.url ? "\nKällänk: " + s.url : ""}
-${s.text ? "\nRECEPTTEXT:\n" + s.text.slice(0, 20000) : ""}`;
-
+  const prompt = importPrompt(s);
   try {
     const images = [];
     for (const sh of s.shots) images.push(await blobToB64(sh.blob));
     const out = parseJson(await ai(prompt, { mode: "json", images }));
     if (!out || out.error) throw { message: out && out.error ? out.error : "Hittade inget recept i texten." };
-    const parsed = {
-      title: String(out.title || "").trim(),
-      servings: Number.isFinite(+out.servings) && +out.servings > 0 ? Math.round(+out.servings) : null,
-      time: String(out.time || "").trim(),
-      tags: (Array.isArray(out.tags) ? out.tags : []).map(t => String(t).trim().toLowerCase()).filter(Boolean).slice(0, 6),
-      ingredients: (Array.isArray(out.ingredients) ? out.ingredients : []).map(x => String(x).trim()).filter(Boolean),
-      steps: (Array.isArray(out.steps) ? out.steps : []).map(x => String(x).trim()).filter(Boolean),
-      notes: String(out.notes || "").trim(),
-    };
+    const parsed = parseImported(out);
     const target = s.targetId ? recipes.find(x => x.id === s.targetId) : null;
     if (target) {
       draft = JSON.parse(JSON.stringify(target));
@@ -990,6 +971,31 @@ ${s.text ? "\nRECEPTTEXT:\n" + s.text.slice(0, 20000) : ""}`;
     renderImport();
   }
 }
+function parseImported(out){
+  return {
+    title: String(out.title || "").trim(),
+    servings: Number.isFinite(+out.servings) && +out.servings > 0 ? Math.round(+out.servings) : null,
+    time: String(out.time || "").trim(),
+    tags: (Array.isArray(out.tags) ? out.tags : []).map(t => String(t).trim().toLowerCase()).filter(Boolean).slice(0, 6),
+    ingredients: (Array.isArray(out.ingredients) ? out.ingredients : []).map(x => String(x).trim()).filter(Boolean),
+    steps: (Array.isArray(out.steps) ? out.steps : []).map(x => String(x).trim()).filter(Boolean),
+    notes: String(out.notes || "").trim(),
+  };
+}
+function importPrompt(s){
+  return `Du får ett matrecept som användaren kopierat från en webbsida eller Instagram, i form av text och/eller bilder (skärmdumpar, foton av kokbokssidor eller handskrivna lappar). Flera bilder hör till samma recept – slå ihop dem. Texten kan innehålla skräp som reklam, kommentarer och hashtags – ignorera det.
+Svara ENDAST med ett JSON-objekt, utan förklaring:
+{"title": string, "servings": number eller null, "time": string (t.ex. "45 min", tom om okänt), "tags": [string], "ingredients": [string], "steps": [string], "notes": string}
+Regler:
+- ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ". Behåll ALLA tidsangivelser från källan (koktid, stektid, ugnstid, vila, marinering, jäsning) i det steg där de hör hemma och skriv dem med siffror och enhet, t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek" – aldrig bara "en stund" om källan anger en tid. Står tiden bara i receptets inledning eller i en totaltid, för in den i rätt steg om det framgår vilket.
+- steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
+- tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${tagVocab().join(", ")}. Välj det som stämmer – typ av rätt, mattyp, tillfälle och metod. ${TAG_HINTS}
+- notes: eventuella tips från källan, kort. Annars tom sträng.
+- ${s.translate ? "Skriv allt på svenska. Räkna om amerikanska mått (cups, tbsp, tsp, oz, lb, °F) till svenska metriska mått (dl, msk, tsk, g, °C)." : "Behåll originalspråket och måtten."}
+- Hitta inte på något. Saknas receptinnehåll helt, svara {"error": "kort förklaring på svenska"}.
+${s.url ? "\nKällänk: " + s.url : ""}
+${s.text ? "\nRECEPTTEXT:\n" + s.text.slice(0, 20000) : ""}`;
+}
 
 // ---------- events ----------
 document.addEventListener("click", async e => {
@@ -1015,6 +1021,10 @@ document.addEventListener("click", async e => {
     case "aisearch": runAiSearch(); break;
     case "ainew": runAiNew(); break;
     case "aiweb": runAiWeb(); break;
+    case "aiwebview": { const w = aiSearch && aiSearch.web && aiSearch.web.items && aiSearch.web.items[+el.dataset.i]; if (w && w.url) { webCur = w; detailState.tab = "ing"; view = { name: "web", id: "w" + el.dataset.i }; render(); window.scrollTo(0, 0); loadWebRecipe(w); } break; }
+    case "webback": goBack(); break;
+    case "websave": saveWebRecipe(); break;
+    case "webretry": if (webCur) { delete webCache[webCur.url]; loadWebRecipe(webCur); } break;
     case "aiwebimport": { const w = aiSearch && aiSearch.web && aiSearch.web.items && aiSearch.web.items[+el.dataset.i]; if (w && w.url) { openImport([]); importState.url = w.url; renderImport(); runImport(); } break; }
     case "ainewopen": if (aiSearch && aiSearch.nw) { aiSearch.nw.open = !aiSearch.nw.open; renderList(); } break;
     case "ainewsave": saveAiNew(); break;
@@ -3044,7 +3054,7 @@ function aiWebHtml(s){
       <div class="aiw-t"><b>${esc(x.titel || "")}</b><small>${esc(x.sajt || "")}</small></div>
       ${x.beskrivning ? `<p>${esc(x.beskrivning)}</p>` : ""}
       ${x.varför ? `<p class="aiw-why">${esc(x.varför)}</p>` : ""}
-      <div class="aiw-btns"><button class="btn accent small" data-a="aiwebimport" data-i="${i}">Spara i receptboken</button><a class="btn ghost small" href="${esc(x.url)}" target="_blank" rel="noopener">Öppna sidan ↗</a></div>
+      <div class="aiw-btns"><button class="btn accent small" data-a="aiwebview" data-i="${i}">Visa receptet</button><button class="btn ghost small" data-a="aiwebimport" data-i="${i}">Spara i receptboken</button></div>
     </div>`).join("")}</div>` : `<p class="ais-ans">Hittade inga bra recept på nätet heller.</p>`}
     ${!s.nw ? `<p class="ais-more"><button class="linkbtn" data-a="ainew">Låt Claude skriva ett eget recept i stället</button></p>` : ""}
   </div>`;
@@ -3068,6 +3078,72 @@ Svara bara med JSON, utan annan text: {"svar": "en kort mening på svenska", "re
     aiSearch.web = { err: aiErr(e) };
   }
   if (view.name === "list") renderList();
+}
+// ---------- Visa ett recept från nätet som om det fanns i appen (inte sparat) ----------
+var webCur = null, webCache = {};
+async function loadWebRecipe(w){
+  if (webCache[w.url] && !webCache[w.url].err) return;
+  webCache[w.url] = { busy: true };
+  const done = () => { if (view.name === "web" && webCur && webCur.url === w.url) render(); };
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch("/api/fetch", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) }, body: JSON.stringify({ url: w.url, withImage: true }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.text) throw new Error(j.error || "Sidan gick inte att läsa");
+    const out = parseJson(await ai(importPrompt({ url: w.url, text: j.text, translate: true }), { mode: "json" }));
+    if (!out || out.error) throw new Error(out && out.error ? out.error : "Hittade inget recept på sidan");
+    webCache[w.url] = { r: parseImported(out), image: j.image || null };
+  } catch (e) {
+    webCache[w.url] = { err: e && e.message ? e.message : aiErr(e) };
+  }
+  done();
+}
+function renderWebPreview(){
+  const w = webCur;
+  if (!w) { view = { name: "list" }; return renderList(); }
+  const c = webCache[w.url] || { busy: true };
+  const r = c.r || {};
+  const title = r.title || w.titel || "Recept";
+  const site = w.sajt || (() => { try { return new URL(w.url).host.replace(/^www\./, ""); } catch { return "nätet"; } })();
+  const ings = r.ingredients || [], steps = r.steps || [];
+  const tab = detailState.tab || "ing";
+  const globe = `<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>`;
+  $app.innerHTML = `
+    <div class="hero ${c.image ? "" : "noimg"}">
+      ${c.image ? `<img src="${esc(c.image)}" alt="">` : ""}
+      <button class="fback" data-a="webback" aria-label="Tillbaka till sökningen"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+      <div class="hero-cap"><div class="row"><span class="badge">${esc(site)}</span></div><h1 class="dtitle">${esc(title)}</h1></div>
+    </div>
+    <div class="webban">${globe}<span>Från <b>${esc(site)}</b> – inte sparat i receptboken</span>${c.r ? `<button class="btn accent small" data-a="websave">Spara i receptboken</button>` : ""}</div>
+    ${c.busy ? `<p class="meta web-wait"><span class="spinner"></span> Hämtar receptet från ${esc(site)} …</p>` : ""}
+    ${c.err ? `<div class="web-wait"><p class="meta">${esc(c.err)}.</p><p class="row" style="gap:16px;justify-content:center"><button class="linkbtn" data-a="webretry">Försök igen</button><a class="linkbtn" href="${esc(w.url)}" target="_blank" rel="noopener">Öppna sidan i stället</a></p></div>` : ""}
+    ${c.r ? `
+    <div class="meta" style="margin-top:10px">
+      ${r.time ? `<span>${esc(r.time)}</span>` : ""}${r.servings ? `<span>${r.servings} portioner</span>` : ""}<span><a href="${esc(w.url)}" target="_blank" rel="noopener">Källa: ${esc(site)}</a></span>
+    </div>
+    <div class="cook" id="cook" data-tab="${tab}">
+      <div class="ctabs" role="tablist">
+        <button role="tab" class="${tab === "ing" ? "on" : ""}" data-a="ctab" data-t="ing">Ingredienser<small>${ings.filter(l => !l.startsWith("#")).length}</small></button>
+        <button role="tab" class="${tab === "steps" ? "on" : ""}" data-a="ctab" data-t="steps">Gör så här<small>${steps.filter(x => !x.startsWith("#")).length}</small></button>
+      </div>
+      <div class="panel cpane cp-ing"><h2>Ingredienser</h2>
+        ${ings.length ? `<ul class="ings">${ings.map(l => l.startsWith("#") ? `<li class="group">${esc(l.replace(/^#+\s*/, ""))}</li>` : `<li><span>${esc(l)}</span></li>`).join("")}</ul>` : `<p class="meta">Inga ingredienser hittades.</p>`}
+      </div>
+      <div class="panel cpane cp-steps"><h2>Gör så här</h2>
+        ${steps.length ? `<ol class="steps">${(() => { let n = 0; return steps.map(s => s.startsWith("#") ? (n = 0, `<li class="group">${esc(s.replace(/^#+\s*/, ""))}</li>`) : `<li data-n="${++n}">${esc(s)}</li>`).join(""); })()}</ol>` : `<p class="meta">Inga steg hittades.</p>`}
+      </div>
+      <button class="cnext" data-a="ctab" data-t="${tab === "ing" ? "steps" : "ing"}">${tab === "ing" ? "Till Gör så här →" : "← Till ingredienserna"}</button>
+    </div>
+    ${r.notes ? `<div class="panel"><h2>Tips</h2><p class="prewrap">${esc(r.notes)}</p></div>` : ""}
+    <div class="web-foot"><button class="btn accent" data-a="websave">Spara i receptboken</button><button class="btn ghost" data-a="webback">Tillbaka till sökningen</button></div>` : ""}`;
+}
+async function saveWebRecipe(){
+  const w = webCur, c = w && webCache[w.url]; if (!c || !c.r) return;
+  document.querySelectorAll('[data-a="websave"]').forEach(b => { b.disabled = true; b.innerHTML = `<span class="spinner"></span> Sparar …`; });
+  let photo = null;
+  if (c.image) { try { photo = await storePhoto(await compress(await (await fetch(c.image)).blob(), 1200, 400000)); } catch {} }
+  draft = { ...c.r, sourceUrl: w.url, myChanges: "", photo };
+  view = { name: "edit" }; render(); window.scrollTo(0, 0);
 }
 // Nytt receptförslag från Claude, utöver det som redan finns i boken
 function aiNewHtml(s){
