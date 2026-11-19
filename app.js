@@ -228,7 +228,7 @@ async function ai(messages, opts = {}){
   let r;
   try {
     r = await fetch("/api/ai", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token },
-      body: JSON.stringify({ messages: typeof messages === "string" ? [{ role: "user", content: messages }] : messages, images: opts.images || [], mode: opts.mode || "text", web: !!opts.web }) });
+      body: JSON.stringify({ messages: typeof messages === "string" ? [{ role: "user", content: messages }] : messages, images: opts.images || [], mode: opts.mode || "text", web: !!opts.web, fetchUrl: opts.fetchUrl || undefined }) });
   } catch { throw { code: "network" }; }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw { code: r.status === 401 || r.status === 403 ? "auth" : r.status === 429 ? "rate" : "upstream", message: j.error };
@@ -1025,7 +1025,7 @@ document.addEventListener("click", async e => {
     case "webback": goBack(); break;
     case "websave": saveWebRecipe(); break;
     case "webretry": if (webCur) { delete webCache[webCur.url]; loadWebRecipe(webCur); } break;
-    case "aiwebimport": { const w = aiSearch && aiSearch.web && aiSearch.web.items && aiSearch.web.items[+el.dataset.i]; if (w && w.url) { openImport([]); importState.url = w.url; renderImport(); runImport(); } break; }
+    case "aiwebimport": { const w = aiSearch && aiSearch.web && aiSearch.web.items && aiSearch.web.items[+el.dataset.i]; if (w && w.url) { webCur = w; detailState.tab = "ing"; view = { name: "web", id: "w" + el.dataset.i }; render(); window.scrollTo(0, 0); await loadWebRecipe(w); const c = webCache[w.url]; if (c && c.r && webCur === w && view.name === "web") saveWebRecipe(); } break; }
     case "ainewopen": if (aiSearch && aiSearch.nw) { aiSearch.nw.open = !aiSearch.nw.open; renderList(); } break;
     case "ainewsave": saveAiNew(); break;
     case "aisearchclose": aiSearch = null; filter.q = ""; render(); break;
@@ -3087,12 +3087,23 @@ async function loadWebRecipe(w){
   const done = () => { if (view.name === "web" && webCur && webCur.url === w.url) render(); };
   try {
     const { data: { session } } = await sb.auth.getSession();
-    const r = await fetch("/api/fetch", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) }, body: JSON.stringify({ url: w.url, withImage: true }) });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.text) throw new Error(j.error || "Sidan gick inte att läsa");
-    const out = parseJson(await ai(importPrompt({ url: w.url, text: j.text, translate: true }), { mode: "json" }));
+    const hdr = { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) };
+    let j = {};
+    try { const r = await fetch("/api/fetch", { method: "POST", headers: hdr, body: JSON.stringify({ url: w.url, withImage: true }) }); j = await r.json().catch(() => ({})); if (!r.ok) j = {}; } catch {}
+    let out, image = j.image || null;
+    if (j.text && j.text.length > 200) {
+      out = parseJson(await ai(importPrompt({ url: w.url, text: j.text, translate: true }), { mode: "json" }));
+    }
+    if (!out || out.error || !(out.ingredients || []).length) {
+      // Sajten blockerar vår server (t.ex. ICA): låt Claude hämta sidan själv
+      const p = `Hämta receptsidan ${w.url} med verktyget web_fetch och läs ut receptet därifrån. Lägg också till fältet "image" med adressen till receptets huvudbild om den syns på sidan (annars tom sträng).\n` + importPrompt({ url: w.url, text: "", translate: true });
+      out = parseJson(await ai(p, { mode: "json", fetchUrl: w.url }));
+      if (!image && out && /^https?:\/\//.test(out.image || "")) {
+        try { const r = await fetch("/api/fetch", { method: "POST", headers: hdr, body: JSON.stringify({ url: out.image, imageOnly: true }) }); const k = await r.json().catch(() => ({})); if (r.ok && k.image) image = k.image; } catch {}
+      }
+    }
     if (!out || out.error) throw new Error(out && out.error ? out.error : "Hittade inget recept på sidan");
-    webCache[w.url] = { r: parseImported(out), image: j.image || null };
+    webCache[w.url] = { r: parseImported(out), image };
   } catch (e) {
     webCache[w.url] = { err: e && e.message ? e.message : aiErr(e) };
   }

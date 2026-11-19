@@ -68,11 +68,14 @@ module.exports = async (req, res) => {
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
+        ...(body.fetchUrl ? { "anthropic-beta": "web-fetch-2025-09-10" } : {}),
       },
       body: JSON.stringify({
-        model: MODEL, max_tokens: body.web ? 6000 : maxTokens, messages,
+        model: MODEL, max_tokens: body.web || body.fetchUrl ? 6000 : maxTokens, messages,
         // Webbsökning (Claudes egen sökfunktion) – används när receptboken inte har något som passar
         ...(body.web ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5, user_location: { type: "approximate", country: "SE" } }] } : {}),
+        // Claude hämtar en sida själv – reserv när vår server blockeras av sajten
+        ...(body.fetchUrl ? { tools: [{ type: "web_fetch_20250910", name: "web_fetch", max_uses: 2, max_content_tokens: 30000 }] } : {}),
       }),
     });
     const j = await r.json().catch(() => ({}));
