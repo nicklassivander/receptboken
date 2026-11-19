@@ -3003,7 +3003,7 @@ Sökningen är en ÖNSKAN, inte ett krav. Ett recept behöver inte innehålla al
 Välj upp till 6 recept ur listan, bäst först: först de som träffar mest, sedan de som ligger närmast. Lämna listan tom ENDAST om inget recept har någon rimlig koppling till önskan. Använd bara id:n från listan.
 Skriv i "varför" kort vad som stämmer och, om något saknas, vad man kan lägga till eller byta (t.ex. "torsk och brynt smör – lägg till kapris").
 Varje recept du nämner i "svar" MÅSTE också finnas med i "recept", med exakt id från listan.
-Sätt "bra" till true bara om minst ett recept verkligen motsvarar kärnan i önskan (rätt huvudråvara OCH ungefär rätt typ av rätt), annars false – då letar appen vidare på nätet.
+Sätt "bra" STRÄNGT: true bara om minst ett recept i stort sett ÄR rätten de beskriver – huvudråvaran OCH det som ger rätten dess karaktär (de smaker, såser och tillbehör de nämner, utom det som sägs vara valfritt) finns redan i receptet. Om receptet behöver kompletteras med något av det de nämner (t.ex. "lägg till kapris och brynt smör") eller har en annan sås/smakriktning, är "bra" false – även om huvudråvaran stämmer. Vid tvekan: false. Då letar appen efter bättre recept på nätet, och dina förslag visas ändå som "närmast i receptboken".
 Svara bara med JSON: {"svar": "en kort mening på svenska", "bra": true, "recept": [{"id": "...", "titel": "receptets titel", "varför": "kort motivering, max 14 ord"}]}
 
 Receptboken:
