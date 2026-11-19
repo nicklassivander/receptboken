@@ -427,15 +427,10 @@ function renderList(){
   if (q) {
     q.addEventListener("input", e => {
       filter.q = e.target.value; const pos = e.target.selectionStart; renderList(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos);
-      // Slutar man skriva och inget recept matchar alla ord: fråga Claude automatiskt
-      clearTimeout(qIdleTimer);
-      const qq = filter.q.trim();
-      if (qq.length >= 3 && sample && !(aiSearch && aiSearch.q === qq)) qIdleTimer = setTimeout(() => {
-        if (filter.q.trim() === qq && view.name === "list" && !filtered().length) runAiSearch();
-      }, 1800);
+      // Pappa (kostar) frågas bara med knapparna – inget automatiskt
     });
-    // Enter/Sök på tangentbordet: fråga Claude direkt
-    q.addEventListener("keydown", e => { if (e.key === "Enter" && filter.q.trim().length >= 2 && sample) { e.preventDefault(); clearTimeout(qIdleTimer); if (!(aiSearch && aiSearch.q === filter.q.trim())) runAiSearch(); } });
+    // Enter/Sök på tangentbordet: stäng bara tangentbordet så träffarna syns
+    q.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); } });
     document.getElementById("sort").value = filter.sort;
     document.getElementById("sort").addEventListener("change", e => { filter.sort = e.target.value; renderList(); });
   }
@@ -3027,25 +3022,27 @@ function aiSearchHtml(list){
   const card = (r, why) => `<button class="ais-item" data-a="open" data-id="${esc(r.id)}">
       ${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : `<span class="ais-ph"></span>`}
       <span><b>${esc(r.title)}${r.variantOf ? ` <small class="badge mod">${esc(variantBadge(r))}</small>` : ""}</b><small>${esc(why || "")}</small></span></button>`;
-  const webBtn = `<div class="ais-webbtn"><button class="aiq aiq-gold" data-a="aiweb"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>Sök recept på nätet</button></div>`;
+  const askBtn = `<button class="aiq" data-a="aisearch"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><path d="M10 12.8a1.6 1.6 0 1 1 2.3 1.4c-.5.3-.8.7-.8 1.2v.4"/><path d="M11.5 17.6h.01"/></svg>Fråga pappa</button>`;
+  const btns = ask => webBtn.replace('<div class="ais-webbtn">', '<div class="ais-webbtn">' + (ask ? askBtn : ""));
+  const webBtn =`<div class="ais-webbtn"><button class="aiq aiq-gold" data-a="aiweb"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>Sök recept på nätet</button></div>`;
   // Direkt medan man skriver: närmaste recept i receptboken, även när inte alla ord stämmer
   const near = list.length < 4 ? nearRecipes(q, list) : [];
   const nearList = near.length ? `<div class="ais-sub">Närmast i receptboken</div><div class="ais-list">${near.map(x => card(x.r, x.why)).join("")}</div>` : "";
   if (!s || s.busy || s.err) {
     return `<div class="aisearch near">${nearList}
-      ${s && s.web ? aiWebHtml(s) : webBtn}
-      ${s && s.busy ? `<p class="ais-status"><span class="aw-s">Pappa letar också i receptboken …</span></p>` : ""}
+      ${s && s.web ? aiWebHtml(s) : btns(!(s && s.busy))}
+      ${s && s.busy ? `<p class="ais-status"><span class="aw-s">Pappa letar i receptboken …</span></p>` : ""}
       ${s && s.err ? `<p class="ais-ans">Pappa kunde inte svara just nu. <button class="linkbtn" data-a="aisearch">Försök igen</button></p>` : ""}
     </div>`;
   }
   const items = s.items.map(it => ({ ...it, r: recipes.find(r => r.id === it.id) })).filter(x => x.r);
   return `<div class="aisearch">
     <div class="ais-head"><span class="ais-ico">${bulb}</span><b>Pappa föreslår</b><button class="iconbtn ais-x" data-a="aisearchclose" aria-label="Stäng">×</button></div>
-    ${s.good && s.answer ? `<p class="ais-ans">${esc(s.answer)}</p>` : ""}
-    ${s.good ? "" : aiWebHtml(s)}
+    ${s.answer && !s.webOnly ? `<p class="ais-ans">${esc(s.answer)}</p>` : ""}
+    ${!s.good && s.web ? aiWebHtml(s) : ""}
     ${items.length ? `${s.good ? "" : `<div class="ais-sub">Närmast i receptboken</div>`}<div class="ais-list">${items.map(x => card(x.r, x.why)).join("")}</div>`
       : s.webOnly ? nearList : ""}
-    ${s.good && !s.web ? webBtn : ""}
+    ${!s.web ? btns(s.webOnly) : ""}
     ${s.good && s.web ? aiWebHtml(s) : ""}
     ${aiNewHtml(s)}
   </div>`;
@@ -3084,7 +3081,7 @@ ${JSON.stringify(cat)}`;
     aiSearch = { ...aiSearch, q, busy: false, answer: out.svar || "", items, good };
     logEvent("ai_search", null, { q, träffar: aiSearch.items.length });
     // Inget riktigt bra i receptboken: leta på nätet
-    if (!good && !aiSearch.web) runAiWeb(q);
+    // Ingen automatisk nätsökning (kostar) – knappen "Sök recept på nätet" visas i stället
   } catch (e) {
     if (!aiSearch || aiSearch.q !== q) return;
     aiSearch = { ...aiSearch, q, busy: false, items: [], err: e && e.code === "auth" ? "Logga in igen och försök på nytt." : "Försök igen om en stund." };
