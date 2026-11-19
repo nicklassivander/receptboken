@@ -709,9 +709,11 @@ function aiOutHtml(id){
     // Klart: lampan till vänster, svaret bredvid, frågan under svaret. Lampan tänds bara första gången svaret visas.
     const fresh = !it._lit; it._lit = true;
     return `<div class="ai-row">${IDEA_SVG(fresh)}<div class="ai-body">
+      ${it.deep ? `<div class="deep-head">Pappa har funderat lite till</div>` : ""}
       <div class="ai-a">${aiMd(it.a)}</div>
-      <div class="ai-q under">${esc(it.q)}</div>
+      <div class="ai-q under">${esc(it.q)}${it.deep ? " · pappa funderade lite till" : ""}</div>
       ${aiModelHtml(it, i)}
+      ${aiDeepHtml(it, i)}
       ${links.length ? `<div class="chips" style="padding-top:4px">${links.map(x => `<button class="chip" data-a="open" data-id="${esc(x.id)}">${esc(x.title)}</button>`).join("")}</div>` : ""}
       ${!it.busy && it.check ? `<div class="aic-check ${it.check.level}"><b>${it.check.level === "warn" ? "⚠ Tänk på" : "💡 Tips"}</b> ${esc(it.check.text)}</div>` : ""}
       ${!it.busy && it.change && !it.dismissed ? (() => { const rr = recipes.find(x => x.id === id); return rr ? `<div class="aic">
@@ -725,13 +727,13 @@ function aiOutHtml(id){
 }
 function aiRefresh(id){ const el = document.getElementById("ai-out"); if (el && view.id === id) el.innerHTML = aiOutHtml(id); }
 
-// Snabbknapparna är rena frågor → Haiku. sonnet = true bara för testlägets "Fråga Sonnet i stället".
+// Snabbknapparna är rena frågor → Haiku. sonnet = true när någon trycker "Pappa, fundera lite till".
 async function askAI(r, kind, freeText, sonnet){
   if (!sample) return;
   const items = aiState[r.id] || (aiState[r.id] = []);
   if (items.some(x => x.busy)) return;
   const q = kind ? AI_PRESETS[kind].label : freeText;
-  const item = { q, a: "", busy: true, err: "", kind, model: sonnet ? "sonnet" : "haiku", redo: !!sonnet };
+  const item = { q, a: "", busy: true, err: "", kind, model: sonnet ? "sonnet" : "haiku", deep: !!sonnet };
   items.push(item); aiRefresh(r.id);
 
   const others = kind === "similar"
@@ -745,7 +747,7 @@ ${recipeText(r)}${r.notes ? "\n\nANTECKNINGAR: " + r.notes : ""}${others}`;
   // Rebuild a short conversation so follow-up questions have context.
   const convo = [];
   history.forEach((h, i) => { convo.push({ role: "user", content: (i === 0 ? context + "\n\nFRÅGA: " : "") + h.q }); convo.push({ role: "assistant", content: h.a }); });
-  const ask = kind ? AI_PRESETS[kind].prompt : freeText;
+  const ask = (kind ? AI_PRESETS[kind].prompt : freeText) + (sonnet ? "\n\nFundera lite till: ge ett grundligare och mer genomtänkt svar än en snabb första tanke." : "");
   convo.push({ role: "user", content: (convo.length ? "" : context + "\n\nFRÅGA: ") + ask });
 
   try {
@@ -762,7 +764,7 @@ async function askOrEdit(r, text, sonnet){
   if (!sample) return;
   const items = aiState[r.id] || (aiState[r.id] = []);
   if (items.some(x => x.busy)) return;
-  const item = { q: text, a: "", busy: true, err: "", model: sonnet ? "sonnet" : "haiku", redo: !!sonnet };
+  const item = { q: text, a: "", busy: true, err: "", model: sonnet ? "sonnet" : "haiku", deep: !!sonnet };
   items.push(item); aiRefresh(r.id);
   const current = { title: r.title, servings: r.servings || null, time: r.time || "", ingredients: r.ingredients || [], steps: r.steps || [] };
   const earlier = items.slice(0, -1).filter(x => x.a && !x.err && !(sonnet && x.q === text)).slice(-3).map(x => `F: ${x.q}\nS: ${x.a}`).join("\n\n");
@@ -799,7 +801,7 @@ Svara ENDAST med JSON:
 {"typ": "fråga"|"ändring"|"båda", "svar": "svaret på frågan, eller en mening om vad du ändrade", "ändring": null eller {"title": string, "servings": number|null, "time": string, "ingredients": [string], "steps": [string], "summary": "kort mening om vad som ändrats"}, "kontroll": null eller {"nivå": "varning"|"tips", "text": "max 2 meningar"}}
 Regler för ändring: ingredienser en per rad, mängd först; steg utan numrering; rubriker börjar med "# "; tider i stegen med siffror och enhet (t.ex. "15 min").
 
-${recipeCtx}`;
+${recipeCtx}${sonnet ? "\n\n(Användaren bad dig fundera lite till: ge ett grundligare och mer genomtänkt svar än en snabb första tanke.)" : ""}`;
   try {
     const out = parseJson(await ai(prompt, { mode: "json" }));
     item.a = String(out.svar || "").trim() || (out["ändring"] ? "Här är ändringen." : "");
@@ -1243,7 +1245,13 @@ document.addEventListener("click", async e => {
     case "shop": openShopFromRecipe(cur); break;
     case "shopfab": openShop(); break;
     case "aiapply": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it) applyAiChange(cur, it); break; }
-    case "aisonnet": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it && can("admin")) { if (it.kind) askAI(cur, it.kind, null, true); else askOrEdit(cur, it.q, true); } break; }
+    case "aideep": {   // "Pappa, fundera lite till": samma fråga till Sonnet, en gång per svar
+      const list = aiState[cur.id] || [], it = list[+el.dataset.i];
+      if (!it || it.deeper || list.some(x => x.busy)) break;
+      it.deeper = true;
+      if (it.kind) askAI(cur, it.kind, null, true); else askOrEdit(cur, it.q, true);
+      break;
+    }
     case "aidismiss": { const it = (aiState[cur.id] || [])[+el.dataset.i]; if (it) { it.dismissed = true; aiRefresh(cur.id); } break; }
     case "aisave": {
       const it = (aiState[cur.id] || [])[+el.dataset.i]; if (!it) break;
@@ -2113,7 +2121,7 @@ function renderHelp(){
       <ul>
         <li>Rader som börjar med <b>#</b> blir rubriker – bland ingredienserna (<i># Till såsen</i>) och i stegen (<i># Dagen innan</i>, <i># Vid servering</i>).</li>
         <li><b>Anteckningar:</b> tryck <i>Redigera</i> och skriv direkt i receptet.</li>
-        <li><b>Fråga kocken och sommelieren</b> längst ner i receptet: tryck <b>Vilket vin passar?</b> eller <b>Vad serverar jag till?</b>, eller skriv en egen fråga (<i>kan jag frysa den?</i>) eller vad du vill ändra (<i>byt grädde mot crème fraiche</i>, <i>gör den för 8 personer</i>) och tryck <b>Fråga Pappa</b>.</li>
+        <li><b>Fråga kocken och sommelieren</b> längst ner i receptet: tryck <b>Vilket vin passar?</b> eller <b>Vad serverar jag till?</b>, eller skriv en egen fråga (<i>kan jag frysa den?</i>) eller vad du vill ändra (<i>byt grädde mot crème fraiche</i>, <i>gör den för 8 personer</i>) och tryck <b>Fråga Pappa</b>. Vill du ha ett mer genomtänkt svar trycker du <b>Pappa, fundera lite till</b> under svaret.</li>
         <li>Medan pappa tänker snurrar kugghjulet och texten skiftar (<i>Pappa smakar av …</i>). När lampan tänds är svaret klart – det står bredvid lampan, med din fråga under. Gäller det en ändring visas de rader som tas bort (−) och läggs till (+).</li>
         <li>Ändringar kontrolleras: kan något misslyckas eller bli osäkert står det <b>⚠ Tänk på</b>, går det att göra bättre står det <b>💡 Tips</b>. Tryck <b>Använd ändringen</b> för att granska och spara (som variant eller i originalet) – på någon annans recept blir det <b>din egen variant</b>.</li>
       </ul>`)}
@@ -4268,8 +4276,14 @@ function aiModelHtml(it, i){
   if (!PAPPA_TEST || !can("admin") || it.busy || it.err || !it.model) return "";
   const tag = (m) => `<span class="aim-tag${m === "sonnet" ? " s" : ""}"><i></i>${m === "sonnet" ? "Sonnet" : "Haiku"}</span>`;
   if (it.model === "haiku>sonnet") return `<div class="ai-model">${tag("haiku")}→${tag("sonnet")}ändring</div>`;
-  if (it.model === "sonnet") return `<div class="ai-model">${tag("sonnet")}${it.redo ? "jämförelse" : ""}</div>`;
-  return `<div class="ai-model">${tag("haiku")}<button type="button" data-a="aisonnet" data-i="${i}">Fråga Sonnet i stället</button></div>`;
+  return `<div class="ai-model">${tag(it.model)}</div>`;
+}
+
+// "Pappa, fundera lite till": under svar från Haiku (inte ändringar), för alla. Ställer samma fråga till Sonnet.
+function aiDeepHtml(it, i){
+  if (it.busy || it.err || it.model !== "haiku" || it.deeper || it.change || !it.a) return "";
+  const ico = THINK_SVG.replace('class="think-ico"', 'class="deep-ico"').replace('width="30" height="30"', 'width="22" height="22"');
+  return `<div class="deep-row"><button type="button" class="aiq deep" data-a="aideep" data-i="${i}">${ico}Pappa, fundera lite till</button></div>`;
 }
 
 // ---------- Anteckningar som tidslinje (förslag E1) ----------
