@@ -1,5 +1,5 @@
 // Sivander's Recept – service worker: offline, snabb start och "Dela till" (Android)
-const VERSION = "v5";
+const VERSION = "v6";
 const SHELL = "shell-" + VERSION, RUNTIME = "runtime-" + VERSION, INBOX = "share-inbox";
 const SHELL_FILES = ["/", "/index.html", "/app.js", "/config.js", "/logo.svg", "/icon.svg", "/header.jpg", "/header-sm.jpg",
   "/manifest.webmanifest", "/icon-192.png", "/apple-touch-icon.png",
