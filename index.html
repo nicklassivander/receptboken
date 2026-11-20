@@ -1797,6 +1797,13 @@ body.noir #app .nt-pv,body.noir #app .nt-body{color:#cfc7ba}
 #boot .bt-ln::before,#boot .bt-ln::after{content:"";flex:1;height:1px;background:#c9a55c;opacity:.6}
 body:has(#app:not(.hidden)) #boot,body:has(#loginView:not(.hidden)) #boot{opacity:0;visibility:hidden;pointer-events:none}
 html{background:#0e0d0c}
+/* Baren: drinkkorten lika stora som receptkorten på startsidan (nov 2026) */
+.bar .bgrid{gap:30px 16px}
+.bar .bc-fr{aspect-ratio:4/5}
+@media(min-width:621px){
+  .bar .bgrid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:44px 30px;width:min(1480px,100vw);max-width:none;margin:0 calc(50% - min(740px,50vw));padding:0 22px 40px}
+}
+@media(min-width:1100px){.bar .bgrid{padding-left:40px;padding-right:40px}}
 </style>
 </head>
 <body>
