@@ -4716,7 +4716,7 @@ function barCardHtml(){
   return `<button class="barcard" data-a="baropen" aria-label="Gå in i baren"><span class="bc-rays" aria-hidden="true"></span>
     <span class="bc-t"><span class="bc-k">Sivander</span><b class="bshim">BAREN</b><span class="bc-n">${ds.length} ${ds.length === 1 ? "drink" : "drinkar"} · Skål!</span></span>
     <span class="bc-m">${pick.map(r => { const i = barInfo(r); return `<span class="bc-g" style="${barBg(i)}">${BAR_ZIG}${barPic(r, i, { bubbles: false })}</span>`; }).join("")}</span>
-    <span class="bc-go">Gå in ›</span></button>`;
+    <span class="bc-go">Välkommen in ›</span></button>`;
 }
 // Barens startsida
 function renderBar(){
