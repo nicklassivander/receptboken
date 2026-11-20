@@ -5,6 +5,9 @@
     },
     "api/images.js": {
       "maxDuration": 30
+    },
+    "api/week-drink.js": {
+      "maxDuration": 60
     }
   },
   "headers": [

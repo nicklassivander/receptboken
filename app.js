@@ -4753,10 +4753,11 @@ function renderBar(){
     const add = (r, lbl) => { if (r && !slides.some(s => s.r.id === r.id)) slides.push({ r, lbl }); };
     const byName = all.slice().sort((a, b) => (a.title || "").localeCompare(b.title || "", "sv"));
     add(barWeekPick(all, byName, day), "Veckans drink");
+    if (slides[0] && WEEK_DRINK && WEEK_DRINK.id === slides[0].r.id && WEEK_DRINK.why) slides[0].why = WEEK_DRINK.why;
     add(all.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0], "Senast i baren");
     add(all.slice().sort((a, b) => (b.timesCooked || 0) - (a.timesCooked || 0) || (b.rating || 0) - (a.rating || 0))[0], "Mest blandad");
   }
-  const slideHtml = slides.map(({ r, lbl }) => { const i = barInfo(r); return `<div class="bslide" data-a="open" data-id="${esc(r.id)}"><div class="bs-pic">${r.photo ? `<span class="bs-ph">${BAR_ZIG}<img src="${esc(r.photo)}" alt="" loading="lazy"></span>` : barGlassSvg(i)}</div><div class="bs-t"><span class="bsc">${lbl}</span><h3>${esc(r.title)}</h3><p>${esc(barIngNames(r))}</p><span class="bbtn">Blanda ›</span></div></div>`; }).join("");
+  const slideHtml = slides.map(({ r, lbl, why }) => { const i = barInfo(r); return `<div class="bslide" data-a="open" data-id="${esc(r.id)}"><div class="bs-pic">${r.photo ? `<span class="bs-ph">${BAR_ZIG}<img src="${esc(r.photo)}" alt="" loading="lazy"></span>` : barGlassSvg(i)}</div><div class="bs-t"><span class="bsc">${lbl}</span><h3>${esc(r.title)}</h3>${why ? `<p class="bs-why">”${esc(why)}” <span>– Matilda</span></p>` : `<p>${esc(barIngNames(r))}</p>`}<span class="bbtn">Blanda ›</span></div></div>`; }).join("");
   const rows = list.length >= BAR_ROWS_FROM;
   const card = (r, n) => { const i = barInfo(r); return rows
     ? `<div class="brow" data-a="open" data-id="${esc(r.id)}" style="animation-delay:${Math.min(n, 12) * .05}s"><div class="br-th" style="${barBg(i)}">${barPic(r, i, { bubbles: false })}</div><div class="br-t"><h4>${esc(r.title)}</h4><p>${esc(barIngNames(r))}</p></div><span class="bsc">${esc(i.base)}</span></div>`
@@ -5095,7 +5096,17 @@ function matTrack(id){
     sb.rpc("patch_recipe", { p_id: id, p_patch: { matHits: hits } }).then(function(){}, function(){});
   } catch (e) {}
 }
+// Matildas veckoval (api/week-drink.js via pg_cron, sparas i recipe_ai_cache "weekdrink:current") går först.
+var WEEK_DRINK = null, weekDrinkAsked = false;
+function weekDrinkLoad(){
+  if (weekDrinkAsked || !sb) return; weekDrinkAsked = true;
+  aiCacheGet("weekdrink:current", 10).then(function(d){
+    if (d && d.id) { WEEK_DRINK = d; if (view.name === "bar") render(); }
+  }, function(){});
+}
 function barWeekPick(all, byName, day){
+  weekDrinkLoad();
+  if (WEEK_DRINK) { var w = all.find(function(r){ return r.id === WEEK_DRINK.id; }); if (w) return w; }
   var cut = Date.now() - 7 * 864e5, best = null, bestN = 0, bestT = 0;
   all.forEach(function(r){
     var ts = (Array.isArray(r.matHits) ? r.matHits : []).map(function(t){ return Date.parse(t); }).filter(function(t){ return t > cut; });
