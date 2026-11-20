@@ -1399,6 +1399,14 @@ header.top{overflow:hidden}
 .nfp-steps li{counter-increment:s;display:flex;gap:12px;align-items:center;font-size:14.5px;color:#3a2f27}
 .nfp-steps li:before{content:counter(s);width:26px;height:26px;border-radius:50%;border:1px solid #c9a55c;color:#9c7a3c;display:grid;place-items:center;font-family:'Cormorant Garamond',serif;font-size:16px;flex:none}
 .nfp-btns{display:flex;gap:10px}.nfp-btns .btn{flex:1}
+
+/* Aviseringar: Slå på allt (kort överst i Konto → Aviseringar) */
+.nfa-big{display:flex;gap:14px;align-items:center;border:1px solid #c9a55c;border-radius:14px;background:#faf6ee;padding:14px 16px;margin:4px 0 18px}
+.nfa-big svg{color:#9c7a3c;flex:none}
+.nfa-big .t{flex:1;min-width:0}
+.nfa-big b{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;display:block;color:#1f1712}
+.nfa-big small{font-size:13px;color:#6b5f55;display:block;margin-top:2px;line-height:1.4}
+@media (max-width:600px){.nfa-big{flex-wrap:wrap}.nfa-big .btn{width:100%}}
 </style>
 </head>
 <body>

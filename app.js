@@ -3388,11 +3388,15 @@ async function openNotifySettings(){
     unsupported: ["Stöds inte i den här webbläsaren", "Prova Chrome, Edge eller Safari."],
     default: ["Aviseringar är av", "Slå på för att få aviseringar på den här enheten."],
   }[devState] || ["Aviseringar är av", ""];
+  // Slå på allt: enheten + alla händelser med ett tryck (visas tills allt är på)
+  const allOn = devState === "granted" && NOTIFY_KINDS.every(([k]) => prefs[k] !== false);
+  const showAll = !missing && !allOn && ["default", "granted", "ios"].includes(devState);
   box().innerHTML = `
     ${missing ? `<p class="hnote">Aviseringarna är inte påslagna i databasen än. Kör <b>supabase/notify.sql</b> i Supabase (SQL Editor → Run).</p>` : ""}
+    ${showAll ? `<div class="nfa-big">${NF_ASK_BELL}<span class="t"><b>Slå på allt</b><small>${devState === "granted" ? "Alla händelser nedan, med ett tryck." : "Den här enheten och alla händelser, med ett tryck."}</small></span><button class="btn accent small" id="nfAll">Slå på allt</button></div>` : ""}
     <div class="sgrp"><h3>Den här enheten</h3>
       <div class="srow nf-dev"><span class="st"><b>${DEV[0]}</b><small>${DEV[1]}</small></span>
-        ${devState === "default" ? `<button class="btn accent small" id="nfOn">Slå på</button>` : devState === "granted" && !missing ? `<button class="btn ghost small" id="nfTest">Testa</button>` : ""}</div></div>
+        ${devState === "default" && !showAll ? `<button class="btn accent small" id="nfOn">Slå på</button>` : devState === "granted" && !missing ? `<button class="btn ghost small" id="nfTest">Testa</button>` : ""}</div></div>
     <div class="sgrp"><h3>Meddela mig när</h3>
       ${NOTIFY_KINDS.map(([k, t, s]) => { const on = prefs[k] !== false; return `<label class="srow nf-row ${on ? "on" : ""}"><span class="st"><b>${t}</b><small>${s}</small></span><span class="nf-state">${on ? "På" : "Av"}</span><span class="sw"><input type="checkbox" data-k="${k}" ${on ? "checked" : ""} ${missing ? "disabled" : ""} aria-label="${t}"><i></i></span></label>`; }).join("")}
     </div>
@@ -3403,6 +3407,16 @@ async function openNotifySettings(){
     const { error } = await sb.rpc("recipe_notify_prefs_set", { p_prefs: prefs });
     toast(error ? "Kunde inte spara" : i.checked ? "Påslaget" : "Avstängt");
   });
+  if ($id("nfAll")) $id("nfAll").onclick = async () => {
+    if (devState === "ios") { nfAskIosSheet(); return; }
+    const btn = $id("nfAll"); btn.disabled = true;
+    const st = await ensurePush();
+    if (st !== "ok") { toast(st === "denied" ? "Aviseringar blockerades. Ändra i telefonens inställningar." : "Det gick inte att slå på aviseringar"); openNotifySettings(); return; }
+    NOTIFY_KINDS.forEach(([k]) => { prefs[k] = true; });
+    const { error } = await sb.rpc("recipe_notify_prefs_set", { p_prefs: prefs });
+    toast(error ? "Enheten är på, men valen kunde inte sparas" : "Allt är påslaget");
+    openNotifySettings();
+  };
   if ($id("nfOn")) $id("nfOn").onclick = async () => { const st = await ensurePush(); toast(st === "ok" ? "Aviseringar påslagna" : "Det gick inte att slå på aviseringar"); openNotifySettings(); };
   if ($id("nfTest")) $id("nfTest").onclick = async () => {
     const st = await ensurePush();
