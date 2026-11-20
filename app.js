@@ -4736,7 +4736,7 @@ function renderBar(){
     add(all.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0], "Senast i baren");
     add(all.slice().sort((a, b) => (b.timesCooked || 0) - (a.timesCooked || 0) || (b.rating || 0) - (a.rating || 0))[0], "Mest blandad");
   }
-  const slideHtml = slides.map(({ r, lbl }) => { const i = barInfo(r); return `<div class="bslide" data-a="open" data-id="${esc(r.id)}" style="${barBg(i)}">${barShelfSvg()}<div class="bs-pic">${r.photo ? `<span class="bs-ph">${BAR_ZIG}<img src="${esc(r.photo)}" alt="" loading="lazy"></span>` : barGlassSvg(i)}</div><div class="bs-t"><span class="bsc">${lbl}</span><h3>${esc(r.title)}</h3><p>${esc(barIngNames(r))}</p><span class="bbtn">Blanda ›</span></div></div>`; }).join("");
+  const slideHtml = slides.map(({ r, lbl }) => { const i = barInfo(r); return `<div class="bslide" data-a="open" data-id="${esc(r.id)}"><div class="bs-pic">${r.photo ? `<span class="bs-ph">${BAR_ZIG}<img src="${esc(r.photo)}" alt="" loading="lazy"></span>` : barGlassSvg(i)}</div><div class="bs-t"><span class="bsc">${lbl}</span><h3>${esc(r.title)}</h3><p>${esc(barIngNames(r))}</p><span class="bbtn">Blanda ›</span></div></div>`; }).join("");
   const rows = list.length >= BAR_ROWS_FROM;
   const card = (r, n) => { const i = barInfo(r); return rows
     ? `<div class="brow" data-a="open" data-id="${esc(r.id)}" style="animation-delay:${Math.min(n, 12) * .05}s"><div class="br-th" style="${barBg(i)}">${barPic(r, i, { bubbles: false })}</div><div class="br-t"><h4>${esc(r.title)}</h4><p>${esc(barIngNames(r))}</p></div><span class="bsc">${esc(i.base)}</span></div>`
