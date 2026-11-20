@@ -1672,6 +1672,165 @@ body.barmode{background:var(--bar-bg)}
 /* Baren: mörk sammet bakom drinklistan och i drinkramarna (B) */
 .bar{background:radial-gradient(90% 90% at 50% 40%,#11241e,#060e0b) fixed,#060e0b}
 .bar .bc-fr,.bar .br-th{background:radial-gradient(90% 90% at 50% 40%,#11241e,#060e0b)!important}
+/* Noir B1 Spotlight (nov 2026): startsidan och receptsidan i mörk fine dining-stil. Gäller bara body.noir (sätts av noirTheme), inte Baren/redigering/hjälp */
+body.noir{background:#0e0d0c;--nz-bg:#0e0d0c;--nz-bg2:#161412;--nz-bg3:#1d1a17;--nz-ink:#efe8dc;--nz-soft:#9b9286;--nz-brass:#c9a55c;--nz-brass2:#e2c48a;--nz-line:rgba(201,165,92,.28);--nz-hair:rgba(255,255,255,.07)}
+body.noir #app{--bg:#0e0d0c;--surface:#161412;--paper:#161412;--ink:#efe8dc;--muted:#9b9286;--line:rgba(201,165,92,.22);--accent:#c9a55c;--accent-soft:rgba(201,165,92,.12);--brass:#c9a55c;--brass-soft:rgba(201,165,92,.1);--night:#0e0d0c;color:var(--nz-ink)}
+body.noir #app a{color:var(--nz-brass2)}
+body.noir #app .meta{color:var(--nz-soft)}
+/* sidhuvudet: spotlight på bilden, centrerad rubrik */
+body.noir #app header.top{min-height:560px;padding:100px 20px 120px;margin-bottom:0;justify-content:center;align-items:center;text-align:center}
+body.noir #app header.top::after{display:block;content:"";position:absolute;z-index:-1;inset:0;width:auto;margin:0;border:0;background:radial-gradient(ellipse 80% 60% at 50% 42%,rgba(14,13,12,0) 25%,rgba(14,13,12,.5) 65%,rgba(14,13,12,.85) 100%),linear-gradient(180deg,rgba(14,13,12,.5) 0%,rgba(14,13,12,0) 25%,rgba(14,13,12,0) 50%,#0e0d0c 97%);pointer-events:none}
+body.noir #app .hs-veil{background:radial-gradient(ellipse 75% 60% at 50% 45%,rgba(14,13,12,.05) 0%,rgba(14,13,12,.45) 55%,rgba(14,13,12,.9) 100%),linear-gradient(180deg,rgba(14,13,12,.55) 0%,rgba(14,13,12,0) 30%)}
+body.noir #app header.top .brand{flex-direction:column!important;align-items:center;justify-content:center;gap:0;width:auto;border:0}
+body.noir #app header.top .brand .logo{display:none}
+body.noir #app header.top h1{display:flex;flex-direction:column;align-items:center;font-size:56px;padding:0;border:0;white-space:nowrap;text-align:center;line-height:1;letter-spacing:0;margin:0}
+body.noir #app header.top h1::before{inset:-40% -30% -40% -30%;background:radial-gradient(ellipse at center,rgba(8,7,6,.72) 0%,rgba(8,7,6,.45) 45%,rgba(8,7,6,0) 72%)}
+body.noir #app header.top h1 .t-sv{order:0;font-family:var(--serif);font-style:italic;font-weight:500;font-size:.6em;color:#e9cf98;letter-spacing:0;text-transform:none}
+body.noir #app header.top h1 .t-gl{display:none}
+body.noir #app header.top h1 .t-rp{order:1;font-family:var(--serif);font-weight:500;font-size:1em;letter-spacing:.26em;margin-right:-.26em;text-transform:uppercase;color:#f3ece0;line-height:1.02;text-shadow:0 2px 24px rgba(0,0,0,.7)}
+body.noir #app header.top h1 .rcount{order:2;align-self:center;width:min(300px,70vw);justify-content:center;margin:.3em 0 0;font-size:11px;gap:12px;background:none;border:0;padding:0;box-shadow:none;color:#c9a55c;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+body.noir #app header.top h1 .rcount::before,body.noir #app header.top h1 .rcount::after{content:"";flex:1;width:auto;min-width:20px;height:1px;background:linear-gradient(90deg,rgba(201,165,92,0),#c9a55c);box-shadow:none}
+body.noir #app header.top h1 .rcount::after{transform:scaleX(-1)}
+body.noir #app header.top h1 .rcount b{font-family:var(--sans);font-size:1em;font-weight:400;color:#c9a55c;letter-spacing:.32em}
+body.noir #app header.top h1 .rcount span{color:#c9a55c;letter-spacing:.32em;font-size:1em}
+body.noir #app header.top h1 .rcount em{color:#cfe3c4;letter-spacing:.1em}
+body.noir #app header.top > .row{top:calc(14px + env(safe-area-inset-top));right:20px}
+body.noir #app header.top .iconbtn{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#cbc2b4;text-shadow:0 1px 6px rgba(0,0,0,.8)}
+/* "Kvällens rätt" nere till vänster */
+body.noir #app .hdr-cap{left:20px;bottom:28px;max-width:calc(100% - 40px);background:none;border:0;border-radius:0;padding:0;flex-direction:column;align-items:flex-start;gap:4px;color:#efe8dc;text-align:left;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+body.noir #app .hdr-cap::before{content:"Kvällens rätt";font:400 10px/1 var(--sans);letter-spacing:.32em;text-transform:uppercase;color:#c9a55c}
+body.noir #app .hdr-cap span{font-family:var(--serif);font-size:28px;font-weight:500;line-height:1.1;text-shadow:0 2px 14px rgba(0,0,0,.8);max-width:100%}
+body.noir #app .hdr-cap b{display:none}
+/* sök, sortering, flikar */
+body.noir #app .search{position:relative;z-index:2;margin-top:-18px}
+body.noir #app .search input{background-color:#161412;border:1px solid var(--nz-line);border-radius:0;color:var(--nz-ink);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%23c9a55c' stroke-width='1.3'%3E%3Ccircle cx='7.5' cy='7.5' r='6'/%3E%3Cpath d='M12 12l5 5'/%3E%3C/svg%3E");box-shadow:none}
+body.noir #app .search input::placeholder{color:#8a8176}
+body.noir #app .search input:focus{border-color:var(--nz-brass);box-shadow:0 0 0 3px rgba(201,165,92,.15)}
+body.noir #app .search select{background-color:#161412;border:1px solid var(--nz-line);border-radius:0;color:#cbc2b4;font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+body.noir #app .chip{color:#8a8176;font-size:12px;letter-spacing:.2em;text-transform:uppercase}
+body.noir #app .chip:hover{color:var(--nz-ink)}
+body.noir #app .chip.on{color:var(--nz-ink);border-bottom-color:var(--nz-brass)}
+body.noir #app .seg button{color:#7d756b;font-size:11px;letter-spacing:.2em;text-transform:uppercase}
+body.noir #app .seg button.on{color:var(--nz-ink);border-bottom-color:var(--nz-brass)}
+body.noir #app .filterbar,body.noir #app .filters .chips{border-color:var(--nz-line)}
+/* receptkorten */
+body.noir #app .grid{counter-reset:nz}
+body.noir #app .card{counter-increment:nz}
+body.noir #app .thumb{background:#161412;aspect-ratio:3/4;box-shadow:inset 0 0 0 1px rgba(201,165,92,.15)}
+body.noir #app .thumb::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,transparent 45%,rgba(0,0,0,.55));box-shadow:inset 0 0 0 1px rgba(201,165,92,.15);pointer-events:none}
+body.noir #app .thumb .plate{color:#4a433b}
+body.noir #app .thumb .fav{z-index:2;top:10px;left:10px;right:auto;font-size:0;text-shadow:none;background:#e2c48a;padding:4px 7px 3px}
+body.noir #app .thumb .fav::after{content:"✦ Favorit";font:500 8.5px/1 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#141210}
+body.noir #app .card .body{text-align:left;padding:12px 0 0}
+body.noir #app .card .body::before{content:"N° " counter(nz,decimal-leading-zero);display:block;font-family:var(--serif);font-style:italic;font-size:14px;color:var(--nz-brass);margin-bottom:2px}
+body.noir #app .card h3{font-size:21px;font-weight:500;color:var(--nz-ink);margin-bottom:4px}
+body.noir #app .card .meta{justify-content:flex-start;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#7d756b;gap:2px 10px}
+body.noir #app .card .badge{font-size:10px;color:#7d756b}
+body.noir #app .card .badge.ig,body.noir #app .card .badge.web,body.noir #app .card .badge.own{font-family:var(--serif);font-size:14px;letter-spacing:0;text-transform:none}
+body.noir #app .card .badge.mod{color:var(--nz-brass)}
+body.noir #app .rrow{border-color:var(--nz-hair)}
+body.noir #app .rrow:hover{background:#161412}
+body.noir #app .rthumb{background-color:#161412;color:#4a433b}
+body.noir #app .fab{background:rgba(14,13,12,.92);color:var(--nz-brass);border:1px solid var(--nz-brass);box-shadow:0 8px 24px rgba(0,0,0,.55);font-weight:200}
+body.noir #app .empty{border-color:var(--nz-line)}
+body.noir #app .notice{background:rgba(201,165,92,.1);color:var(--nz-ink)}
+/* receptsidan: bilden i spotlight */
+body.noir #app .hero{height:min(66vh,560px);background:#0e0d0c}
+body.noir #app .hero img{opacity:1}
+body.noir #app .hero::after{background:radial-gradient(ellipse 70% 60% at 50% 40%,rgba(14,13,12,0) 30%,rgba(14,13,12,.55) 70%,rgba(14,13,12,.9) 100%),linear-gradient(180deg,rgba(14,13,12,.45) 0%,rgba(14,13,12,0) 25%,rgba(14,13,12,0) 50%,#0e0d0c 100%)}
+body.noir #app .hero.noimg{background:radial-gradient(ellipse at 50% 0%,#221e1a 0%,#0e0d0c 70%)}
+body.noir #app .hero-cap{padding-bottom:26px}
+body.noir #app .hero-cap .badge,body.noir #app .hero-cap .badge.ig,body.noir #app .hero-cap .badge.web,body.noir #app .hero-cap .badge.own{color:var(--nz-brass);font-family:var(--sans);font-style:normal;font-size:10px;letter-spacing:.3em;text-transform:uppercase}
+body.noir #app .hero-cap .dtitle{font-weight:500;font-size:clamp(40px,11vw,92px);line-height:.98;max-width:16ch;color:#f3ece0;text-shadow:0 2px 24px rgba(0,0,0,.6)}
+body.noir #app .ratebar{border-top:1px solid var(--nz-line);border-bottom:1px solid var(--nz-line);padding:10px 0;margin-top:0}
+body.noir #app .stars button{color:#3d3832}
+body.noir #app .stars button.on{color:var(--nz-brass)}
+body.noir #app .ratebar .iconbtn{color:var(--nz-brass2)!important}
+body.noir #app .tolist{color:#8a8176}
+body.noir #app .startcook::before,body.noir #app .startcook::after{background:var(--nz-line)}
+body.noir #app .cookbtn{color:var(--nz-ink);border-color:var(--nz-brass);background:transparent}
+body.noir #app .cookbtn:hover{background:var(--nz-brass);color:#141210}
+body.noir #app .cookbtn svg{color:var(--nz-brass)}
+body.noir #app .ctabs{background:#0e0d0c;border-color:var(--nz-line);box-shadow:0 6px 12px -10px rgba(0,0,0,.8)}
+body.noir #app .ctabs button{color:#7d756b}
+body.noir #app .ctabs button.on{color:var(--nz-ink);border-bottom-color:var(--nz-brass)}
+body.noir #app .panel{border-color:var(--nz-line)}
+body.noir #app .panel h2{color:var(--nz-ink);font-weight:500}
+body.noir #app .cpane h2{font-family:var(--sans);font-size:11px;font-weight:400;letter-spacing:.38em;text-transform:uppercase;color:var(--nz-brass)}
+body.noir #app .stepper{color:var(--nz-soft)}
+body.noir #app .stepper button{background:transparent;border-color:var(--nz-line);color:var(--nz-brass)}
+body.noir #app .ings li{border-bottom-color:var(--nz-hair);color:#e3dbcf}
+body.noir #app .ings li .box{border-color:var(--nz-line)}
+body.noir #app .ings li .amt{font-family:var(--serif);font-weight:500;font-size:1.18em;color:var(--nz-brass2);margin-right:.25em}
+body.noir #app .ings li.done,body.noir #app .ings li.done .amt{color:#5f5850;text-decoration-color:#5f5850}
+body.noir #app .ings li.group{color:var(--nz-brass2)}
+body.noir #app .steps li{color:#ddd5c8;border-bottom:1px solid var(--nz-hair);padding-top:16px;padding-bottom:16px}
+body.noir #app .steps li::before{font-style:normal;font-weight:500;font-size:38px;line-height:1;color:var(--nz-brass);top:14px}
+body.noir #app .steps li.done{color:#5f5850}
+body.noir #app .steps li.group{color:var(--nz-brass2)}
+body.noir #app .cnext{color:var(--nz-ink);border-color:var(--nz-line)}
+body.noir #app .panel.changes,body.noir #app .panel.mychanges{background:rgba(201,165,92,.08)}
+/* Pappa */
+body.noir #app .panel.ai{border:1px solid var(--nz-line);padding:24px 20px;margin-top:40px;background:radial-gradient(ellipse at top,rgba(201,165,92,.12),rgba(201,165,92,0) 70%)}
+body.noir #app .panel.ai h2{font-style:italic}
+body.noir #app .aiq{background:transparent;border:1px solid var(--nz-line);color:var(--nz-brass2)}
+body.noir #app .aiq:hover{background:rgba(201,165,92,.1);border-color:var(--nz-brass)}
+body.noir #app .aiq svg{color:var(--nz-brass)}
+body.noir #app .ai-ask textarea,body.noir #app .ai-ask input{background:#161412;border:1px solid var(--nz-line);color:var(--nz-ink);box-shadow:none;border-radius:0}
+body.noir #app .ai-ask textarea::placeholder{color:#7d756b}
+body.noir #app .ask-btn{background:var(--nz-brass);color:#141210;border-color:var(--nz-brass)}
+body.noir #app .ai-a,body.noir #app .ai-q{color:var(--nz-ink)}
+/* knapprutorna längst ner */
+body.noir #app .atile{background:#161412;border-color:var(--nz-line);color:#d9d1c4}
+body.noir #app .atile:hover{background:#1d1a17;border-color:var(--nz-brass)}
+body.noir #app .atile svg{color:var(--nz-brass)}
+body.noir #app .actions{border-color:var(--nz-line)}
+body.noir #app .del-link{color:#b36a6a}
+/* knappar och kort som var vita */
+body.noir #app .fbtn{background:transparent;border-color:var(--nz-line);color:#cbc2b4;border-radius:0}
+body.noir #app .fbtn .n{background:var(--nz-brass);color:#141210}
+body.noir #app .fpanel{background:#161412;border-color:var(--nz-line);box-shadow:0 18px 40px rgba(0,0,0,.5)}
+body.noir #app .ftag{background:transparent;border-color:var(--nz-line);color:#d9d1c4}
+body.noir #app .ftag.on,body.noir #app .activetags button:not(.linkbtn){background:var(--nz-brass);border-color:var(--nz-brass);color:#141210}
+body.noir #app .cookbtn.shopbtn{background:transparent;color:var(--nz-ink);border-color:var(--nz-brass)}
+body.noir #app .shopfab.inhead{background:rgba(14,13,12,.85)}
+body.noir #app .shopfab .cnt{border-color:#0e0d0c}
+body.noir #app .nt-card{background:#161412;border-color:var(--nz-line);color:#ddd5c8}
+body.noir #app .nt-it::before{background:#0e0d0c}
+body.noir #app .notes-edit textarea,body.noir #app .notes-empty .linkbtn{background:#161412;border-color:var(--nz-line);color:var(--nz-ink)}
+body.noir #app .hitem{border-bottom-color:var(--nz-hair)}
+body.noir #app .vchip{background:transparent;border-color:var(--nz-line);color:#d9d1c4}
+body.noir #app .vchip.on{background:var(--nz-brass);border-color:var(--nz-brass);color:#141210}
+body.noir #app .vchip.on small{color:rgba(20,18,16,.7)}
+body.noir #app .aibar{background:#161412;border-color:var(--nz-line);color:#d9d1c4}
+body.noir #app .aibar.ok{background:none;color:#8a8176}
+body.noir #app .aibar.none .ab-t{color:#d9d1c4}
+body.noir #app .act-row,body.noir #app .act-row .lab,body.noir #app .act-row .latest b,body.noir #app .act-row .latest .mq-it b,body.noir #app .act-row .latest .mq-it .t{color:var(--nz-ink)}
+body.noir #app .act-row .avs .av{border-color:#0e0d0c}
+body.noir #app .act-tabs .tn,body.noir #app .act-row .new{background:var(--nz-brass);color:#141210}
+body.noir #app .btn.ghost{color:var(--nz-ink);border-color:var(--nz-line)}
+body.noir #app .btn.ghost:hover{background:var(--nz-brass);color:#141210}
+body.noir #app .btn.accent,body.noir #app .btn:not(.ghost):not(.danger){color:#141210}
+html:has(body.noir){background:#0e0d0c}
+body.noir #app .startcook .shopbtn{background:transparent!important;color:var(--nz-ink)!important;border:1px solid var(--nz-brass)!important}
+body.noir #app .startcook .shopbtn:hover{background:rgba(201,165,92,.15)!important}
+body.noir #app .steps li .sbox{background-color:transparent;border-color:rgba(201,165,92,.45)}
+body.noir #app .steps li.done .sbox{background-color:var(--nz-brass);border-color:var(--nz-brass)}
+body.noir #app .nt-pv,body.noir #app .nt-body{color:#cfc7ba}
+/* datorn */
+@media(min-width:621px){
+  body.noir #app header.top{min-height:min(78vh,700px);padding-top:120px;padding-bottom:140px}
+  body.noir #app header.top h1{font-size:clamp(84px,11vw,150px)}
+  body.noir #app header.top h1 .t-sv{font-size:.34em}
+  body.noir #app header.top h1 .rcount{font-size:12px;width:340px}
+  body.noir #app header.top > .row{right:max(22px,calc(50vw - 560px))}
+  body.noir #app .hdr-cap{bottom:120px}
+  body.noir #app .hdr-cap span{font-size:32px}
+  body.noir #app .search{margin-top:-64px}
+  body.noir #app .shopfab.inhead{bottom:84px}
+  body.noir #app .grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:40px 24px}
+  body.noir #app .hero{height:min(72vh,640px)}
+}
 </style>
 </head>
 <body>

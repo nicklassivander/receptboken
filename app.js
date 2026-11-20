@@ -316,6 +316,7 @@ function render(){
   syncHistory();
   syncWakeLock();
   try { barTheme(); } catch {}
+  try { noirTheme(); } catch {}
   if (view.name === "bar") return renderBar();
   if (view.name === "detail") { logView(view.id); if (barIsDrinkView()) return renderDrink(recipes.find(x => x.id === view.id)); return renderDetail(); }
   if (view.name === "edit") return renderEdit();
@@ -515,7 +516,7 @@ function renderDetail(){
       ${baseServ ? `<div class="stepper" style="margin-bottom:8px"><button data-a="serv" data-d="-1">−</button><span>${serv} portioner</span><button data-a="serv" data-d="1">+</button></div>` : ""}
       ${ings.length ? `<ul class="ings">${ings.map((l, i) => l.startsWith("#")
           ? `<li class="group">${esc(l.replace(/^#+\s*/, ""))}</li>`
-          : `<li><span>${esc(scaleLine(l, f))}</span></li>`).join("")}</ul>`
+          : `<li><span>${noirIng(scaleLine(l, f))}</span></li>`).join("")}</ul>`
         : `<p class="meta">Inga ingredienser ifyllda.</p>`}
     </div>
 
@@ -5007,4 +5008,17 @@ function barShelfSvg(){
   while (x < 1000) { const bh = 28 * (.75 + R() * .5), bw = 7 + R() * 5, k = Math.floor(R() * 3); parts.push(bottle(x + bw / 2, bh, bw, k)); x += bw + 6 + R() * 8; }
   barShelfCache = `<svg class="bshelf" viewBox="0 0 1000 77" preserveAspectRatio="xMinYMax slice" aria-hidden="true"><path d="${parts.join("")}" fill="rgba(201,165,92,.05)" stroke="rgba(201,165,92,.2)" stroke-width=".8" vector-effect="non-scaling-stroke"/><line x1="0" x2="1000" y1="76.5" y2="76.5" stroke="rgba(201,165,92,.55)" stroke-width="1" vector-effect="non-scaling-stroke"/></svg>`;
   return barShelfCache;
+}
+
+// ---------- Noir (B1 Spotlight, nov 2026) ----------
+// Startsidan och receptsidorna (inte Baren, redigering eller hjälp) får mörk fine dining-stil: body.noir, CSS sist i index.html.
+function noirTheme(){
+  var on = view.name === "list" || (view.name === "detail" && !barIsDrinkView());
+  document.body.classList.toggle("noir", on);
+}
+// Ingrediensrad: mängden i mässing ("1 kg" högrev)
+var NOIR_AMT = /^((?:ca\.?\s*)?[\d½¼¾⅓⅔⅛]+(?:\s*[.,/–-]\s*[\d½¼¾⅓⅔⅛]+)*\s*(?:kg|hg|g|mg|l|dl|cl|ml|msk|tsk|krm|st|klyftor|klyfta|burkar|burk|paket|förp|nypa|skivor|skiva|knippe|kvistar|kvist|blad)?\.?)\s+(.+)$/i;
+function noirIng(line){
+  var t = String(line || ""), m = t.match(NOIR_AMT);
+  return m ? '<b class="amt">' + esc(m[1]) + '</b> ' + esc(m[2]) : esc(t);
 }
