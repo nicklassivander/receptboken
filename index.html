@@ -1619,6 +1619,26 @@ body.barmode{background:var(--bar-bg)}
 .dk .dk-step button{width:38px;height:34px;border:0;background:none;color:#e2c48a;font:300 22px var(--sans);line-height:1;padding:0;cursor:pointer}
 .dk .dk-step button:hover{background:rgba(201,165,92,.14)}
 .dk .dk-step button:disabled{opacity:.35;cursor:default;background:none}
+/* tips från bartendern (anteckningar på drinksidan) */
+.dk .dk-notes{margin:26px 0 0;padding:0;background:none;border:0;box-shadow:none;color:#e9dcc0}
+.dk .dk-notes h2{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 10px;padding:0;font:italic 400 24px 'Cormorant Garamond',serif;color:#f0dcae;border:0}
+.dk .dk-notes .nt-add,.dk .dk-notes.notes-empty .linkbtn{color:#e2c48a;font:400 13.5px Jost,sans-serif}
+.dk .dk-notes .nt-cnt{color:#c9a55c}
+.dk .dk-notes .nt-tl::before{border-color:rgba(201,165,92,.6)}
+.dk .dk-notes .nt-it::before{background:#0f241e;border-color:#c9a55c}
+.dk .dk-notes .nt-it.k-pappa::before{background:#c9a55c}
+.dk .dk-notes .nt-card{background:rgba(255,255,255,.04);border:1px solid rgba(201,165,92,.35)}
+.dk .dk-notes .nt-it.k-pappa .nt-card{border-left:3px solid #c9a55c}
+.dk .dk-notes .nt-q{color:#f0dcae}
+.dk .dk-notes .nt-it:not(.k-pappa) .nt-q,.dk .dk-notes .nt-m,.dk .dk-notes .nt-hint{color:#b9a982}
+.dk .dk-notes .nt-pv,.dk .dk-notes .nt-body{color:#e9dcc0}
+.dk .dk-notes .nt-ico,.dk .dk-notes .nt-ico.pen{color:#e2c48a}
+.dk .dk-notes .nt-chev{border-color:#c9a55c}
+.dk .dk-notes .nt-tools .linkbtn{color:#e2c48a}
+.dk .dk-notes textarea{background:rgba(255,255,255,.06);color:#f0dcae;border:1px solid rgba(201,165,92,.5);border-radius:10px}
+.dk .dk-notes textarea::placeholder{color:#9d8f6e}
+.dk .dk-notes .btn.accent{background:#c9a55c;color:#123129;border-color:#c9a55c}
+.dk .dk-notes .btn.ghost{color:#e2c48a;border-color:rgba(201,165,92,.6);background:none}
 .dk .dk-step span{min-width:72px;text-align:center;font:500 14px var(--sans);color:#f0dcae;border-left:1px solid rgba(201,165,92,.4);border-right:1px solid rgba(201,165,92,.4);padding:8px 4px}
 </style>
 </head>

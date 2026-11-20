@@ -4346,18 +4346,19 @@ function noteNew(kind, text, q){
 function notesWith(r, add){ const items = noteItemsOf(r).concat(add ? [add] : []); return { noteItems: items, notes: notesText(items) }; }
 function saveNoteItems(r, items){ return patch(r.id, { noteItems: items, notes: notesText(items) }); }
 function addNote(r, n){ return patch(r.id, notesWith(r, n)); }
-function noteTitle(n){ return n.kind === "pappa" ? (n.q || "Pappa") : n.kind === "old" ? "Äldre anteckningar" : n.kind === "log" ? "Ändring i receptet" : "Egen anteckning"; }
+function noteTitle(n){ return n.kind === "pappa" ? (n.q || "Pappa") : n.kind === "old" ? "Äldre anteckningar" : n.kind === "log" ? "Ändring i receptet" : (typeof barIsDrinkView === "function" && barIsDrinkView() ? "Tips" : "Egen anteckning"); }
 function noteShortDate(d){
   if (!d) return "";
   try { const x = new Date(d); const o = { day: "numeric", month: "short" }; if (x.getFullYear() !== new Date().getFullYear()) o.year = "numeric"; return x.toLocaleDateString("sv-SE", o).replace(".", ""); } catch { return d; }
 }
 function notePreview(t){ return String(t || "").replace(/\*\*/g, "").split("\n").map(l => l.trim().replace(/^([-*•]|\d+[.)]|#+)\s+/, "")).filter(Boolean).join(" · "); }
-function notesPanelHtml(r){
+function notesPanelHtml(r, o = {}){
   const ed = canEdit(r);
+  const T = { title: o.title || "Anteckningar", add: o.add || "+ Ny anteckning", first: o.first || "+ Lägg till anteckning", ph: o.ph || "Tips, vin till, vad gästerna tyckte …", cls: o.cls || "" };
   const items = noteItemsOf(r).slice().reverse();
   if (noteUi.rid !== r.id) { noteUi.rid = r.id; noteUi.open = null; noteUi.edit = null; noteUi.armed = null; }
-  if (!items.length && noteUi.edit !== "new") return ed ? `<div class="panel notes-empty"><button class="linkbtn" data-a="ntnew">+ Lägg till anteckning</button></div>` : "";
-  const editor = (id, val) => `<div class="nt-ed"><textarea id="nt-input" data-n="${esc(id)}" rows="4" placeholder="Tips, vin till, vad gästerna tyckte …">${esc(noteUi.draftFor === id ? noteUi.draft : val)}</textarea>
+  if (!items.length && noteUi.edit !== "new") return ed ? `<div class="panel notes-empty ${T.cls}"><button class="linkbtn" data-a="ntnew">${T.first}</button></div>` : "";
+  const editor = (id, val) => `<div class="nt-ed"><textarea id="nt-input" data-n="${esc(id)}" rows="4" placeholder="${esc(T.ph)}">${esc(noteUi.draftFor === id ? noteUi.draft : val)}</textarea>
     <div class="row"><button class="btn accent small" data-a="ntsave" data-n="${esc(id)}">Spara</button><button class="btn ghost small" data-a="ntcancel">Avbryt</button></div></div>`;
   const card = n => {
     const open = noteUi.open === n.id || noteUi.edit === n.id, editing = noteUi.edit === n.id;
@@ -4378,7 +4379,7 @@ function notesPanelHtml(r){
       </div></div>`;
   };
   const many = items.length > 3;
-  return `<div class="panel notes-tl"><h2><span>Anteckningar${items.length > 1 ? `<span class="nt-cnt">${items.length}</span>` : ""}</span>${ed && noteUi.edit !== "new" ? `<button class="linkbtn nt-add" data-a="ntnew">+ Ny anteckning</button>` : ""}</h2>
+  return `<div class="panel notes-tl ${T.cls}"><h2><span>${T.title}${items.length > 1 ? `<span class="nt-cnt">${items.length}</span>` : ""}</span>${ed && noteUi.edit !== "new" ? `<button class="linkbtn nt-add" data-a="ntnew">${T.add}</button>` : ""}</h2>
     ${noteUi.edit === "new" ? `<div class="nt-new">${editor("new", "")}</div>` : ""}
     ${items.length ? `<div class="nt-scroll${many ? " many" : ""}" id="nt-scroll" data-rid="${esc(r.id)}"><div class="nt-tl">${items.map(card).join("")}</div></div>
     ${many ? `<div class="nt-hint">Scrolla för äldre anteckningar</div>` : ""}` : ""}
@@ -4789,6 +4790,7 @@ function renderDrink(r){
       <div class="dk-hd"><span>Ingredienser</span><div class="dk-step" role="group" aria-label="Antal glas"><button data-a="barserv" data-n="${Math.max(1, serv - 1)}" aria-label="Färre glas" ${serv <= 1 ? "disabled" : ""}>−</button><span>${serv} glas</span><button data-a="barserv" data-n="${Math.min(50, serv + 1)}" aria-label="Fler glas">+</button></div></div>
       <ul class="dk-ing">${ings || `<li><span>Inga ingredienser än.</span></li>`}</ul>
       ${steps ? `<div class="dk-hd"><span>Så gör du</span></div><ol class="dk-steps">${steps}</ol>` : ""}
+      ${notesPanelHtml(r, { title: "Tips från bartendern", add: "+ Nytt tips", first: "+ Lägg till ett tips", ph: "Vilken vermouth, hur mycket is, vad gästerna tyckte …", cls: "dk-notes" })}
       ${matHtml(r)}
       <div class="dk-more">${canEdit(r) ? `<button class="linkbtn" data-a="edit">Redigera</button>` : ""}<button class="linkbtn" data-a="barfull">Alla funktioner<small>anteckningar, matlagning, inköpslista</small></button></div>
     </div></div>`;
