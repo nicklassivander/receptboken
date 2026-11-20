@@ -1627,6 +1627,10 @@ body.barmode{background:var(--bar-bg)}
 /* Skyline: 40 % på telefon, 50 % på dator */
 .bar .bhero .bsky-dat{display:none}
 @media(min-width:760px){.bar .bhero .bsky-tel{display:none}.bar .bhero .bsky-dat{display:block}}
+/* blinkfyr på Empire */
+.bar .bhero .bsky-fyr{animation:bfyr 2.4s infinite}
+@keyframes bfyr{0%,100%{opacity:0}8%,30%{opacity:1}42%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.bar .bhero .bsky-fyr{animation:none;opacity:.8}}
 /* tips från bartendern (anteckningar på drinksidan) */
 .dk .dk-notes{margin:26px 0 0;padding:0;background:none;border:0;box-shadow:none;color:#e9dcc0}
 .dk .dk-notes h2{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 10px;padding:0;font:italic 400 24px 'Cormorant Garamond',serif;color:#f0dcae;border:0}
