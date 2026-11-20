@@ -65,13 +65,21 @@ module.exports = async (req, res) => {
     } catch {}
   }
   if (!queries.length) queries = [own || title];
-  if (drink) queries = queries.map((q) => /cocktail|drink|mocktail|spritz|martini/i.test(q) ? q : q + " cocktail");
+  if (drink) {
+    queries = queries.map((q) => /cocktail|drink|mocktail|spritz|martini/i.test(q) ? q : q + " cocktail");
+    // reserv: en allmän drinkbild om de exakta sökningarna inte ger något
+    if (!queries.some((q) => /^cocktail glass$/i.test(q))) queries.push("cocktail glass");
+  }
+  // drinkbilder: bilden måste vara taggad som dryck och får inte vara taggad som mat
+  const DRINK_RE = /cocktail|drink|beverage|mocktail|martini|mojito|spritz|margarita|daiquiri|negroni|gin|vodka|rum|whisk|bourbon|tequila|liquor|liqueur|alcohol|aperitif|champagne|prosecco|wine|glass|lemonade|juice|smoothie|soda|tonic|bar\b/i;
+  const FOOD_RE = /\b(food|dish|meal|curry|soup|noodle|rice|salad|pasta|pizza|meat|chicken|pork|beef|fish|seafood|shrimp|stir.?fry|wok|plate|bowl|vegetable|cooking|kitchen|restaurant food|lunch|dinner)\b/i;
+  const drinkOk = (alt) => DRINK_RE.test(alt) && !FOOD_RE.test(alt);
 
   // 3. Sök i bildbanken: liggande bilder, minst 1200 px breda
   const seen = new Set(), photos = [];
   let limited = false;
   for (const q of queries) {
-    if (photos.length >= 12) break;
+    if (photos.length >= 12 || (drink && q === "cocktail glass" && photos.length >= 4)) break;
     try {
       const key = source + "|" + (drink ? "d|" : "") + q + "|" + page;
       let list = null;
@@ -96,7 +104,8 @@ module.exports = async (req, res) => {
         if (cache.size > 300) cache.delete(cache.keys().next().value);
       }
       for (const p of list) {
-        if (seen.has(p.id) || p.w < 1200 || p.h > p.w || !p.thumb || !p.full) continue;
+        if (seen.has(p.id) || !p.thumb || !p.full) continue;
+        if (drink ? (p.w < 900 || !drinkOk(p.alt)) : (p.w < 1200 || p.h > p.w)) continue;
         seen.add(p.id);
         const { w, h, ...rest } = p;
         photos.push(rest);
