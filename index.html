@@ -1614,6 +1614,12 @@ body.barmode{background:var(--bar-bg)}
 .dk .dk-wake.on,.dk .dk-wake.on:hover{background:#c9a55c;color:#123129;box-shadow:0 0 0 3px rgba(201,165,92,.35),0 0 22px rgba(226,196,138,.7)}
 .dk .dk-wake.on .ph{fill:rgba(18,49,41,.18)}
 @media(min-width:900px){.dk .dk-wake{position:fixed;left:calc(50% - 104px);right:auto}}
+/* antal glas på drinksidan: − 1 glas + */
+.dk .dk-step{display:flex;align-items:center;border:1px solid #c9a55c;border-radius:999px;overflow:hidden;flex:none}
+.dk .dk-step button{width:38px;height:34px;border:0;background:none;color:#e2c48a;font:300 22px var(--sans);line-height:1;padding:0;cursor:pointer}
+.dk .dk-step button:hover{background:rgba(201,165,92,.14)}
+.dk .dk-step button:disabled{opacity:.35;cursor:default;background:none}
+.dk .dk-step span{min-width:72px;text-align:center;font:500 14px var(--sans);color:#f0dcae;border-left:1px solid rgba(201,165,92,.4);border-right:1px solid rgba(201,165,92,.4);padding:8px 4px}
 </style>
 </head>
 <body>

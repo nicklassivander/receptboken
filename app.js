@@ -4762,9 +4762,8 @@ function renderBar(){
 function renderDrink(r){
   const i = barInfo(r);
   const base = r.servings || 1;
-  const serv = detailState.servings ?? base;
+  const serv = detailState.servings ?? 1;   // drinksidan börjar alltid på 1 glas
   const f = serv / base;
-  const opts = [1, 4, 8].includes(base) ? [1, 4, 8] : [1, 4, 8, base].sort((a, b) => a - b);
   const longest = Math.max(4, ...String(r.title || "").split(/\s+/).map(w => w.length));
   const kick = [i.base, ...(r.tags || []).filter(t => t !== "dryck" && ["fest", "jul", "vardag"].includes(t)).map(t => t[0].toUpperCase() + t.slice(1))].join(" · ");
   const spec = [[i.glass, "Glas"], [i.method, "Metod"], [i.garnish, "Garnering"]].filter(x => x[0]);
@@ -4785,7 +4784,7 @@ function renderDrink(r){
     <div class="dkb">
       <div class="dk-t"><div class="dk-k">${esc(kick)}</div><h1 class="bshim" style="--n:${longest}">${esc(String(r.title || "").toUpperCase())}</h1></div>
       ${spec.length ? `<div class="dk-spec" style="grid-template-columns:repeat(${spec.length},1fr)">${spec.map(([v, l]) => `<div><b>${esc(v)}</b><span class="bsc">${l}</span></div>`).join("")}</div>` : ""}
-      <div class="dk-hd"><span>Ingredienser</span><div class="dk-seg" role="group" aria-label="Antal glas">${opts.map(o => `<button class="${o === serv ? "on" : ""}" data-a="barserv" data-n="${o}">${o === 1 ? "1 glas" : o === 8 ? "Kanna 8" : o}</button>`).join("")}</div></div>
+      <div class="dk-hd"><span>Ingredienser</span><div class="dk-step" role="group" aria-label="Antal glas"><button data-a="barserv" data-n="${Math.max(1, serv - 1)}" aria-label="Färre glas" ${serv <= 1 ? "disabled" : ""}>−</button><span>${serv} glas</span><button data-a="barserv" data-n="${Math.min(50, serv + 1)}" aria-label="Fler glas">+</button></div></div>
       <ul class="dk-ing">${ings || `<li><span>Inga ingredienser än.</span></li>`}</ul>
       ${steps ? `<div class="dk-hd"><span>Så gör du</span></div><ol class="dk-steps">${steps}</ol>` : ""}
       ${matHtml(r)}
