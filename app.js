@@ -328,6 +328,7 @@ function filtered(){
     if (!q && !filter.tags.includes("dryck") && isDrink(r)) return false;   // drinkarna bor i baren (men syns när man söker)
     if (filter.fav && !isFav(r)) return false;
     if (filter.mine && addedByOf(r) !== me) return false;
+    if (filter.by && addedByOf(r) !== filter.by) return false;
     if (filter.cookedMe && !cooksOf(r).some(x => (x.by || "").toLowerCase() === me)) return false;
     if (filter.tags.length && !filter.tags.every(t => (r.tags || []).includes(t))) return false;
     if (!q) return true;
@@ -419,7 +420,7 @@ function renderList(){
       </div>
     </div>
     ${filterOpen ? filterPanelHtml(list) : ""}
-    ${filter.tags.length ? `<div class="activetags">${filter.tags.map(t => `<button data-a="tag" data-t="${esc(t)}">${esc(t)} <b aria-hidden="true">×</b></button>`).join("")}<button class="linkbtn" data-a="tagclear">Rensa</button></div>` : ""}` : ""}
+    ${filter.tags.length || filter.by ? `<div class="activetags">${filter.by ? `<button data-a="fby" data-e="">Lagt till av ${esc(nameOf(filter.by))} <b aria-hidden="true">×</b></button>` : ""}${filter.tags.map(t => `<button data-a="tag" data-t="${esc(t)}">${esc(t)} <b aria-hidden="true">×</b></button>`).join("")}<button class="linkbtn" data-a="tagclear">Rensa</button></div>` : ""}` : ""}
     ${aiSearchHtml(list)}
     ${body}
     ${storageOk && loaded && can("contributor") ? `<button class="fab" data-a="menu" aria-label="Lägg till">${menuOpen ? "×" : "+"}</button>` : ""}
@@ -2779,7 +2780,7 @@ function variantChangesHtml(r){
 
 // ---------- filtrering på nyckelord ----------
 function filterBtn(cls){
-  return `<button class="fbtn ${cls} ${filterOpen ? "open" : ""}" data-a="ftoggle" aria-expanded="${filterOpen}">Filtrera${filter.tags.length ? `<span class="n">${filter.tags.length}</span>` : ""}<span class="chev" aria-hidden="true">▾</span></button>`;
+  return `<button class="fbtn ${cls} ${filterOpen ? "open" : ""}" data-a="ftoggle" aria-expanded="${filterOpen}">Filtrera${filter.tags.length + (filter.by ? 1 : 0) ? `<span class="n">${filter.tags.length + (filter.by ? 1 : 0)}</span>` : ""}<span class="chev" aria-hidden="true">▾</span></button>`;
 }
 function filterPanelHtml(list){
   const count = t => filter.tags.includes(t) ? list.length : list.filter(r => (r.tags || []).includes(t)).length;
@@ -2789,6 +2790,7 @@ function filterPanelHtml(list){
   const btn = t => { const n = count(t), on = filter.tags.includes(t); return `<button class="ftag ${on ? "on" : ""} ${!n && !on ? "dim" : ""}" data-a="tag" data-t="${esc(t)}" ${!n && !on ? "disabled" : ""}>${esc(t)}<small>${n}</small></button>`; };
   return `<div class="fpanel" role="dialog" aria-label="Filtrera">
     <div class="fp-head"><h3>Filtrera</h3><button class="iconbtn fp-x" data-a="fclose" aria-label="Stäng">×</button></div>
+    ${byFilterHtml(list)}
     ${groups.map(([g, ts]) => [g, ts.filter(t => used.has(t) || filter.tags.includes(t))]).filter(([, ts]) => ts.length).map(([g, ts]) => `<div class="fgrp"><div class="fgt">${esc(g)}</div><div class="ftags">${ts.map(btn).join("")}</div></div>`).join("") || `<p class="hnote" style="padding:12px 0">Inga nyckelord än. Kör Konto → Städa nyckelord, så sorteras recepten in.</p>`}
     ${other.length ? (() => { const open = filterMore || other.some(t => filter.tags.includes(t)); return `<div class="fmore"><button class="fmore-btn" data-a="fmore" aria-expanded="${open}">Övrigt <small>${other.length}</small><svg class="chev${open ? " up" : ""}" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${open ? `<div class="ftags">${other.map(btn).join("")}</div>` : ""}</div>`; })() : ""}
     <div class="fp-foot"><button class="linkbtn" data-a="tagclear">Rensa allt</button><button class="btn accent small" data-a="fclose">Visa ${list.length} recept</button></div>
@@ -4584,7 +4586,7 @@ document.addEventListener("click", async e => {
 // Drinksidan ritas av renderDrink() när ett dryck-recept öppnas; "Alla funktioner" visar vanliga receptsidan.
 // Glas, metod, garnering, sprit och färg läses ut ur receptet (r.bar kan skriva över). Matilda = AI-bartendern.
 var BAR_ROWS_FROM = 12;            // från så många drinkar blir rutnätet en radlista
-var barState = { base: "" };
+var barState = { base: "", by: "" };
 var drinkFull = {};               // id -> true: visa vanliga receptsidan
 var matState = {};                // id -> [{q, a, busy, err}]
 var barUid = 0;
@@ -4709,7 +4711,9 @@ function renderBar(){
   const all = barDrinks();
   const bases = barBases(all);
   if (barState.base && !bases.includes(barState.base)) barState.base = "";
-  const list = all.filter(r => !barState.base || barInfo(r).base === barState.base).sort((a, b) => (a.title || "").localeCompare(b.title || "", "sv"));
+  const people = [...new Set(all.map(addedByOf))].sort((a, b) => nameOf(a).localeCompare(nameOf(b), "sv"));
+  if (barState.by && !people.includes(barState.by)) barState.by = "";
+  const list = all.filter(r => (!barState.base || barInfo(r).base === barState.base) && (!barState.by || addedByOf(r) === barState.by)).sort((a, b) => (a.title || "").localeCompare(b.title || "", "sv"));
   // Överst: några tips att svepa mellan
   const slides = [];
   if (all.length) {
@@ -4732,8 +4736,10 @@ function renderBar(){
       <div class="brule"><span class="bsc">${all.length} ${all.length === 1 ? "drink" : "drinkar"} · Skål!</span></div>${BAR_FAN}</div>
     <div class="bin">
     ${bases.length > 1 ? `<div class="bchips">${["", ...bases].map(b => `<button class="bchip ${barState.base === b ? "on" : ""}" data-a="barbase" data-b="${esc(b)}">${b || "Alla"}</button>`).join("")}</div>` : ""}
-    ${slides.length && !barState.base ? `<div class="bcar" id="bcar">${slideHtml}</div>${slides.length > 1 ? `<div class="bdots">${slides.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>` : ""}` : ""}
-    ${all.length ? `<div class="bsec"><span>${esc(barState.base || "Alla drinkar")}</span></div>
+    ${people.length > 1 ? `<div class="bchips bpeople"><span class="bp-l">Lagt till av</span>${["", ...people].map(p => `<button class="bchip ${barState.by === p ? "on" : ""}" data-a="barby" data-e="${esc(p)}">${p ? esc(nameOf(p)) : "Alla"}</button>`).join("")}</div>` : ""}
+    ${slides.length && !barState.base && !barState.by ? `<div class="bcar" id="bcar">${slideHtml}</div>${slides.length > 1 ? `<div class="bdots">${slides.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>` : ""}` : ""}
+    ${all.length ? `<div class="bsec"><span>${esc([barState.base || (barState.by ? "Drinkar" : "Alla drinkar"), barState.by ? "från " + nameOf(barState.by) : ""].filter(Boolean).join(" "))}</span></div>
+      ${!list.length ? `<div class="bempty"><p>Inga drinkar matchar.</p></div>` : ""}
       <div class="${rows ? "brows" : "bgrid"}">${list.map(card).join("")}</div>`
     : `<div class="bempty"><p>Baren är tom än så länge.</p><p>Ge ett recept typen <b>dryck</b> så hamnar det här.</p></div>`}
     </div></div>`;
@@ -4772,6 +4778,14 @@ function renderDrink(r){
       ${matHtml(r)}
       <div class="dk-more">${canEdit(r) ? `<button class="linkbtn" data-a="edit">Redigera</button>` : ""}<button class="linkbtn" data-a="barfull">Alla funktioner<small>anteckningar, matlagning, inköpslista</small></button></div>
     </div></div>`;
+}
+// Filtrera på vem som lagt till receptet (överst i Filtrera-panelen)
+function byFilterHtml(list){
+  const was = filter.by; filter.by = "";
+  const baseList = filtered(); filter.by = was;
+  const people = [...new Set(baseList.map(addedByOf).concat(was ? [was] : []))].sort((a, b) => nameOf(a).localeCompare(nameOf(b), "sv"));
+  if (people.length < 2 && !was) return "";
+  return `<div class="fgrp"><div class="fgt">Lagt till av</div><div class="ftags">${people.map(p => { const on = was === p, n = on ? list.length : baseList.filter(r => addedByOf(r) === p).length; return `<button class="ftag ${on ? "on" : ""}" data-a="fby" data-e="${esc(p)}">${esc(nameOf(p))}<small>${n}</small></button>`; }).join("")}</div></div>`;
 }
 // ---------- Matilda – bartendern ----------
 var MAT_SVG = `<svg class="mat-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="4.6" r="1.7"/><path d="M5.3 11.2c0-2.8 1.9-4.6 4.2-4.6s4.2 1.8 4.2 4.6"/><circle cx="9.5" cy="11.4" r="4"/><path d="M5.3 11.2c-.6 1.8-.4 3.6.6 4.6M13.7 11.2c.6 1.8.4 3.6-.6 4.6"/><path d="M8.3 12.9q1.2.9 2.4 0"/><path d="M3 22c.8-3 3.3-4.6 6.5-4.6"/><g class="mat-shk"><path d="M17 11.5h4l-.5 8.5h-3z"/><path d="M17.4 11.5l.5-2.2h2.2l.5 2.2"/><path d="M19 9.3V8"/></g></svg>`;
@@ -4835,6 +4849,9 @@ document.addEventListener("click", e => {
   if (a === "open") { delete drinkFull[el.dataset.id]; return; }
   if (a === "baropen") { e.stopPropagation(); view = { name: "bar" }; render(); window.scrollTo(0, 0); return; }
   if (a === "barbase") { e.stopPropagation(); barState.base = el.dataset.b || ""; render(); return; }
+  if (a === "barby") { e.stopPropagation(); barState.by = el.dataset.e || ""; render(); return; }
+  if (a === "fby") { e.stopPropagation(); const v = el.dataset.e || ""; filter.by = filter.by === v ? "" : v; render(); return; }
+  if (a === "tagclear" || a === "allrecipes" || a === "clear") { filter.by = ""; return; }
   if (a === "barserv") { e.stopPropagation(); detailState.servings = +el.dataset.n; render(); return; }
   if (a === "barfull") { e.stopPropagation(); drinkFull[view.id] = true; render(); window.scrollTo(0, 0); return; }
   if (a === "matq") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) matAsk(r, el.dataset.k); return; }
