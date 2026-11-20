@@ -4740,7 +4740,7 @@ function renderBar(){
     : `<div class="bcard" data-a="open" data-id="${esc(r.id)}" style="animation-delay:${Math.min(n, 12) * .06}s"><div class="bc-fr" style="${barBg(i)}">${BAR_ZIG}<div class="bc-in">${barPic(r, i)}</div></div><h4>${esc(r.title)}</h4><span class="bsc">${esc(i.base)}</span></div>`; };
   $app.innerHTML = `<div class="bar">
     <div class="bhero"><span class="b-rays" aria-hidden="true"></span>
-      <div class="btop"><a href="#" class="bback" data-a="home">‹ Recept</a>${can("contributor") ? `<button class="bnew" data-a="menu">+ Ny drink</button>` : ""}</div>
+      <div class="btop"><a href="#" class="bback" data-a="home">‹ Recept</a></div>
       <div class="bkick">Sivander</div><h1 class="bbig bshim">BAREN</h1>
       <div class="brule"><span class="bsc">${all.length} ${all.length === 1 ? "drink" : "drinkar"} · Skål!</span></div>${BAR_FAN}</div>
     <div class="bin">
