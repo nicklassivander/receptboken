@@ -1619,6 +1619,11 @@ body.barmode{background:var(--bar-bg)}
 .dk .dk-step button{width:38px;height:34px;border:0;background:none;color:#e2c48a;font:300 22px var(--sans);line-height:1;padding:0;cursor:pointer}
 .dk .dk-step button:hover{background:rgba(201,165,92,.14)}
 .dk .dk-step button:disabled{opacity:.35;cursor:default;background:none}
+/* barens sidhuvud: Manhattan-siluett framför strålarna + dimma bakom texten */
+.bar .bhero .bsky{position:absolute;left:0;right:0;bottom:0;width:100%;height:100%;pointer-events:none}
+.bar .bhero .bmist{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 46% 42% at 50% 45%,rgba(7,19,15,.7) 0%,rgba(7,19,15,.42) 45%,transparent 100%)}
+.bar .bhero>*:not(.b-rays):not(.bsky):not(.bmist){position:relative;z-index:1}
+@media(min-width:760px){.bar .bhero .b-rays{opacity:.75}}
 /* tips från bartendern (anteckningar på drinksidan) */
 .dk .dk-notes{margin:26px 0 0;padding:0;background:none;border:0;box-shadow:none;color:#e9dcc0}
 .dk .dk-notes h2{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 10px;padding:0;font:italic 400 24px 'Cormorant Garamond',serif;color:#f0dcae;border:0}

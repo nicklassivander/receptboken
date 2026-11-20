@@ -4742,7 +4742,7 @@ function renderBar(){
     ? `<div class="brow" data-a="open" data-id="${esc(r.id)}" style="animation-delay:${Math.min(n, 12) * .05}s"><div class="br-th" style="${barBg(i)}">${barPic(r, i, { bubbles: false })}</div><div class="br-t"><h4>${esc(r.title)}</h4><p>${esc(barIngNames(r))}</p></div><span class="bsc">${esc(i.base)}</span></div>`
     : `<div class="bcard" data-a="open" data-id="${esc(r.id)}" style="animation-delay:${Math.min(n, 12) * .06}s"><div class="bc-fr" style="${barBg(i)}">${BAR_ZIG}<div class="bc-in">${barPic(r, i)}</div></div><h4>${esc(r.title)}</h4><span class="bsc">${esc(i.base)}</span></div>`; };
   $app.innerHTML = `<div class="bar">
-    <div class="bhero"><span class="b-rays" aria-hidden="true"></span>
+    <div class="bhero"><span class="b-rays" aria-hidden="true"></span>${barSkySvg()}<span class="bmist" aria-hidden="true"></span>
       <div class="btop"><a href="#" class="bback" data-a="home">‹ Recept</a></div>
       <div class="bkick">Sivander</div><h1 class="bbig bshim">BAREN</h1>
       <div class="brule"><span class="bsc">${all.length} ${all.length === 1 ? "drink" : "drinkar"} · Skål!</span></div>${BAR_FAN}</div>
@@ -4962,3 +4962,22 @@ document.addEventListener("click", ev => {
   ev.preventDefault(); ev.stopPropagation();
   if (b.dataset.a === "webimg") loadWebImgs(r); else pickWebImg(r, +b.dataset.i);
 }, true);
+
+// ---------- Barens sidhuvud: Manhattan-siluett (1D) framför strålarna, dimma bakom texten ----------
+var barSkyCache = "";
+function barSkySvg(){
+  if (barSkyCache) return barSkyCache;
+  let s = 11; const R = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  const f = n => Math.round(n * 10) / 10, base = 300, parts = [];
+  let x = 0;
+  while (x < 1200) {
+    const w = 30 + R() * 60, h = 60 + R() * 120, near = Math.abs(x + w / 2 - 600) < 170, top = base - (near ? h * 0.55 : h);
+    if (R() < .45) { const t = 8 + R() * 10; parts.push(`M${f(x)},${base}V${f(top + t * 2)}H${f(x + t)}V${f(top + t)}H${f(x + 2 * t)}V${f(top)}H${f(x + w - 2 * t)}V${f(top + t)}H${f(x + w - t)}V${f(top + t * 2)}H${f(x + w)}V${base}Z`); }
+    else parts.push(`M${f(x)},${base}V${f(top)}H${f(x + w)}V${base}Z`);
+    x += w + (R() < .3 ? 4 : 0);
+  }
+  const chr = (cx, h) => `M${cx - 23},${base}V${base - h}H${cx - 17}V${base - h - 14}Q${cx},${base - h - 70} ${cx + 17},${base - h - 14}V${base - h}H${cx + 23}V${base}Z M${cx - 1.2},${base - h - 60}L${cx},${base - h - 110}L${cx + 1.2},${base - h - 60}Z`;
+  const emp = (cx, h) => `M${cx - 30},${base}V${base - h}H${cx - 20}V${base - h - 30}H${cx - 12}V${base - h - 55}H${cx - 6}V${base - h - 75}H${cx - 1.5}V${base - h - 115}H${cx + 1.5}V${base - h - 75}H${cx + 6}V${base - h - 55}H${cx + 12}V${base - h - 30}H${cx + 20}V${base - h}H${cx + 30}V${base}Z`;
+  barSkyCache = `<svg class="bsky" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><defs><linearGradient id="bskyg" gradientUnits="userSpaceOnUse" x1="0" y1="120" x2="0" y2="300"><stop offset="0" stop-color="#153429"/><stop offset="1" stop-color="#07130f"/></linearGradient></defs><path d="${parts.join("")}${chr(250, 150)}${emp(960, 140)}" fill="url(#bskyg)" stroke="rgba(201,165,92,.35)" stroke-width="1"/></svg>`;
+  return barSkyCache;
+}
