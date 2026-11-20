@@ -2233,7 +2233,7 @@ function activityHtml(){
   const isNew = e => e.by !== me && e.ts > seen;
   const newCount = activityOpen ? 0 : ev.filter(isNew).length;
   const who = []; for (const e of ev) { if (!who.includes(e.by)) who.push(e.by); if (who.length === 3) break; }
-  const verb = e => e.kind === "added" ? "lade till" : e.kind === "variant" ? "gjorde en variant av" : "lagade";
+  const verb = e => e.kind === "added" ? "lade till" : e.kind === "variant" ? "gjorde en variant av" : (e.r && isDrink(e.r) ? "blandade" : "lagade");
   const nm = e => e.by === me ? "Du" : esc(nameOf(e.by));
   const title = e => esc(e.kind === "variant" && e.base ? e.base.title : e.r.title || "Namnlöst recept");
   const latest = ev[0];
@@ -2248,7 +2248,7 @@ function activityHtml(){
       <span class="lab">Senaste i köket</span>
       ${(() => { const ck = ev.filter(e => e.kind === "cooked").slice(0, 3);   // minst tre tillagningar om det finns
         const top = ck.concat(ev.filter(e => !ck.includes(e)).slice(0, 5 - ck.length)).sort((a, b) => b.ts - a.ts); // Flöde som glider från höger till vänster; gruppen ligger två gånger i rad så att det går runt utan skarv
-        const line = e => `<span class="mq-it" data-a="open" data-id="${esc(e.r.id)}">${evIcon(e.kind)}<span class="mq-who"><b>${nm(e)}</b>${verb(e)}&nbsp;</span><span class="t">${title(e)}</span>&nbsp;· ${relDay(e.ts)}</span><span class="mq-sep"></span>`;
+        const line = e => `<span class="mq-it" data-a="open" data-id="${esc(e.r.id)}">${evIcon(e.kind, e.r)}<span class="mq-who"><b>${nm(e)}</b>${verb(e)}&nbsp;</span><span class="t">${title(e)}</span>&nbsp;· ${relDay(e.ts)}</span><span class="mq-sep"></span>`;
         const grp = top.map(line).join("");
         const chars = top.reduce((n, e) => n + (e.by === me ? 2 : nameOf(e.by).length) + verb(e).length + (e.r.title || "").length + 14, 0);
         const dur = Math.max(14, Math.round(chars * 7.5 / 40));   // ca 40 px per sekund
@@ -2263,7 +2263,7 @@ function activityHtml(){
       <div class="act-list">${items.length ? "" : `<p class="hnote" style="padding:12px 0">${activityTab === "cooked" ? "Inga tillagningar än – tryck Börja laga eller Ny tillagning i ett recept." : "Inga recept än."}</p>`}${items.map(e => `
       <div class="fitem" data-a="open" data-id="${esc(e.r.id)}">
         <span class="nd ${isNew(e) ? "" : "old"}"></span>${avHtml(e.by)}
-        <span class="tx">${evIcon(e.kind)}<i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
+        <span class="tx">${evIcon(e.kind, e.r)}<i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
         <span class="when">${relDay(e.ts)}</span>
         ${e.r.photo ? `<img src="${esc(e.r.photo)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
       </div>`).join("")}
@@ -2299,10 +2299,12 @@ const EV_ICON = {
 };
 const EV_KIND = { add: "added", added: "added", variant: "variant", cook_done: "cooked", cooked: "cooked", cook_start: "cooked" };
 const EV_LABEL = { added: "Lade till", variant: "Variant", cooked: "Lagade" };
-function evIcon(kind){
-  const k = EV_KIND[kind] || kind; const d = EV_ICON[k];
+function evIcon(kind, r){
+  const k = EV_KIND[kind] || kind; let d = EV_ICON[k];
   if (!d) return "";
-  return `<span class="evi evi-${k}" title="${EV_LABEL[k]}"><svg viewBox="2.5 2.5 19 19" width="21" height="21" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
+  const dr = r && typeof isDrink === "function" && isDrink(r);
+  if (dr) d = k === "cooked" ? EV_DRINK_MIX : EV_DRINK_ADD;
+  return `<span class="evi evi-${k}${dr ? " evi-drink" : ""}" title="${dr ? (k === "cooked" ? "Blandade" : k === "variant" ? "Variant" : "Lade till") : EV_LABEL[k]}"><svg viewBox="2.5 2.5 19 19" width="21" height="21" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
 }
 
 // ---------- varianter: namn efter skillnaderna och variantrad ----------
@@ -3015,7 +3017,7 @@ async function openActivity(days){
       ${(() => { const u = who && users.find(x => x.email === who); return u ? `<p class="aa-who">${esc(ROLE_LABEL[u.role] || u.role)} · Inloggad ${esc(fmtT(u.last_sign_in_at))} · Senast aktiv ${esc(fmtT(u.last_seen))} · ${u.events_30d} händelser/30 d</p>` : ""; })()}
       ${byDay.length ? byDay.map(g => `<div class="aa-day"><h4>${esc(g.d)}</h4>${g.e.map(e => `<div class="aa-ev">
           <time>${new Date(e.at).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}</time>
-          <span>${evIcon(e.kind)}<b>${esc(nameOf(e.email))}</b> ${esc(LOG_TEXT[e.kind] || e.kind)}
+          <span>${evIcon(e.kind, recipes.find(r => r.id === e.recipe_id))}<b>${esc(nameOf(e.email))}</b> ${esc(LOG_TEXT[e.kind] || e.kind)}
           ${e.title ? (recipes.find(r => r.id === e.recipe_id) ? `<button class="linkbtn aa-r" data-rid="${esc(e.recipe_id)}">${esc(e.title)}</button>` : `<i>${esc(e.title)}</i>`) : ""}
           ${e.kind === "import" && e.detail ? `<small>${esc([e.detail.url, e.detail.bilder ? e.detail.bilder + " bilder" : "", e.detail.text ? "text" : ""].filter(Boolean).join(" · "))}</small>` : ""}
           ${e.device ? `<small class="aa-dev">${esc((DEV_TEXT[String(e.device).replace("-app", "")] || e.device) + (String(e.device).endsWith("-app") ? " · app" : ""))}</small>` : ""}</span></div>`).join("")}</div>`).join("")
@@ -4876,3 +4878,7 @@ document.addEventListener("click", e => {
     view = { name: "edit" }; render(); window.scrollTo(0, 0); return;
   }
 }, true);
+
+// Drinkikoner i flödet (B1 blandade, B2 lade till), grön bricka
+var EV_DRINK_MIX = '<path d="M5 8h14c0 3.6-3 5.6-7 5.6S5 11.6 5 8z"/><path d="M12 13.6v6.4M8.5 20.5h7"/><circle cx="16" cy="7" r="1.5" fill="currentColor" fill-opacity=".35"/><path d="M16 5.5c.2-1 .9-1.7 2-2"/>';
+var EV_DRINK_ADD = '<path d="M4 7.5h12c0 3.2-2.6 5-6 5s-6-1.8-6-5z"/><path d="M10 12.5v7M7 20h6"/><circle cx="13.4" cy="6.6" r="1.3" fill="currentColor" fill-opacity=".35"/><path d="M13.4 5.3c.2-.9.8-1.5 1.7-1.8"/><path d="M18 14v6M15 17h6"/>';
