@@ -4782,7 +4782,7 @@ function renderDrink(r){
   }).join("");
   const steps = (r.steps || []).map(s => s.startsWith("#") ? `<li class="bh">${esc(s.replace(/^#\s*/, ""))}</li>` : `<li data-n="${++n}">${esc(s)}</li>`).join("");
   $app.innerHTML = `<div class="dk">
-    <div class="dkh" style="${barBg(i)}"><span class="b-rays" aria-hidden="true"></span>
+    <div class="dkh" style="--dk-c:${barShade(i.color, -.38)}"><span class="dk-drape" aria-hidden="true"></span>
       <button class="fback" data-a="home" aria-label="Tillbaka"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
       <button class="dk-fav ${isFav(r) ? "on" : ""}" data-a="togglefav" aria-label="Favorit">${isFav(r) ? "♥" : "♡"}</button>
       ${"wakeLock" in navigator ? `<button class="dk-wake wakeicon" id="wakebtn" data-a="wake" aria-pressed="false" aria-label="Håll skärmen tänd" title="Håll skärmen tänd"><svg viewBox="0 0 32 32" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect class="ph" x="10.5" y="5" width="11" height="22" rx="2.4"/><path d="M14.5 23.6h3"/><g class="rays"><path d="M5.5 10.5l-2.4-1.4M5 16H2.3M5.5 21.5l-2.4 1.4M26.5 10.5l2.4-1.4M27 16h2.7M26.5 21.5l2.4 1.4"/></g><path class="zz" d="M24.2 6.2h3.4l-3.4 3.6h3.4"/></svg></button>` : ""}
