@@ -1608,6 +1608,12 @@ body.barmode{background:var(--bar-bg)}
 .wb-pic.saving img{opacity:.45}.wb-pic .spinner{position:absolute;left:50%;top:50%;margin:-9px 0 0 -9px}
 .wb-note{font-size:11.5px;color:#8a7a62;margin-top:8px}
 .imgsug.insheet .is-t{visibility:hidden}
+/* håll skärmen tänd på drinksidan */
+.dk .dk-wake{position:absolute;top:calc(12px + env(safe-area-inset-top));right:62px;z-index:5;width:42px;height:42px;padding:0;border-radius:50%;border:0;background:rgba(10,20,16,.6);color:#e2c48a;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:background .25s,box-shadow .25s,color .25s}
+.dk .dk-wake:hover{color:#f0dcae}
+.dk .dk-wake.on,.dk .dk-wake.on:hover{background:#c9a55c;color:#123129;box-shadow:0 0 0 3px rgba(201,165,92,.35),0 0 22px rgba(226,196,138,.7)}
+.dk .dk-wake.on .ph{fill:rgba(18,49,41,.18)}
+@media(min-width:900px){.dk .dk-wake{position:fixed;left:calc(50% - 104px);right:auto}}
 </style>
 </head>
 <body>
