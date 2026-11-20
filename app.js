@@ -4687,7 +4687,8 @@ function barGlassSvg(info, opt){
     <g fill="rgba(255,255,255,.06)" stroke="#d8b874" stroke-width="${opt.sw || 1.6}" stroke-linejoin="round" stroke-linecap="round"><path d="${bowl}"/>${stem}</g>${gar}</svg>${bubs}</div>`;
 }
 var BAR_ZIG = `<svg class="bzig" viewBox="0 0 100 130" preserveAspectRatio="none" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="M1 129 V22 H13 V12 H27 V2 H73 V12 H87 V22 H99 V129 Z"/><path vector-effect="non-scaling-stroke" opacity=".45" d="M5 125 V26 H17 V16 H31 V6 H69 V16 H83 V26 H95 V125 Z"/></svg>`;
-var BAR_FAN = `<svg class="bfan" viewBox="0 0 70 36" fill="none" stroke="#c9a55c" stroke-width="1" aria-hidden="true">${Array.from({ length: 9 }, (_, i) => { const a = Math.PI * (i / 8); return `<line x1="35" y1="34" x2="${(35 - Math.cos(a) * 32).toFixed(1)}" y2="${(34 - Math.sin(a) * 32).toFixed(1)}"/>`; }).join("")}<path d="M3 34 A32 32 0 0 1 67 34"/><path d="M15 34 A20 20 0 0 1 55 34"/><circle cx="35" cy="34" r="3" fill="#c9a55c"/></svg>`;
+// symbol under "drinkar · Skål!": två coupeglas som skålar (förslag 1, nov 2026)
+var BAR_FAN = `<svg class="bfan" viewBox="0 0 70 40" fill="none" stroke="#c9a55c" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="rotate(-14 26 22)"><path d="M14 8h20c0 6-4.5 9-10 9s-10-3-10-9z" fill="rgba(201,165,92,.18)"/><path d="M24 17v14M18 32h12"/></g><g transform="rotate(14 44 22)"><path d="M36 8h20c0 6-4.5 9-10 9s-10-3-10-9z" fill="rgba(201,165,92,.18)"/><path d="M46 17v14M40 32h12"/></g><path d="M35 2v3M30 3.5l1.5 2.5M40 3.5l-1.5 2.5"/><circle cx="35" cy="6.5" r=".9" fill="#c9a55c"/></svg>`;
 function barBg(info){ return `background:radial-gradient(90% 75% at 50% 78%,${barShade(info.color, -.38)}aa 0%,#123129 60%,#0c1f1a 100%)`; }
 // Bild i trappramen: foto om det finns, annars tecknat glas
 function barPic(r, info, opt){
