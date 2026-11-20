@@ -4736,7 +4736,7 @@ function renderBar(){
     add(all.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0], "Senast i baren");
     add(all.slice().sort((a, b) => (b.timesCooked || 0) - (a.timesCooked || 0) || (b.rating || 0) - (a.rating || 0))[0], "Mest blandad");
   }
-  const slideHtml = slides.map(({ r, lbl }) => { const i = barInfo(r); return `<div class="bslide" data-a="open" data-id="${esc(r.id)}" style="${barBg(i)}"><span class="b-rays sm" aria-hidden="true"></span><div class="bs-pic">${r.photo ? `<span class="bs-ph">${BAR_ZIG}<img src="${esc(r.photo)}" alt="" loading="lazy"></span>` : barGlassSvg(i)}</div><div class="bs-t"><span class="bsc">${lbl}</span><h3>${esc(r.title)}</h3><p>${esc(barIngNames(r))}</p><span class="bbtn">Blanda ›</span></div></div>`; }).join("");
+  const slideHtml = slides.map(({ r, lbl }) => { const i = barInfo(r); return `<div class="bslide" data-a="open" data-id="${esc(r.id)}" style="${barBg(i)}">${barShelfSvg()}<div class="bs-pic">${r.photo ? `<span class="bs-ph">${BAR_ZIG}<img src="${esc(r.photo)}" alt="" loading="lazy"></span>` : barGlassSvg(i)}</div><div class="bs-t"><span class="bsc">${lbl}</span><h3>${esc(r.title)}</h3><p>${esc(barIngNames(r))}</p><span class="bbtn">Blanda ›</span></div></div>`; }).join("");
   const rows = list.length >= BAR_ROWS_FROM;
   const card = (r, n) => { const i = barInfo(r); return rows
     ? `<div class="brow" data-a="open" data-id="${esc(r.id)}" style="animation-delay:${Math.min(n, 12) * .05}s"><div class="br-th" style="${barBg(i)}">${barPic(r, i, { bubbles: false })}</div><div class="br-t"><h4>${esc(r.title)}</h4><p>${esc(barIngNames(r))}</p></div><span class="bsc">${esc(i.base)}</span></div>`
@@ -4990,4 +4990,21 @@ function barSkyOne(k, cls, eOff){ // eOff = Empires avstånd från mitten i skä
   const emp = (cx, h) => `M${cx - 30},${base}V${base - h}H${cx - 20}V${base - h - 30}H${cx - 12}V${base - h - 55}H${cx - 6}V${base - h - 75}H${cx - 1.5}V${base - h - 115}H${cx + 1.5}V${base - h - 75}H${cx + 6}V${base - h - 55}H${cx + 12}V${base - h - 30}H${cx + 20}V${base - h}H${cx + 30}V${base}Z`;
   const id = "bskyg-" + cls;
   return `<svg class="bsky ${cls}" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="0" y1="120" x2="0" y2="300"><stop offset="0" stop-color="#153429"/><stop offset="1" stop-color="#07130f"/></linearGradient><radialGradient id="${id}-fyr"><stop offset="0" stop-color="#ff5a4a" stop-opacity=".75"/><stop offset="1" stop-color="#ff5a4a" stop-opacity="0"/></radialGradient></defs><g transform="translate(600,300) scale(${k}) translate(-600,-300)"><path d="${parts.join("")}${chr(cC, 150)}${emp(cE, 140)}" fill="url(#${id})" stroke="rgba(201,165,92,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/><g class="bsky-fyr"><circle cx="${cE}" cy="${base - 140 - 117}" r="${f(9 / k)}" fill="url(#${id}-fyr)"/><circle cx="${cE}" cy="${base - 140 - 117}" r="${f(2.2 / k)}" fill="#ff5a4a"/></g></g></svg>`;
+}
+
+// ---------- Barens tipskort (Kvällens drink m.fl.): barhylla med flaskor bakom texten (2A) ----------
+var barShelfCache = "";
+function barShelfSvg(){
+  if (barShelfCache) return barShelfCache;
+  let s = 7; const R = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  const f = n => Math.round(n * 10) / 10, y = 76, parts = [];
+  const bottle = (x, bh, bw, k) => {
+    if (k === 1) { const n = bh * .32, sh = bh * .18; return `M${f(x - bw / 2)},${y}v-${f(bh - n - sh)}q0,-${f(sh)} ${f(bw / 2 - 1.5)},-${f(sh)}v-${f(n)}h3v${f(n)}q${f(bw / 2 - 1.5)},0 ${f(bw / 2 - 1.5)},${f(sh)}v${f(bh - n - sh)}z`; }
+    if (k === 2) return `M${f(x - bw / 2)},${y}v-${f(bh * .6)}l${f(bw * .2)},-${f(bh * .15)}h${f(bw * .6)}l${f(bw * .2)},${f(bh * .15)}v${f(bh * .6)}z M${f(x - 2)},${f(y - bh * .75)}h4v-${f(bh * .2)}h-4z`;
+    return `M${f(x - bw / 2)},${y}v-${f(bh * .55)}q0,-${f(bh * .12)} ${f(bw / 2)},-${f(bh * .18)}q${f(bw / 2)},${f(bh * .06)} ${f(bw / 2)},${f(bh * .18)}v${f(bh * .55)}z M${f(x - 1.5)},${f(y - bh * .73)}h3v-${f(bh * .22)}h-3z`;
+  };
+  let x = 8;
+  while (x < 1000) { const bh = 28 * (.75 + R() * .5), bw = 7 + R() * 5, k = Math.floor(R() * 3); parts.push(bottle(x + bw / 2, bh, bw, k)); x += bw + 6 + R() * 8; }
+  barShelfCache = `<svg class="bshelf" viewBox="0 0 1000 77" preserveAspectRatio="xMinYMax slice" aria-hidden="true"><path d="${parts.join("")}" fill="rgba(201,165,92,.05)" stroke="rgba(201,165,92,.2)" stroke-width=".8" vector-effect="non-scaling-stroke"/><line x1="0" x2="1000" y1="76.5" y2="76.5" stroke="rgba(201,165,92,.55)" stroke-width="1" vector-effect="non-scaling-stroke"/></svg>`;
+  return barShelfCache;
 }
