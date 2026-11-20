@@ -4513,7 +4513,7 @@ function nfAskGet(){ try { return JSON.parse(localStorage.getItem("nfAsk") || "{
 function nfAskSet(o){ try { localStorage.setItem("nfAsk", JSON.stringify(o)); } catch {} }
 // Testläge: admin får påminnelsen direkt igen vid nästa start (Inte nu döljer bara tills appen öppnas igen).
 // Alla andra: Inte nu döljer i en vecka. Sätt till false när Nicklas är klar med testet.
-var NF_ASK_TEST = true;
+var NF_ASK_TEST = false;
 var nfAskHidden = false, nfPrefs = null, nfPrefsBusy = false;
 function nfOffKinds(){ return nfPrefs ? NOTIFY_KINDS.filter(([k]) => nfPrefs[k] === false).length : 0; }
 function nfLoadPrefs(){
