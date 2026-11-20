@@ -1804,6 +1804,16 @@ html{background:#0e0d0c}
   .bar .bgrid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:44px 30px;width:min(1480px,100vw);max-width:none;margin:0 calc(50% - min(740px,50vw));padding:0 22px 40px}
 }
 @media(min-width:1100px){.bar .bgrid{padding-left:40px;padding-right:40px}}
+/* Barkortet K4 rullband (nov 2026): drinkarna glider långsamt förbi (12 px/s) på en mässingshylla, kanterna tonar ut.
+   Telefon: fältet 85 % av förut. Dator: fönster för sex drinkar. */
+#app .barcard .bc-m{align-self:stretch;align-items:center}
+#app .barcard .bc-win{display:block;flex:0 0 85%;align-self:stretch;display:flex;align-items:center;overflow:hidden;border-bottom:1px solid rgba(201,165,92,.55);-webkit-mask:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);mask:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent)}
+#app .barcard .bc-trk{display:flex;width:max-content;animation:bcmq calc(var(--n) * 3.333s) linear infinite}
+#app .barcard .bc-trk .bc-g{display:block!important;margin-right:6px}
+#app .barcard .bc-m{gap:0}
+@keyframes bcmq{to{transform:translateX(-50%)}}
+@media(min-width:760px){#app .barcard .bc-win{flex:0 0 330px}#app .barcard .bc-trk{animation-duration:calc(var(--n) * 4.167s)}}
+@media (prefers-reduced-motion:reduce){#app .barcard .bc-trk{animation:none}}
 </style>
 </head>
 <body>

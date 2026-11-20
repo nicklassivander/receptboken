@@ -4720,10 +4720,13 @@ function barBases(list){
 function barCardHtml(){
   if (filter.q.trim() || filter.tags.length || filter.fav || filter.mine || filter.cookedMe) return "";
   const ds = barDrinks(); if (!ds.length) return "";
-  const pick = ds.slice().sort((a, b) => (b.photo ? 1 : 0) - (a.photo ? 1 : 0) || (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 5);
+  const pick = ds.slice().sort((a, b) => (b.photo ? 1 : 0) - (a.photo ? 1 : 0) || (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 14);
+  // K4 rullband (nov 2026): drinkarna glider långsamt förbi. Uppsättningen fylls på till minst 9 och dubbleras för en sömlös loop.
+  const one = pick.map(r => { const i = barInfo(r); return `<span class="bc-g" style="${barBg(i)}">${BAR_ZIG}${barPic(r, i, { bubbles: false })}</span>`; });
+  let set = one.slice(); while (set.length < 9) set = set.concat(one);
   return `<button class="barcard" data-a="baropen" aria-label="Gå in i baren"><span class="bc-rays" aria-hidden="true"></span>
     <span class="bc-t"><span class="bc-k">Sivander</span><b class="bshim">BAREN</b><span class="bc-n">${ds.length} ${ds.length === 1 ? "drink" : "drinkar"} · Skål!</span></span>
-    <span class="bc-m">${pick.map(r => { const i = barInfo(r); return `<span class="bc-g" style="${barBg(i)}">${BAR_ZIG}${barPic(r, i, { bubbles: false })}</span>`; }).join("")}</span>
+    <span class="bc-m"><span class="bc-win" aria-hidden="true"><span class="bc-trk" style="--n:${set.length}">${set.join("")}${set.join("")}</span></span></span>
     <span class="bc-go">Välkommen in ›</span></button>`;
 }
 // Barens startsida
