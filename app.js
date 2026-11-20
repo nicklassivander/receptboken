@@ -3376,7 +3376,7 @@ async function openNotifySettings(){
   const box = () => document.querySelector(".nf-body");
   let prefs = {}, missing = false;
   const { data, error } = await sb.rpc("recipe_notify_prefs_get");
-  if (error) missing = true; else prefs = data || {};
+  if (error) missing = true; else { prefs = data || {}; nfPrefs = prefs; }
   if (!box()) return;
   const d = deviceInfo();
   const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -4507,25 +4507,43 @@ function openTypeTool(){
 }
 
 // ---------- påminnelse om aviseringar (kort under sökfältet, förslag B) ----------
-// Visas på enheter som inte svarat ja/nej. "Inte nu" döljer i 14 dagar, efter tre gånger visas den inte mer.
+// Visas på enheter som inte svarat ja/nej, och när någon händelse är avstängd i Konto. "Inte nu" döljer i en vecka.
 var NF_ASK_BELL = '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/><path d="M12 3v2"/></svg>';
 function nfAskGet(){ try { return JSON.parse(localStorage.getItem("nfAsk") || "{}") || {}; } catch { return {}; } }
 function nfAskSet(o){ try { localStorage.setItem("nfAsk", JSON.stringify(o)); } catch {} }
+// Testläge: admin får påminnelsen direkt igen vid nästa start (Inte nu döljer bara tills appen öppnas igen).
+// Alla andra: Inte nu döljer i en vecka. Sätt till false när Nicklas är klar med testet.
+var NF_ASK_TEST = true;
+var nfAskHidden = false, nfPrefs = null, nfPrefsBusy = false;
+function nfOffKinds(){ return nfPrefs ? NOTIFY_KINDS.filter(([k]) => nfPrefs[k] === false).length : 0; }
+function nfLoadPrefs(){
+  if (nfPrefs || nfPrefsBusy || !sb || !me) return;
+  nfPrefsBusy = true;
+  sb.rpc("recipe_notify_prefs_get").then(({ data, error }) => {
+    nfPrefsBusy = false; nfPrefs = error ? {} : (data || {});
+    if (nfOffKinds() && view.name === "list") render();
+  }, () => { nfPrefsBusy = false; nfPrefs = {}; });
+}
 function nfAskMode(){
   try {
-    if (!me || !storageOk || !loaded || !recipes.length) return "";
+    if (!me || !storageOk || !loaded || !recipes.length || nfAskHidden) return "";
     const a = nfAskGet();
-    if ((a.n || 0) >= 3 || (a.until && Date.now() < a.until)) return "";
+    if (!(NF_ASK_TEST && role === "admin") && a.until && Date.now() < a.until) return "";
     const d = deviceInfo();
     const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
     if (!supported) return d.kind === "ios" && !d.installed ? "ios" : "";
-    return Notification.permission === "default" ? "ask" : "";
+    if (Notification.permission === "default") return "ask";
+    if (Notification.permission === "granted") { nfLoadPrefs(); return nfOffKinds() ? "some" : ""; }
+    return "";
   } catch { return ""; }
 }
 function nfAskHtml(){
   if (filter.q && filter.q.trim()) return "";
   const m = nfAskMode(); if (!m) return "";
-  return `<div class="nfp-card"><span class="nfp-ico">${NF_ASK_BELL}</span><span class="nfp-txt"><b>Vill du få aviseringar?</b><small>Nya recept, när någon lagar och timern, även när appen är stängd.</small></span><span class="nfp-acts"><button type="button" class="nfp-x" data-nfp="later">Inte nu</button><button type="button" class="btn accent small" data-nfp="on">Slå på</button></span></div>`;
+  const off = nfOffKinds();
+  const title = m === "some" ? "Vill du få alla aviseringar?" : "Vill du få aviseringar?";
+  const sub = m === "some" ? `${off} av ${NOTIFY_KINDS.length} händelser är avstängda. Slå på allt med ett tryck.` : "Nya recept, när någon lagar och timern, även när appen är stängd.";
+  return `<div class="nfp-card"><span class="nfp-ico">${NF_ASK_BELL}</span><span class="nfp-txt"><b>${title}</b><small>${sub}</small></span><span class="nfp-acts"><button type="button" class="nfp-x" data-nfp="later">Inte nu</button><button type="button" class="btn accent small" data-nfp="on">${m === "some" ? "Slå på allt" : "Slå på"}</button></span></div>`;
 }
 function nfAskIosSheet(){
   openSheet(`<div class="sheet-head"><h2>Vill du få aviseringar?</h2><button class="iconbtn fp-x" id="closeSheetBtn" aria-label="Stäng">×</button></div>
@@ -4538,13 +4556,19 @@ function nfAskIosSheet(){
 document.addEventListener("click", async e => {
   const b = e.target.closest && e.target.closest("[data-nfp]"); if (!b) return;
   if (b.dataset.nfp === "later") {
-    const a = nfAskGet(); nfAskSet({ n: (a.n || 0) + 1, until: Date.now() + 14 * 864e5 });
-    toast("Okej. Du kan slå på aviseringar under Konto → Aviseringar");
+    nfAskHidden = true; nfAskSet({ until: Date.now() + 7 * 864e5 });
+    toast("Okej, jag påminner igen om en vecka. Du hittar allt under Konto → Aviseringar");
     render(); return;
   }
   if (nfAskMode() === "ios") { nfAskIosSheet(); return; }
   b.disabled = true;
   const st = await ensurePush();
-  toast(st === "ok" ? "Aviseringar påslagna" : st === "denied" ? "Aviseringar blockerades. Ändra i telefonens inställningar." : "Det gick inte att slå på aviseringar");
+  if (st === "ok") {
+    // Ett tryck = allt på: enheten och alla händelser
+    const p = Object.assign({}, nfPrefs || {}); NOTIFY_KINDS.forEach(([k]) => { p[k] = true; });
+    const { error } = await sb.rpc("recipe_notify_prefs_set", { p_prefs: p });
+    if (!error) nfPrefs = p;
+    toast(error ? "Aviseringar påslagna, men valen kunde inte sparas" : "Allt är påslaget");
+  } else toast(st === "denied" ? "Aviseringar blockerades. Ändra i telefonens inställningar." : "Det gick inte att slå på aviseringar");
   render();
 });
