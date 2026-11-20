@@ -4815,6 +4815,7 @@ function renderDrink(r){
       <div class="dk-hd"><span>Ingredienser</span><div class="dk-step" role="group" aria-label="Antal glas"><button data-a="barserv" data-n="${Math.max(1, serv - 1)}" aria-label="Färre glas" ${serv <= 1 ? "disabled" : ""}>−</button><span>${serv} glas</span><button data-a="barserv" data-n="${Math.min(50, serv + 1)}" aria-label="Fler glas">+</button></div></div>
       <ul class="dk-ing">${ings || `<li><span>Inga ingredienser än.</span></li>`}</ul>
       ${steps ? `<div class="dk-hd"><span>Så gör du</span></div><ol class="dk-steps">${steps}</ol>` : ""}
+      ${barMixedHtml(r)}
       ${notesPanelHtml(r, NOTE_BAR_OPTS)}
       ${matHtml(r)}
       <div class="dk-more">${canEdit(r) ? `<button class="linkbtn" data-a="edit">Redigera</button>` : ""}<button class="linkbtn" data-a="barfull">Alla funktioner<small>tips, matlagning, inköpslista</small></button></div>
@@ -4901,6 +4902,7 @@ document.addEventListener("click", e => {
   if (a === "fby") { e.stopPropagation(); const v = el.dataset.e || ""; filter.by = filter.by === v ? "" : v; render(); return; }
   if (a === "tagclear" || a === "allrecipes" || a === "clear") { filter.by = ""; return; }
   if (a === "barserv") { e.stopPropagation(); detailState.servings = +el.dataset.n; render(); return; }
+  if (a === "barmixed") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) barMarkMixed(r); return; }
   if (a === "barfull") { e.stopPropagation(); drinkFull[view.id] = true; render(); window.scrollTo(0, 0); return; }
   if (a === "matq") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) matAsk(r, el.dataset.k); return; }
   if (a === "barnew") {
@@ -5096,6 +5098,41 @@ function matTrack(id){
     sb.rpc("patch_recipe", { p_id: id, p_patch: { matHits: hits } }).then(function(){}, function(){});
   } catch (e) {}
 }
+// ---------- Drinksidan: "Jag har blandat den · Skål!" (M1, nov 2026) ----------
+// Räknas som en tillagning (cookLog/timesCooked → "blandade" i Senaste i köket) och loggas som cook_done (Veckans drink).
+var barMixedNow = {};
+function barMixedHtml(r){
+  const log = cookLogOf(r).slice().sort((a, b) => String(a.at || a.date || "").localeCompare(String(b.at || b.date || "")));
+  const n = Math.max(r.timesCooked || 0, log.length), last = log[log.length - 1];
+  const on = !!barMixedNow[r.id];
+  let info = "";
+  if (n) {
+    const when = last ? barMixedWhen(last) : "";
+    const who = last && last.by ? ((last.by || "").toLowerCase() === me ? "dig" : nameOf(last.by)) : "";
+    info = `Blandad ${n} ${n === 1 ? "gång" : "gånger"}${when ? " · senast " + when : ""}${who ? " av " + esc(who) : ""}`;
+  } else info = "Ingen har blandat den än";
+  const btn = can("contributor") ? `<button class="dk-mix ${on ? "on" : ""}" data-a="barmixed">${BAR_FAN}<span>${on ? "Skål! Blandad i kväll" : "Jag har blandat den · Skål!"}</span></button>` : "";
+  return `<div class="dk-mixed">${btn}<small>${info}</small></div>`;
+}
+function barMixedWhen(c){
+  const d = c.at ? new Date(c.at) : new Date((c.date || "") + "T18:00:00");
+  if (isNaN(d)) return "";
+  const day = x => { const y = new Date(x); y.setHours(0, 0, 0, 0); return y.getTime(); };
+  const diff = Math.round((day(Date.now()) - day(d)) / 864e5);
+  if (diff <= 0) return d.getHours() >= 17 ? "i kväll" : "i dag";
+  if (diff === 1) return "i går";
+  if (diff < 7) return "i " + ["söndags", "måndags", "tisdags", "onsdags", "torsdags", "fredags", "lördags"][d.getDay()];
+  return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+}
+async function barMarkMixed(r){
+  barMixedNow[r.id] = true;
+  const ok = await patch(r.id, { timesCooked: (r.timesCooked || 0) + 1, lastCooked: today(), cookLog: cookLogOf(r).concat({ by: me, date: today(), at: new Date().toISOString() }) });
+  if (!ok) { barMixedNow[r.id] = false; render(); return; }
+  try { logEvent("cook_done", r); } catch (e) {}
+  try { notify("cooked", r); } catch (e) {}
+  toast("Skål! Noterat att du blandat " + (r.title || "drinken"));
+}
+
 // Matildas veckoval (api/week-drink.js via pg_cron, sparas i recipe_ai_cache "weekdrink:current") går först.
 var WEEK_DRINK = null, weekDrinkAsked = false;
 function weekDrinkLoad(){
