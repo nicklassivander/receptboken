@@ -4973,15 +4973,21 @@ function barSkySvg(){
 function barSkyOne(k, cls){
   let s = 11; const R = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
   const f = n => Math.round(n * 10) / 10, base = 300, parts = [], half = 600 / k;
+  const cC = f(600 - 350 / k), cE = f(600 + 360 / k), gaps = [[cC - 23, cC + 23], [cE - 30, cE + 30]];
   let x = 600 - half - 90;
   while (x < 600 + half) {
-    const w = 30 + R() * 60, h = 60 + R() * 120, near = Math.abs(x + w / 2 - 600) < 170, top = base - (near ? h * 0.55 : h);
-    if (R() < .45) { const t = 8 + R() * 10; parts.push(`M${f(x)},${base}V${f(top + t * 2)}H${f(x + t)}V${f(top + t)}H${f(x + 2 * t)}V${f(top)}H${f(x + w - 2 * t)}V${f(top + t)}H${f(x + w - t)}V${f(top + t * 2)}H${f(x + w)}V${base}Z`); }
+    // inga hus där tornen står (annars ritas de ovanpå varandra)
+    const g = gaps.find(([a, b]) => x < b && x + 30 > a);
+    if (g) { x = g[1]; continue; }
+    let w = 30 + R() * 60; const h = 60 + R() * 120, near = Math.abs(x + w / 2 - 600) < 170, top = base - (near ? h * 0.55 : h);
+    const g2 = gaps.find(([a]) => x < a && x + w > a);
+    if (g2) w = g2[0] - x;
+    if (R() < .45) { const t = Math.min(8 + R() * 10, w / 5); parts.push(`M${f(x)},${base}V${f(top + t * 2)}H${f(x + t)}V${f(top + t)}H${f(x + 2 * t)}V${f(top)}H${f(x + w - 2 * t)}V${f(top + t)}H${f(x + w - t)}V${f(top + t * 2)}H${f(x + w)}V${base}Z`); }
     else parts.push(`M${f(x)},${base}V${f(top)}H${f(x + w)}V${base}Z`);
     x += w + (R() < .3 ? 4 : 0);
   }
   const chr = (cx, h) => `M${cx - 23},${base}V${base - h}H${cx - 17}V${base - h - 14}Q${cx},${base - h - 70} ${cx + 17},${base - h - 14}V${base - h}H${cx + 23}V${base}Z M${cx - 1.2},${base - h - 60}L${cx},${base - h - 110}L${cx + 1.2},${base - h - 60}Z`;
   const emp = (cx, h) => `M${cx - 30},${base}V${base - h}H${cx - 20}V${base - h - 30}H${cx - 12}V${base - h - 55}H${cx - 6}V${base - h - 75}H${cx - 1.5}V${base - h - 115}H${cx + 1.5}V${base - h - 75}H${cx + 6}V${base - h - 55}H${cx + 12}V${base - h - 30}H${cx + 20}V${base - h}H${cx + 30}V${base}Z`;
   const id = "bskyg-" + cls;
-  return `<svg class="bsky ${cls}" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="0" y1="120" x2="0" y2="300"><stop offset="0" stop-color="#153429"/><stop offset="1" stop-color="#07130f"/></linearGradient></defs><g transform="translate(600,300) scale(${k}) translate(-600,-300)"><path d="${parts.join("")}${chr(f(600 - 350 / k), 150)}${emp(f(600 + 360 / k), 140)}" fill="url(#${id})" stroke="rgba(201,165,92,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/></g></svg>`;
+  return `<svg class="bsky ${cls}" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><defs><linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="0" y1="120" x2="0" y2="300"><stop offset="0" stop-color="#153429"/><stop offset="1" stop-color="#07130f"/></linearGradient></defs><g transform="translate(600,300) scale(${k}) translate(-600,-300)"><path d="${parts.join("")}${chr(cC, 150)}${emp(cE, 140)}" fill="url(#${id})" stroke="rgba(201,165,92,.35)" stroke-width="1" vector-effect="non-scaling-stroke"/></g></svg>`;
 }
