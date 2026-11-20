@@ -4777,7 +4777,7 @@ function renderDrink(r){
     <div class="dkh" style="${barBg(i)}"><span class="b-rays" aria-hidden="true"></span>
       <button class="fback" data-a="home" aria-label="Tillbaka"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
       <button class="dk-fav ${isFav(r) ? "on" : ""}" data-a="togglefav" aria-label="Favorit">${isFav(r) ? "♥" : "♡"}</button>
-      <div class="dk-fr">${BAR_ZIG}<div class="dk-in ${r.photo ? "ph" : ""}">${barPic(r, i)}</div></div>
+      <div class="dk-fr" ${can("contributor") ? `data-a="pickdish" role="button" aria-label="Byt bild"` : ""}>${BAR_ZIG}<div class="dk-in ${r.photo ? "ph" : ""}">${barPic(r, i)}</div>${canEdit(r) ? `<span class="dk-cam" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>` : ""}</div>
     </div>
     <div class="dkb">
       <div class="dk-t"><div class="dk-k">${esc(kick)}</div><h1 class="bshim" style="--n:${longest}">${esc(String(r.title || "").toUpperCase())}</h1></div>
@@ -4859,6 +4859,11 @@ document.addEventListener("click", e => {
   if (a === "open") { delete drinkFull[el.dataset.id]; return; }
   if (a === "baropen") { e.stopPropagation(); view = { name: "bar" }; render(); window.scrollTo(0, 0); return; }
   if (a === "barbase") { e.stopPropagation(); barState.base = el.dataset.b || ""; render(); return; }
+  if (a === "pickdish" && barIsDrinkView()) {   // tryck på drinkbilden: rutan frågar om man vill byta bild
+    const r0 = recipes.find(x => x.id === view.id);
+    setTimeout(() => { const h = document.querySelector(".sheet h2, #sheet h2, .modal h2"); if (h && /Bild på rätten/.test(h.textContent)) h.textContent = r0 && r0.photo ? "Vill du byta bild?" : "Vill du lägga till en bild?"; }, 0);
+    return;
+  }
   if (a === "barby") { e.stopPropagation(); barState.by = el.dataset.e || ""; render(); return; }
   if (a === "fby") { e.stopPropagation(); const v = el.dataset.e || ""; filter.by = filter.by === v ? "" : v; render(); return; }
   if (a === "tagclear" || a === "allrecipes" || a === "clear") { filter.by = ""; return; }
