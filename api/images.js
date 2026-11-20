@@ -39,13 +39,18 @@ module.exports = async (req, res) => {
   const ingredients = (Array.isArray(body.ingredients) ? body.ingredients : []).map((x) => String(x).slice(0, 80)).slice(0, 15);
   const own = String(body.q || "").slice(0, 120).trim();
   const page = Math.max(1, Math.min(5, parseInt(body.page, 10) || 1));
+  const drink = !!body.drink;   // från baren: bara bilder på drinkar
   if (!title && !own) return res.status(400).json({ error: "Receptet saknar namn" });
 
   // 2. Sökord: egna ord översätts/förbättras, annars gör Claude dem av receptet
   let queries = [];
   if (ANTHROPIC_API_KEY) {
     try {
-      const prompt = own
+      const prompt = drink
+        ? (own
+          ? `Gör om den här bildsökningen till 2 korta engelska sökfraser (2–5 ord var) för foton av en färdig drink i ett glas på en bildbank: "${own}". Drinken heter "${title}". Varje fras ska innehålla "cocktail" eller "drink". Svara bara med en JSON-lista med strängar.`
+          : `Drinken heter "${title}". Ingredienser: ${ingredients.join(", ") || "okända"}.\nGe 3 korta engelska sökfraser (2–5 ord) för att hitta ett snyggt foto av just den här drinken serverad i ett glas på en bildbank. Varje fras ska innehålla "cocktail" eller "drink" (eller "mocktail" om drinken är alkoholfri). Första frasen mest exakt (t.ex. drinkens namn + cocktail), sista mer allmän. Svara bara med en JSON-lista med strängar.`)
+        : own
         ? `Gör om den här bildsökningen till 2 korta engelska sökfraser för matfoton på en bildbank (2–5 ord var): "${own}". Rätten heter "${title}". Svara bara med en JSON-lista med strängar.`
         : `Rätten heter "${title}". Huvudingredienser: ${ingredients.join(", ") || "okända"}.\nGe 3 korta engelska sökfraser (2–5 ord) för att hitta ett snyggt foto av den färdiga rätten på en bildbank. Första frasen ska vara mest exakt, sista mer allmän. Svara bara med en JSON-lista med strängar.`;
       const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -60,6 +65,7 @@ module.exports = async (req, res) => {
     } catch {}
   }
   if (!queries.length) queries = [own || title];
+  if (drink) queries = queries.map((q) => /cocktail|drink|mocktail|spritz|martini/i.test(q) ? q : q + " cocktail");
 
   // 3. Sök i bildbanken: liggande bilder, minst 1200 px breda
   const seen = new Set(), photos = [];
@@ -67,16 +73,16 @@ module.exports = async (req, res) => {
   for (const q of queries) {
     if (photos.length >= 12) break;
     try {
-      const key = source + "|" + q + "|" + page;
+      const key = source + "|" + (drink ? "d|" : "") + q + "|" + page;
       let list = null;
       const hit = cache.get(key);
       if (hit && Date.now() - hit.t < DAY) list = hit.list;
       else {
         let r;
         if (source === "Pixabay") {
-          r = await fetch(`https://pixabay.com/api/?key=${encodeURIComponent(PIXABAY_API_KEY)}&q=${encodeURIComponent(q)}&image_type=photo&orientation=horizontal&min_width=1200&safesearch=true&per_page=20&page=${page}`);
+          r = await fetch(`https://pixabay.com/api/?key=${encodeURIComponent(PIXABAY_API_KEY)}&q=${encodeURIComponent(q)}&image_type=photo&${drink ? "orientation=all&min_width=900" : "orientation=horizontal&min_width=1200"}&safesearch=true&per_page=20&page=${page}`);
         } else {
-          r = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=landscape&per_page=12&page=${page}`, { headers: { Authorization: PEXELS_API_KEY } });
+          r = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&${drink ? "" : "orientation=landscape&"}per_page=12&page=${page}`, { headers: { Authorization: PEXELS_API_KEY } });
         }
         if (r.status === 429) { limited = true; break; }
         if (!r.ok) continue;

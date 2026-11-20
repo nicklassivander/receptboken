@@ -4074,7 +4074,7 @@ async function loadImgSug(r, opts = {}){
   try {
     const { data: { session } } = await sb.auth.getSession();
     const resp = await fetch("/api/images", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) },
-      body: JSON.stringify({ title: r.title || "", ingredients: (r.ingredients || []).filter(x => x && !String(x).startsWith("#")).slice(0, 12), q: own || "", page }) });
+      body: JSON.stringify({ title: r.title || "", ingredients: (r.ingredients || []).filter(x => x && !String(x).startsWith("#")).slice(0, 12), q: own || "", page, drink: isDrink(r) }) });
     const j = await resp.json().catch(() => ({}));
     if (resp.status === 503 && j.code === "nokey") { imgSug[r.id] = { state: "nokey" }; imgSugDraw(r.id); return; }
     if (!resp.ok) throw new Error(j.error || "Kunde inte hämta förslag");
