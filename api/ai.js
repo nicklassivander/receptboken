@@ -18,17 +18,29 @@ module.exports = async (req, res) => {
   // 1. Vem frågar? Kontrollera inloggningen mot Supabase.
   const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!token) return res.status(401).json({ error: "Inte inloggad" });
+  // AI-nivå per användare (supabase/ai-level.sql): none / haiku / sonnet. Saknas funktionen gäller rollen som förut.
+  let level = "sonnet";
   try {
-    const check = await fetch(`${SUPABASE_URL}/rest/v1/rpc/recipe_my_role`, {
+    const rpc = (fn) => fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
       method: "POST",
       headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: "{}",
     });
-    if (!check.ok) return res.status(401).json({ error: "Inloggningen gick inte att verifiera" });
-    const role = await check.json();
-    if (!["contributor", "editor", "admin"].includes(role)) {
-      return res.status(403).json({ error: role === "viewer" ? "Läsbehörighet kan inte använda AI" : "Du har inte behörighet" });
+    const lv = await rpc("recipe_my_ai");
+    if (lv.ok) {
+      level = await lv.json();
+      if (!level) return res.status(403).json({ error: "Du har inte behörighet" });
+    } else if (lv.status === 401 || lv.status === 403) {
+      return res.status(401).json({ error: "Inloggningen gick inte att verifiera" });
+    } else {
+      const check = await rpc("recipe_my_role");
+      if (!check.ok) return res.status(401).json({ error: "Inloggningen gick inte att verifiera" });
+      const role = await check.json();
+      if (!["contributor", "editor", "admin"].includes(role)) {
+        return res.status(403).json({ error: role === "viewer" ? "Läsbehörighet kan inte använda AI" : "Du har inte behörighet" });
+      }
     }
+    if (level === "none") return res.status(403).json({ error: "Du har inte behörighet att använda Pappa (AI). Fråga Nicklas." });
   } catch {
     return res.status(502).json({ error: "Kunde inte nå Supabase" });
   }
@@ -73,7 +85,7 @@ module.exports = async (req, res) => {
         ...(body.fetchUrl ? { "anthropic-beta": "web-fetch-2025-09-10" } : {}),
       },
       body: JSON.stringify({
-        model: body.fast && !body.web && !body.fetchUrl ? FAST_MODEL : MODEL, max_tokens: body.web || body.fetchUrl ? 6000 : maxTokens, messages,
+        model: level === "haiku" || (body.fast && !body.web && !body.fetchUrl) ? FAST_MODEL : MODEL, max_tokens: body.web || body.fetchUrl ? 6000 : maxTokens, messages,
         // Webbsökning (Claudes egen sökfunktion) – används när receptboken inte har något som passar
         ...(body.web ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3, user_location: { type: "approximate", country: "SE" } }] } : {}),
         // Claude hämtar en sida själv – reserv när vår server blockeras av sajten

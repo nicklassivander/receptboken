@@ -227,6 +227,8 @@ async function storePhoto(dataUrl){
 async function ai(messages, opts = {}){
   const { data: { session } } = await sb.auth.getSession();
   if (!session) throw { code: "auth" };
+  if (!aiOk()) throw { code: "auth", message: "Du har inte behörighet att använda Pappa (AI). Fråga Nicklas." };
+  if (aiLevel() === "haiku") opts = Object.assign({}, opts, { fast: true });
   let r;
   try {
     r = await fetch("/api/ai", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + session.access_token },
@@ -541,7 +543,7 @@ function renderDetail(){
 
     ${historyHtml(r)}
 
-    ${can("contributor") ? `<div class="panel ai">
+    ${can("contributor") && aiOk() ? `<div class="panel ai">
       <h2>Fråga kocken och sommelieren</h2>
       <div class="aiq-btns">
         <button class="aiq" data-a="ai" data-q="wine"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-.5 5.5a3.5 3.5 0 0 1-7 0z"/><path d="M8.2 6.5h7.6"/><path d="M12 12v8M8.5 20.5h7"/></svg>Vilket vin passar?</button>
@@ -1432,24 +1434,30 @@ async function openUsers(){
       <div class="two"><div><label>Namn</label><input type="text" id="uName" placeholder="t.ex. Mamma"></div>
       <div><label>E-post</label><input type="text" id="uEmail" inputmode="email" required></div></div>
       <label>Behörighet</label>
-      <select id="uRole"><option value="viewer">Läsa</option><option value="contributor" selected>Egna recept</option><option value="admin">Superanvändare</option></select>
+      <select id="uRole">${UROLE_OPTS.map(o => `<option value="${o.v}" ${o.v === "contributor:haiku" ? "selected" : ""}>${o.t}</option>`).join("")}</select>
       <label class="check" style="color:var(--ink);font-weight:500"><input type="checkbox" id="uInvite" checked> Skicka inloggningslänk till personen</label>
       <div class="err" id="uErr"></div>
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn ghost" id="uClose">Stäng</button><button class="btn accent">Lägg till</button></div>
     </form>
     <div class="roles-help">
       <p><b>Läsa</b> – ser alla recept, men kan inte ändra något.</p>
-      <p><b>Egna recept</b> – lägger till recept och ändrar och raderar sina egna. Gör egna varianter av andras recept, sätter favoriter och betyg, loggar tillagningar och använder AI-hjälpen. <i>Rätt nivå för de flesta.</i></p>
-      <p><b>Superanvändare</b> – kan ändra och radera alla recept och bjuda in eller ta bort användare.</p>
+      <p><b>Egna recept</b> – lägger till recept och ändrar och raderar sina egna. Gör egna varianter av andras recept, sätter favoriter och betyg och loggar tillagningar.</p>
+      <p style="margin-left:12px">· <b>med Haiku</b> – Pappa och Matilda svarar alltid med den billiga modellen, även Sök AI-recept och foton. Ingen <i>Pappa, fundera lite till</i>.</p>
+      <p style="margin-left:12px">· <b>med full AI</b> – Haiku för enkla saker och Sonnet där det behövs (webbsökning, foton, ändringar).</p>
+      <p><b>Superanvändare</b> – full AI, kan ändra och radera alla recept och bjuda in eller ta bort användare.</p>
+      <p><b>Läsa</b> har ingen AI – knapparna syns inte.</p>
     </div>`);
   $id("uClose").onclick = closeSheet;
   const load = async () => {
     const { data, error } = await sb.rpc("recipe_admin_list_users");
     if (error) { $id("uList").innerHTML = `<p class="err">${esc(error.message)}</p>`; return; }
+    const lv = await sb.rpc("recipe_admin_list_ai").then(x => x, () => ({ error: 1 }));
+    const aiOf = {}; if (!lv.error) (lv.data || []).forEach(x => { aiOf[(x.email || "").toLowerCase()] = x.ai_level; });
     (data || []).forEach(u => { if (u.name) userNames[(u.email || "").toLowerCase()] = u.name; });
     $id("uList").innerHTML = (data || []).map(u => {
       const self = u.email === me;
-      const opts = ROLE_ORDER.filter(r => r !== "editor" || u.role === "editor").map(r => `<option value="${r}" ${u.role === r ? "selected" : ""}>${ROLE_LABEL[r]}</option>`).join("");
+      const cur = uroleVal(u.role, aiOf[(u.email || "").toLowerCase()]);
+      const opts = UROLE_OPTS.map(o => `<option value="${o.v}" ${cur === o.v ? "selected" : ""}>${o.t}</option>`).join("");
       return `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e8da">
         <div><strong>${esc(u.name || u.email.split("@")[0])}</strong>${self ? ' <span class="meta">(du)</span>' : ""}<div class="meta">${esc(u.email)}</div></div>
         ${self ? `<span class="badge">${ROLE_LABEL[u.role]}</span>` : `<span class="row"><select data-urole="${esc(u.email)}" data-uname="${esc(u.name || "")}" style="width:auto;padding:6px 8px;font-size:13px">${opts}</select>
@@ -1457,8 +1465,8 @@ async function openUsers(){
         <button class="btn danger small" data-udel="${esc(u.email)}" type="button">Ta bort</button></span>`}</div>`;
     }).join("");
     $id("uList").querySelectorAll("[data-urole]").forEach(sel => sel.onchange = async () => {
-      const { error } = await sb.rpc("recipe_admin_upsert_user", { p_email: sel.dataset.urole, p_name: sel.dataset.uname, p_role: sel.value });
-      toast(error ? error.message : "Behörigheten är ändrad"); load();
+      const err = await uroleSave(sel.dataset.urole, sel.dataset.uname, sel.value);
+      toast(err || "Behörigheten är ändrad"); load();
     });
     $id("uList").querySelectorAll("[data-ulink]").forEach(b => b.onclick = async () => {
       b.disabled = true; const err = await sendLoginLink(b.dataset.ulink); b.disabled = false;
@@ -1473,8 +1481,8 @@ async function openUsers(){
   $id("uf").onsubmit = async e => {
     e.preventDefault(); $id("uErr").textContent = "";
     const email = $id("uEmail").value.trim().toLowerCase(), name = $id("uName").value.trim(), r = $id("uRole").value;
-    const { error } = await sb.rpc("recipe_admin_upsert_user", { p_email: email, p_name: name, p_role: r });
-    if (error) { $id("uErr").textContent = error.message; return; }
+    const uerr = await uroleSave(email, name, r);
+    if (uerr) { $id("uErr").textContent = uerr; return; }
     let linkErr = null;
     if ($id("uInvite").checked) linkErr = await sendLoginLink(email);
     $id("uEmail").value = ""; $id("uName").value = "";
@@ -1534,6 +1542,7 @@ async function showApp(session){
   try { const { data: r, error } = await sb.rpc("recipe_my_role"); roleErr = error; if (!error) role = r || null; } catch (e) { roleErr = e; }
   if (roleErr && cache && cache.me === me && (navigator.onLine === false || /fetch|network|load failed/i.test(String(roleErr.message || roleErr)))) { role = cache.role; loadNote = "Du är offline – visar senast sparade recept."; loaded = true; render(); subscribe(); handleShare(); return; }
   if (!role) { storageOk = false; loaded = true; render(); return; }
+  try { const { data: lv, error } = await sb.rpc("recipe_my_ai"); if (!error && lv) { MY_AI = lv; try { localStorage.myAi = lv; } catch {} } } catch {}
   await loadAll(); subscribe(); handleShare(); refreshRequests();
   try { loadShop(); subscribeShop(); } catch (e) { console.warn(e); }
   resumeCooking();
@@ -3085,7 +3094,7 @@ function searchLevel(list){
 // Raden direkt under sökfältet: "Sök AI-recept" (pappa letar på nätet – kostar, kräver ett tryck)
 function aiBarHtml(list){
   const q = filter.q.trim();
-  if (q.length < 2 || !sample) return "";
+  if (q.length < 2 || !sample || !aiOk()) return "";
   if (aiSearch && aiSearch.q === q && aiSearch.web) return "";
   const { near, level } = searchLevel(list);
   const globe = s => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>`;
@@ -3104,7 +3113,7 @@ function aiSearchHtml(list){
       <span><b>${esc(r.title)}${r.variantOf ? ` <small class="badge mod">${esc(variantBadge(r))}</small>` : ""}</b><small>${esc(why || "")}</small></span></button>`;
   const askBtn = `<button class="aiq" data-a="aisearch"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><path d="M10 12.8a1.6 1.6 0 1 1 2.3 1.4c-.5.3-.8.7-.8 1.2v.4"/><path d="M11.5 17.6h.01"/></svg>Fråga pappa</button>`;
   // "Fråga pappa" är borttagen – bara "Hitta nya recept" (nätet, kostar) under en avdelare
-  const btns = () => webBtn.replace('<div class="ais-webbtn">', '<div class="ais-dv"><span>Hittar du inte rätt?</span></div><div class="ais-webbtn">');
+  const btns = () => !aiOk() ? "" : webBtn.replace('<div class="ais-webbtn">', '<div class="ais-dv"><span>Hittar du inte rätt?</span></div><div class="ais-webbtn">');
   const webBtn =`<div class="ais-webbtn"><button class="aiq aiq-gold" data-a="aiweb"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>Sök AI-recept</button></div>`;
   // Direkt medan man skriver: närmaste recept i receptboken, även när inte alla ord stämmer
   const near = list.length < 4 ? nearRecipes(q, list) : [];
@@ -4325,7 +4334,7 @@ function aiModelHtml(it, i){
 
 // "Pappa, fundera lite till": under svar från Haiku (inte ändringar), för alla. Ställer samma fråga till Sonnet.
 function aiDeepHtml(it, i){
-  if (it.busy || it.err || it.model !== "haiku" || it.deeper || it.change || !it.a) return "";
+  if (it.busy || it.err || it.model !== "haiku" || it.deeper || it.change || !it.a || aiLevel() !== "sonnet") return "";
   const ico = THINK_SVG.replace('class="think-ico"', 'class="deep-ico"').replace('width="30" height="30"', 'width="22" height="22"');
   return `<div class="deep-row"><button type="button" class="aiq deep" data-a="aideep" data-i="${i}">${ico}Pappa, fundera lite till</button></div>`;
 }
@@ -4844,6 +4853,7 @@ function matOutHtml(id){
   }).reverse().join("");
 }
 function matHtml(r){
+  if (!can("contributor") || !aiOk()) return "";
   return `<section class="mat"><div class="mat-h">${MAT_SVG}<span>Fråga Matilda bakom baren</span></div>
     <div class="mat-btns">${Object.entries(MAT_PRESETS).map(([k, p]) => `<button data-a="matq" data-k="${k}">${esc(p.label)}</button>`).join("")}</div>
     <form id="mat-form" class="mat-form"><input id="mat-input" type="text" placeholder="Fråga Matilda om drinken …" autocomplete="off"><button type="submit">Fråga Matilda</button></form>
@@ -5039,4 +5049,34 @@ function tickShort(title){
   var w = String(title || "").replace(/[,(].*$/, "").trim().split(/\s+/).filter(Boolean);
   if (w.length <= 2) return w.join(" ");
   return TICK_GLUE.test(w[1]) ? w[0] : w.slice(0, 2).join(" ");
+}
+
+// ---------- AI-nivå per användare (nov 2026, supabase/ai-level.sql) ----------
+// Roller i användarlistan: Läsa (ingen AI), Egna recept med Haiku, Egna recept med full AI, Superanvändare.
+// recipe_my_ai ger none/haiku/sonnet. Saknas SQL:en gäller rollen: Läsa = ingen AI, övriga = full.
+var MY_AI = (function(){ try { return localStorage.myAi || null; } catch (e) { return null; } })();
+var UROLE_OPTS = [
+  { v: "viewer", t: "Läsa" },
+  { v: "contributor:haiku", t: "Egna recept · Haiku" },
+  { v: "contributor:sonnet", t: "Egna recept · full AI" },
+  { v: "admin", t: "Superanvändare" },
+];
+function aiLevel(){
+  if (!role || role === "viewer") return "none";
+  if (role === "admin") return "sonnet";
+  return MY_AI === "none" || MY_AI === "haiku" ? MY_AI : "sonnet";
+}
+function aiOk(){ return aiLevel() !== "none"; }
+function uroleVal(r, lv){
+  if (r === "viewer" || r === "admin") return r;
+  return "contributor:" + (lv === "haiku" ? "haiku" : "sonnet");
+}
+async function uroleSave(email, name, val){
+  const [r, lv] = String(val).split(":");
+  const { error } = await sb.rpc("recipe_admin_upsert_user", { p_email: email, p_name: name, p_role: r });
+  if (error) return error.message;
+  const ai = r === "viewer" ? "none" : r === "admin" ? "sonnet" : (lv || "sonnet");
+  const res = await sb.rpc("recipe_admin_set_ai", { p_email: email, p_level: ai }).then(x => x, e => ({ error: e }));
+  if (res && res.error && lv === "haiku") return "Rollen är sparad, men Haiku-nivån kräver att supabase/ai-level.sql körs först.";
+  return "";
 }
