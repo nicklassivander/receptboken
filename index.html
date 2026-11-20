@@ -1624,6 +1624,9 @@ body.barmode{background:var(--bar-bg)}
 .bar .bhero .bmist{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 46% 42% at 50% 45%,rgba(7,19,15,.7) 0%,rgba(7,19,15,.42) 45%,transparent 100%)}
 .bar .bhero>*:not(.b-rays):not(.bsky):not(.bmist){position:relative;z-index:1}
 @media(min-width:760px){.bar .bhero .b-rays{opacity:.75}}
+/* Skyline: 40 % på telefon, 50 % på dator */
+.bar .bhero .bsky-dat{display:none}
+@media(min-width:760px){.bar .bhero .bsky-tel{display:none}.bar .bhero .bsky-dat{display:block}}
 /* tips från bartendern (anteckningar på drinksidan) */
 .dk .dk-notes{margin:26px 0 0;padding:0;background:none;border:0;box-shadow:none;color:#e9dcc0}
 .dk .dk-notes h2{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 10px;padding:0;font:italic 400 24px 'Cormorant Garamond',serif;color:#f0dcae;border:0}
