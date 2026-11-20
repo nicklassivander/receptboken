@@ -1814,6 +1814,12 @@ html{background:#0e0d0c}
 @keyframes bcmq{to{transform:translateX(-50%)}}
 @media(min-width:760px){#app .barcard .bc-win{flex:0 0 330px}#app .barcard .bc-trk{animation-duration:calc(var(--n) * 4.167s)}}
 @media (prefers-reduced-motion:reduce){#app .barcard .bc-trk{animation:none}}
+/* Barkortet B (nov 2026): strålarna utgår från "Välkommen in" (dator) och når in bakom drinkarna */
+@media(min-width:760px){
+  #app .barcard .bc-rays{width:900px;height:900px;right:calc(23px + 64px - 450px);top:calc(50% - 450px);bottom:auto;-webkit-mask:radial-gradient(circle,#000 0 18%,transparent 62%);mask:radial-gradient(circle,#000 0 18%,transparent 62%)}
+  #app .barcard .bc-go{background:rgba(10,26,21,.85)}
+  #app .barcard:hover .bc-go{background:rgba(32,48,36,.92)}
+}
 </style>
 </head>
 <body>
