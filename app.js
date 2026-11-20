@@ -4752,7 +4752,7 @@ function renderBar(){
     const day = Math.floor(Date.now() / 864e5);
     const add = (r, lbl) => { if (r && !slides.some(s => s.r.id === r.id)) slides.push({ r, lbl }); };
     const byName = all.slice().sort((a, b) => (a.title || "").localeCompare(b.title || "", "sv"));
-    add(byName[day % byName.length], "Kvällens drink");
+    add(barWeekPick(all, byName, day), "Veckans drink");
     add(all.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0], "Senast i baren");
     add(all.slice().sort((a, b) => (b.timesCooked || 0) - (a.timesCooked || 0) || (b.rating || 0) - (a.rating || 0))[0], "Mest blandad");
   }
@@ -4875,6 +4875,7 @@ ${recipeText(r)}${r.notes ? "\n\nANTECKNINGAR: " + r.notes : ""}`;
   convo.push({ role: "user", content: (convo.length ? "" : ctx + "\n\nFRÅGA: ") + (kind ? MAT_PRESETS[kind].prompt : text) });
   try { item.a = await ai(convo, { fast: true }); } catch (e) { item.err = aiErr(e); }
   item.busy = false; matRefresh(r.id);
+  if (!item.err) matTrack(r.id);
 }
 document.addEventListener("submit", e => {
   if (e.target.id !== "mat-form") return;
@@ -5079,4 +5080,28 @@ async function uroleSave(email, name, val){
   const res = await sb.rpc("recipe_admin_set_ai", { p_email: email, p_level: ai }).then(x => x, e => ({ error: e }));
   if (res && res.error && lv === "haiku") return "Rollen är sparad, men Haiku-nivån kräver att supabase/ai-level.sql körs först.";
   return "";
+}
+
+// ---------- Veckans drink (nov 2026): den drink som fått flest frågor till Matilda de senaste 7 dagarna ----------
+// Varje besvarad fråga sparas som en tidpunkt i r.matHits (högst 40, äldre än 30 dagar rensas).
+// Lika många frågor → senaste frågan vinner. Ingen aktivitet → drinkarna turas om vecka för vecka i bokstavsordning.
+function matTrack(id){
+  try {
+    var r = recipes.find(function(x){ return x.id === id; }); if (!r) return;
+    var cut = Date.now() - 30 * 864e5;
+    var hits = (Array.isArray(r.matHits) ? r.matHits : []).filter(function(t){ return Date.parse(t) > cut; });
+    hits.push(new Date().toISOString()); hits = hits.slice(-40);
+    r.matHits = hits;
+    sb.rpc("patch_recipe", { p_id: id, p_patch: { matHits: hits } }).then(function(){}, function(){});
+  } catch (e) {}
+}
+function barWeekPick(all, byName, day){
+  var cut = Date.now() - 7 * 864e5, best = null, bestN = 0, bestT = 0;
+  all.forEach(function(r){
+    var ts = (Array.isArray(r.matHits) ? r.matHits : []).map(function(t){ return Date.parse(t); }).filter(function(t){ return t > cut; });
+    if (!ts.length) return;
+    var last = Math.max.apply(null, ts);
+    if (ts.length > bestN || (ts.length === bestN && last > bestT)) { best = r; bestN = ts.length; bestT = last; }
+  });
+  return best || byName[Math.floor((day + 3) / 7) % byName.length];
 }
