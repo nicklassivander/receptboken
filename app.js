@@ -4744,7 +4744,7 @@ function renderBar(){
   const bases = barBases(all);
   if (barState.base && (!bases.includes(barState.base) || all.length <= BAR_BASE_FROM)) barState.base = "";
   const people = [...new Set(all.map(addedByOf))].sort((a, b) => nameOf(a).localeCompare(nameOf(b), "sv"));
-  if (barState.by && (!people.includes(barState.by) || all.length <= BAR_BASE_FROM)) barState.by = "";
+  if (barState.by && !people.includes(barState.by)) barState.by = "";
   const list = all.filter(r => (!barState.base || barInfo(r).base === barState.base) && (!barState.by || addedByOf(r) === barState.by)).sort((a, b) => (a.title || "").localeCompare(b.title || "", "sv"));
   // Överst: några tips att svepa mellan
   const slides = [];
@@ -4769,7 +4769,7 @@ function renderBar(){
       <div class="brule"><span class="bsc">${all.length} ${all.length === 1 ? "drink" : "drinkar"} · Skål!</span></div>${BAR_FAN}</div>
     <div class="bin">
     ${bases.length > 1 && all.length > BAR_BASE_FROM ? `<div class="bchips">${["", ...bases].map(b => `<button class="bchip ${barState.base === b ? "on" : ""}" data-a="barbase" data-b="${esc(b)}">${b || "Alla"}</button>`).join("")}</div>` : ""}
-    ${people.length > 1 && all.length > BAR_BASE_FROM ? `<div class="bchips bpeople"><span class="bp-l">Lagt till av</span>${["", ...people].map(p => `<button class="bchip ${barState.by === p ? "on" : ""}" data-a="barby" data-e="${esc(p)}">${p ? esc(nameOf(p)) : "Alla"}</button>`).join("")}</div>` : ""}
+    ${people.length > 1 ? `<div class="bchips bpeople"><span class="bp-l">Lagt till av</span>${["", ...people].map(p => `<button class="bchip ${barState.by === p ? "on" : ""}" data-a="barby" data-e="${esc(p)}">${p ? esc(nameOf(p)) : "Alla"}</button>`).join("")}</div>` : ""}
     ${slides.length && !barState.base && !barState.by ? `<div class="bcar" id="bcar">${slideHtml}</div>${slides.length > 1 ? `<div class="bdots">${slides.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>` : ""}` : ""}
     ${all.length ? `<div class="bsec"><span>${esc([barState.base || (barState.by ? "Drinkar" : "Alla drinkar"), barState.by ? "från " + nameOf(barState.by) : ""].filter(Boolean).join(" "))}</span></div>
       ${!list.length ? `<div class="bempty"><p>Inga drinkar matchar.</p></div>` : ""}
