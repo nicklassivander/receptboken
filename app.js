@@ -266,6 +266,7 @@ function viewHash(v){
   if (v.name === "detail") return "#r=" + v.id;
   if (v.name === "edit") return v.id ? "#e=" + v.id : "#ny";
   if (v.name === "help") return "#hjalp";
+  if (v.name === "bar") return "#baren";
   return " ";
 }
 function syncHistory(){
@@ -309,10 +310,12 @@ function goBack(){
 }
 function render(){
   setTimeout(renderCookBar, 0);
-  $app.classList.toggle("wide", view.name === "list");
+  $app.classList.toggle("wide", view.name === "list" || view.name === "bar");
   syncHistory();
   syncWakeLock();
-  if (view.name === "detail") { logView(view.id); return renderDetail(); }
+  try { barTheme(); } catch {}
+  if (view.name === "bar") return renderBar();
+  if (view.name === "detail") { logView(view.id); if (barIsDrinkView()) return renderDrink(recipes.find(x => x.id === view.id)); return renderDetail(); }
   if (view.name === "edit") return renderEdit();
   if (view.name === "help") return renderHelp();
   if (view.name === "web") return renderWebPreview();
@@ -322,6 +325,7 @@ function render(){
 function filtered(){
   const q = filter.q.trim().toLowerCase();
   let list = recipes.filter(r => {
+    if (!q && !filter.tags.includes("dryck") && isDrink(r)) return false;   // drinkarna bor i baren (men syns när man söker)
     if (filter.fav && !isFav(r)) return false;
     if (filter.mine && addedByOf(r) !== me) return false;
     if (filter.cookedMe && !cooksOf(r).some(x => (x.by || "").toLowerCase() === me)) return false;
@@ -380,7 +384,7 @@ function renderList(){
   }
 
   $app.innerHTML = `
-    <header class="top"><a class="brand" href="#" data-a="home" aria-label="Till alla recept"><img src="logo.svg" alt="" class="logo"><h1><span class="t-sv">Sivander's</span> <i class="t-gl"></i><span class="t-rp">Recept</span>${recipes.length ? (() => { const nNew = recipes.filter(isNewForMe).length; return `<span class="rcount"><b>${recipes.length}</b><span>recept</span>${nNew ? `<i class="rc-dot"></i><em>+${nNew} ${nNew === 1 ? "ny" : "nya"}</em>` : ""}</span>`; })() : ""}</h1></a>
+    <header class="top"><a class="brand" href="#" data-a="home" aria-label="Till alla recept"><img src="logo.svg" alt="" class="logo"><h1><span class="t-sv">Sivander's</span> <i class="t-gl"></i><span class="t-rp">Recept</span>${recipes.length ? (() => { const nNew = recipes.filter(isNewForMe).length; return `<span class="rcount"><b>${recipes.filter(x => !isDrink(x)).length || recipes.length}</b><span>recept</span>${nNew ? `<i class="rc-dot"></i><em>+${nNew} ${nNew === 1 ? "ny" : "nya"}</em>` : ""}</span>`; })() : ""}</h1></a>
       <span class="row"><button class="iconbtn" data-a="help" aria-label="Hjälp och instruktioner">Hjälp</button><button class="iconbtn" data-a="settings" aria-label="Konto och inställningar">Konto${pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : ""}</button></span></header>
     ${loadNote ? `<div class="notice">${esc(loadNote)}</div>` : ""}
     ${recipes.length ? `
@@ -394,6 +398,7 @@ function renderList(){
         <option value="name">A–Ö</option>
       </select>
     </div>
+    ${barCardHtml()}
     ${aiBarHtml(list)}
     ${nfAskHtml()}
     <div class="filterbar">
@@ -1511,6 +1516,7 @@ async function showApp(session){
   $id("loginView").classList.add("hidden"); $id("app").classList.remove("hidden");
   // Vid omladdning: stanna kvar på receptet som var öppet
   if (location.hash === "#hjalp") view = { name: "help" };
+  if (location.hash === "#baren") view = { name: "bar" };
   const hm = location.hash.match(/^#[re]=([^&]+)$/);
   if (hm) view = { name: "detail", id: decodeURIComponent(hm[1]) };
   // Visa sparade recept direkt, hämta färska i bakgrunden
@@ -4572,3 +4578,269 @@ document.addEventListener("click", async e => {
   } else toast(st === "denied" ? "Aviseringar blockerades. Ändra i telefonens inställningar." : "Det gick inte att slå på aviseringar");
   render();
 });
+
+// ---------- Baren (A2, nov 2026) ----------
+// Recept med typen "dryck" visas i en egen avdelning: kort på startsidan → barens startsida (view "bar") → drinksida.
+// Drinksidan ritas av renderDrink() när ett dryck-recept öppnas; "Alla funktioner" visar vanliga receptsidan.
+// Glas, metod, garnering, sprit och färg läses ut ur receptet (r.bar kan skriva över). Matilda = AI-bartendern.
+var BAR_ROWS_FROM = 12;            // från så många drinkar blir rutnätet en radlista
+var barState = { base: "" };
+var drinkFull = {};               // id -> true: visa vanliga receptsidan
+var matState = {};                // id -> [{q, a, busy, err}]
+var barUid = 0;
+function isDrink(r){ return !!r && Array.isArray(r.tags) && r.tags.includes("dryck"); }
+function barDrinks(){ return recipes.filter(isDrink); }
+function barIsDrinkView(){ if (view.name !== "detail") return false; const r = recipes.find(x => x.id === view.id); return isDrink(r) && !drinkFull[view.id]; }
+function barTheme(){
+  const on = view.name === "bar" || barIsDrinkView();
+  document.body.classList.toggle("barmode", on);
+  $app.classList.toggle("barview", on);
+}
+function barShade(hex, f){
+  const m = String(hex || "").match(/^#?([0-9a-f]{6})$/i); if (!m) return hex;
+  const n = parseInt(m[1], 16); let rr = n >> 16, gg = (n >> 8) & 255, bb = n & 255;
+  const t = f < 0 ? 0 : 255, k = Math.abs(f);
+  rr = Math.round(rr + (t - rr) * k); gg = Math.round(gg + (t - gg) * k); bb = Math.round(bb + (t - bb) * k);
+  return "#" + ((1 << 24) + (rr << 16) + (gg << 8) + bb).toString(16).slice(1);
+}
+// Läser ut glas, metod, garnering, sprit och färg ur receptets text
+function barInfo(r){
+  const b = r.bar || {};
+  const title = String(r.title || "").toLowerCase();
+  const ing = (r.ingredients || []).join("\n").toLowerCase();
+  const steps = (r.steps || []).join("\n").toLowerCase();
+  const all = title + "\n" + ing + "\n" + steps;
+  let base = b.base;
+  if (!base) {
+    const B = [[/whisk(e)?y|bourbon|\brye\b|scotch|maltwhisky/, "Whisky"], [/\b(ljus |mörk |vit |brun )?rom\b|rum\b|cachaça|cachaca/, "Rom"], [/tequila|mezcal/, "Tequila"], [/konjak|cognac|brandy|calvados|armagnac/, "Konjak"], [/\bgin\b/, "Gin"], [/vodka/, "Vodka"],
+      [/champagne|cava\b|prosecco|mousserande|crémant|cremant|bubbel(?!vatten)/, "Bubbel"], [/glögg|\bvin\b|rödvin|vitt vin|rosévin|portvin|sherry/, "Vin"],
+      [/likör|vermouth|campari|aperol|snaps|akvavit|brännvin|\böl\b|cider|amaretto|baileys|kahl[uú]a|limoncello|pastis|absint/, "Övrigt"]];
+    const hit = B.find(([re]) => re.test(ing) || re.test(title));
+    base = hit ? hit[1] : "Alkoholfritt";
+  }
+  let glass = b.glass;
+  if (!glass) {
+    const G = [[/coupe/, "Coupe"], [/martiniglas|cocktailglas/, "Martiniglas"], [/champagneglas|flöjt/, "Champagneglas"], [/tumlare|whiskyglas|rocksglas|old fashioned-glas/, "Tumlare"], [/highball|longdrinkglas|högt glas|collins/, "Highball"], [/vinglas|ballongglas/, "Vinglas"], [/kopp|mugg/, "Kopp"]];
+    const hit = G.find(([re]) => re.test(all)); glass = hit ? hit[1] : "";
+  }
+  let method = b.method;
+  if (!method) method = /skaka|shaker|skakas/.test(steps) ? "Skakad" : /\brör\b|rör om|rör ihop|rörs\b|rör runt|rör .{0,30}med is/.test(steps) ? "Rörd" : /mixa|mixer|blender/.test(steps) ? "Mixad" : /värm|koka upp|sjud/.test(steps) ? "Varm" : /toppa|fyll (på|upp)|bygg|häll .{0,30}över is/.test(steps) ? "Byggd" : "";
+  let garnish = b.garnish, gk = "";
+  const GN = [[/körsbär|cocktailbär|maraschino/, "Körsbär", "cherry"], [/oliv/, "Oliv", "olive"], [/kaffebön/, "Kaffebönor", "beans"], [/mynta/, "Mynta", "mint"], [/apelsin/, "Apelsin", "orange"], [/citronskal|citronzest|citrontwist|twist/, "Citronskal", "twist"], [/\blime/, "Lime", "lime"], [/citron/, "Citron", "lemon"], [/gurk/, "Gurka", "lime"]];
+  const gseg = (steps.match(/garner\w*\s+(med\s+)?([^.\n]+)/) || [])[2] || "";
+  const gHit = (gseg && GN.find(([re]) => re.test(gseg))) || GN.find(([re]) => re.test(ing));
+  if (gHit) { gk = gHit[2]; if (!garnish) garnish = gHit[1]; }
+  if (garnish && !gk) { const h = GN.find(([re]) => re.test(String(garnish).toLowerCase())); gk = h ? h[2] : ""; }
+  let kind = { Coupe: "coupe", Martiniglas: "martini", Champagneglas: "flute", Tumlare: "rocks", Highball: "highball", Vinglas: "wine", Kopp: "rocks" }[glass] || "";
+  const bub = /tonic|soda|bubbelvatten|kolsyrat|champagne|cava\b|prosecco|mousserande|crémant|ginger ale|ginger beer|sprite|läsk|sockerdricka/.test(ing);
+  if (!kind) kind = base === "Bubbel" ? "flute" : bub ? "highball" : method === "Skakad" || method === "Rörd" ? (/\bis\b.*\b(servera|i glaset)/.test(steps) ? "rocks" : "coupe") : "rocks";
+  let color = b.color;
+  if (!color) {
+    const C = [[/campari|aperol|blodapelsin/, "#c0281c"], [/espresso|kaffe|kahl[uú]a/, "#3a2016"], [/blå curaçao|blue cura/, "#2a7fd0"], [/glögg|rödvin/, "#6d1020"], [/tranbär|granatäpple|hallon|jordgubb|grenadin/, "#b8233a"], [/mörk rom/, "#7a3510"], [/mynta|lime/, "#d7e8c0"]];
+    const hit = C.find(([re]) => re.test(ing));
+    color = hit ? hit[1] : ({ Whisky: "#a4531a", Konjak: "#9a4a16", Rom: "#c27a2c", Tequila: "#e9dca0", Gin: "#e6ecdc", Vodka: "#e9eee6", Bubbel: "#ecd58f", Vin: "#8a1a2a", Övrigt: "#d9a54a", Alkoholfritt: "#efe2a0" })[base] || "#d9a54a";
+  }
+  return { base, glass, method, garnish, gk, kind, color, bub, foam: /äggvita|aquafaba/.test(ing), crema: /espresso/.test(ing) };
+}
+// Tecknat glas när drinken saknar foto (guldlinje, vätska i drinkens färg, garnering, bubblor)
+function barGlassSvg(info, opt){
+  opt = opt || {};
+  const id = "bg" + (barUid++), k = info.kind, c = info.color, c2 = barShade(info.color, -0.38);
+  const S = {
+    coupe: ["M14 34 Q14 74 50 76 Q86 74 86 34 Z", "M17 42 Q20 72 50 73 Q80 72 83 42 Z", 42, 34, 84],
+    martini: ["M10 26 L90 26 L50 74 Z", "M17 34 L83 34 L50 70 Z", 34, 26, 84],
+    flute: ["M36 14 Q34 70 50 86 Q66 70 64 14 Z", "M37.5 28 Q36 70 50 83 Q64 70 62.5 28 Z", 28, 14, 64],
+    wine: ["M28 14 Q22 62 50 72 Q78 62 72 14 Z", "M28.5 36 Q26 62 50 69 Q74 62 71.5 36 Z", 36, 14, 72],
+    rocks: ["M20 56 L80 56 L77 128 Q50 132 23 128 Z", "M21.5 70 L78.5 70 L76 126 Q50 130 24 126 Z", 70, 56, 80],
+    highball: ["M30 18 L70 18 L68 130 Q50 133 32 130 Z", "M31 32 L69 32 L67 128 Q50 131 33 128 Z", 32, 18, 70],
+  }[k] || null;
+  const [bowl, liq, ly, rim, rx] = S || ["M20 56 L80 56 L77 128 Q50 132 23 128 Z", "M21.5 70 L78.5 70 L76 126 Q50 130 24 126 Z", 70, 56, 80];
+  const stem = ["coupe", "martini", "flute", "wine"].includes(k) ? `<path d="M50 ${k === "flute" ? 86 : k === "wine" ? 72 : k === "coupe" ? 76 : 74} L50 126 M30 130 Q50 122 70 130"/>` : "";
+  const cube = (x, y, s, a) => `<rect x="${x}" y="${y}" width="${s}" height="${s}" rx="3" transform="rotate(${a} ${x + s / 2} ${y + s / 2})" fill="rgba(255,255,255,.25)" stroke="#fff" stroke-width=".8"/>`;
+  const ice = k === "rocks" ? `<g clip-path="url(#c${id})" opacity=".55">${cube(30, 76, 22, -8)}${cube(50, 88, 20, 10)}</g>` : k === "highball" ? `<g clip-path="url(#c${id})" opacity=".5">${cube(36, 40, 18, -10)}${cube(46, 62, 17, 12)}${cube(37, 86, 17, 6)}</g>` : "";
+  const top = k === "rocks" ? 56 : rim;
+  let gar = "";
+  const sl = (x, y, r1, a, b2) => `<g transform="translate(${x} ${y})"><circle r="${r1}" fill="${a}"/><circle r="${r1 - 2.3}" fill="${b2}"/><g stroke="${a}" stroke-width=".9">${[0, 45, 90, 135].map(d => `<line x1="${-(r1 - 2.3)}" y1="0" x2="${r1 - 2.3}" y2="0" transform="rotate(${d})"/>`).join("")}</g></g>`;
+  if (info.gk === "cherry") gar = `<path d="M70 ${top - 24} Q76 ${top - 14} 72 ${top - 2}" stroke="#4d6b2a" stroke-width="1.4" fill="none"/><circle cx="71" cy="${top + 1}" r="6.5" fill="#9d0f1e"/><circle cx="69" cy="${top - 1}" r="2" fill="#ff7a86" opacity=".7"/>`;
+  if (info.gk === "olive") gar = `<path d="M28 ${top - 18} L66 ${top + 26}" stroke="#c9a55c" stroke-width="1.6"/><ellipse cx="50" cy="${top + 8}" rx="7" ry="5.5" transform="rotate(48 50 ${top + 8})" fill="#7b8f3a"/><circle cx="52" cy="${top + 10}" r="1.8" fill="#b8262c"/>`;
+  if (info.gk === "orange") gar = sl(rx - 6, top, 15, "#f08a1c", "#ffbb55");
+  if (info.gk === "lime") gar = sl(rx - 4, top, 12, "#4f9a2a", "#b9e07a");
+  if (info.gk === "lemon") gar = sl(rx - 4, top, 12, "#e2b419", "#fbe58a");
+  if (info.gk === "twist") gar = `<path d="M${rx - 4} ${top - 12} q8 6 0 12 q-8 6 0 12 q8 6 0 12" stroke="#f2c330" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+  if (info.gk === "mint") gar = `<g transform="translate(${rx - 12} ${top - 4})"><path d="M0 0 q-10 -14 2 -22 q8 10 -2 22z" fill="#3f8f3a"/><path d="M2 0 q14 -8 18 -20 q-14 0 -18 20z" fill="#5fae4a"/></g>`;
+  if (info.gk === "beans") gar = `<g fill="#2a140b" stroke="#6b3a20" stroke-width=".6"><ellipse cx="42" cy="${ly + 1}" rx="3.6" ry="2.4"/><ellipse cx="50" cy="${ly}" rx="3.6" ry="2.4"/><ellipse cx="58" cy="${ly + 1}" rx="3.6" ry="2.4"/></g>`;
+  const layer = info.crema ? `<rect x="0" y="${ly}" width="100" height="5" fill="#c99a6a" clip-path="url(#c${id})"/>` : info.foam ? `<rect x="0" y="${ly}" width="100" height="8" fill="#fff5dc" clip-path="url(#c${id})"/>` : "";
+  let bubs = "";
+  if (info.bub && opt.bubbles !== false) for (let i = 0; i < 6; i++) bubs += `<i class="bub" style="left:${40 + (i * 13) % 22}%;bottom:${18 + (i % 3) * 6}%;animation-delay:${(i * .55).toFixed(2)}s;width:${2 + i % 3}px;height:${2 + i % 3}px"></i>`;
+  return `<div class="bglass"><svg viewBox="0 0 100 140" aria-hidden="true"><defs><linearGradient id="l${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c}"/><stop offset="1" stop-color="${c2}"/></linearGradient><clipPath id="c${id}"><path d="${liq}"/></clipPath><radialGradient id="h${id}" cx=".3" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".4" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
+    <ellipse cx="50" cy="133" rx="32" ry="4" fill="#000" opacity=".35"/><path d="${liq}" fill="url(#l${id})" opacity=".95"/>${layer}${ice}<path d="${liq}" fill="url(#h${id})"/>
+    <g fill="rgba(255,255,255,.06)" stroke="#d8b874" stroke-width="${opt.sw || 1.6}" stroke-linejoin="round" stroke-linecap="round"><path d="${bowl}"/>${stem}</g>${gar}</svg>${bubs}</div>`;
+}
+var BAR_ZIG = `<svg class="bzig" viewBox="0 0 100 130" preserveAspectRatio="none" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="M1 129 V22 H13 V12 H27 V2 H73 V12 H87 V22 H99 V129 Z"/><path vector-effect="non-scaling-stroke" opacity=".45" d="M5 125 V26 H17 V16 H31 V6 H69 V16 H83 V26 H95 V125 Z"/></svg>`;
+var BAR_FAN = `<svg class="bfan" viewBox="0 0 70 36" fill="none" stroke="#c9a55c" stroke-width="1" aria-hidden="true">${Array.from({ length: 9 }, (_, i) => { const a = Math.PI * (i / 8); return `<line x1="35" y1="34" x2="${(35 - Math.cos(a) * 32).toFixed(1)}" y2="${(34 - Math.sin(a) * 32).toFixed(1)}"/>`; }).join("")}<path d="M3 34 A32 32 0 0 1 67 34"/><path d="M15 34 A20 20 0 0 1 55 34"/><circle cx="35" cy="34" r="3" fill="#c9a55c"/></svg>`;
+function barBg(info){ return `background:radial-gradient(90% 75% at 50% 78%,${barShade(info.color, -.38)}aa 0%,#123129 60%,#0c1f1a 100%)`; }
+// Bild i trappramen: foto om det finns, annars tecknat glas
+function barPic(r, info, opt){
+  return r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : barGlassSvg(info, opt);
+}
+function barIngNames(r){ return (r.ingredients || []).filter(x => !x.startsWith("#")).map(x => barIngSplit(x)[1].replace(/\s*\(.*?\)\s*/g, " ").trim()).filter(Boolean).slice(0, 3).join(", "); }
+function barIngSplit(line){
+  const m = String(line).match(/^\s*((?:ca\s+)?[\d½¼¾⅓⅔⅛][\d½¼¾⅓⅔⅛,.\/\s–-]*?)\s*(?:(cl|ml|dl|l|msk|tsk|krm|st|g|stänk|skvätt|klyftor|klyfta|skivor|skiva|kvistar|kvist|blad|droppar|droppe)(?![a-zåäöé]))?\.?\s*([^\d\s,.\/–½¼¾⅓⅔⅛-].*)$/i);
+  if (!m) return ["", String(line)];
+  return [m[1].trim() + (m[2] ? " " + m[2] : ""), m[3]];
+}
+function barBases(list){
+  const order = ["Whisky", "Gin", "Rom", "Vodka", "Tequila", "Konjak", "Bubbel", "Vin", "Övrigt", "Alkoholfritt"];
+  const have = new Set(list.map(r => barInfo(r).base));
+  return order.filter(b => have.has(b));
+}
+// Kortet på startsidan, under sökfältet
+function barCardHtml(){
+  if (filter.q.trim() || filter.tags.length || filter.fav || filter.mine || filter.cookedMe) return "";
+  const ds = barDrinks(); if (!ds.length) return "";
+  const pick = ds.slice().sort((a, b) => (b.photo ? 1 : 0) - (a.photo ? 1 : 0) || (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 5);
+  return `<button class="barcard" data-a="baropen" aria-label="Gå in i baren"><span class="bc-rays" aria-hidden="true"></span>
+    <span class="bc-t"><span class="bc-k">Sivander</span><b class="bshim">BAREN</b><span class="bc-n">${ds.length} ${ds.length === 1 ? "drink" : "drinkar"} · Skål!</span></span>
+    <span class="bc-m">${pick.map(r => { const i = barInfo(r); return `<span class="bc-g" style="${barBg(i)}">${BAR_ZIG}${barPic(r, i, { bubbles: false })}</span>`; }).join("")}</span>
+    <span class="bc-go">Gå in ›</span></button>`;
+}
+// Barens startsida
+function renderBar(){
+  const all = barDrinks();
+  const bases = barBases(all);
+  if (barState.base && !bases.includes(barState.base)) barState.base = "";
+  const list = all.filter(r => !barState.base || barInfo(r).base === barState.base).sort((a, b) => (a.title || "").localeCompare(b.title || "", "sv"));
+  // Överst: några tips att svepa mellan
+  const slides = [];
+  if (all.length) {
+    const day = Math.floor(Date.now() / 864e5);
+    const add = (r, lbl) => { if (r && !slides.some(s => s.r.id === r.id)) slides.push({ r, lbl }); };
+    const byName = all.slice().sort((a, b) => (a.title || "").localeCompare(b.title || "", "sv"));
+    add(byName[day % byName.length], "Kvällens drink");
+    add(all.slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))[0], "Senast i baren");
+    add(all.slice().sort((a, b) => (b.timesCooked || 0) - (a.timesCooked || 0) || (b.rating || 0) - (a.rating || 0))[0], "Mest blandad");
+  }
+  const slideHtml = slides.map(({ r, lbl }) => { const i = barInfo(r); return `<div class="bslide" data-a="open" data-id="${esc(r.id)}" style="${barBg(i)}"><span class="b-rays sm" aria-hidden="true"></span><div class="bs-pic">${r.photo ? `<span class="bs-ph">${BAR_ZIG}<img src="${esc(r.photo)}" alt="" loading="lazy"></span>` : barGlassSvg(i)}</div><div class="bs-t"><span class="bsc">${lbl}</span><h3>${esc(r.title)}</h3><p>${esc(barIngNames(r))}</p><span class="bbtn">Blanda ›</span></div></div>`; }).join("");
+  const rows = list.length >= BAR_ROWS_FROM;
+  const card = (r, n) => { const i = barInfo(r); return rows
+    ? `<div class="brow" data-a="open" data-id="${esc(r.id)}" style="animation-delay:${Math.min(n, 12) * .05}s"><div class="br-th" style="${barBg(i)}">${barPic(r, i, { bubbles: false })}</div><div class="br-t"><h4>${esc(r.title)}</h4><p>${esc(barIngNames(r))}</p></div><span class="bsc">${esc(i.base)}</span></div>`
+    : `<div class="bcard" data-a="open" data-id="${esc(r.id)}" style="animation-delay:${Math.min(n, 12) * .06}s"><div class="bc-fr" style="${barBg(i)}">${BAR_ZIG}<div class="bc-in">${barPic(r, i)}</div></div><h4>${esc(r.title)}</h4><span class="bsc">${esc(i.base)}</span></div>`; };
+  $app.innerHTML = `<div class="bar">
+    <div class="bhero"><span class="b-rays" aria-hidden="true"></span>
+      <div class="btop"><a href="#" class="bback" data-a="home">‹ Recept</a>${can("contributor") ? `<button class="bnew" data-a="barnew">+ Ny drink</button>` : ""}</div>
+      <div class="bkick">Sivander</div><h1 class="bbig bshim">BAREN</h1>
+      <div class="brule"><span class="bsc">${all.length} ${all.length === 1 ? "drink" : "drinkar"} · Skål!</span></div>${BAR_FAN}</div>
+    <div class="bin">
+    ${bases.length > 1 ? `<div class="bchips">${["", ...bases].map(b => `<button class="bchip ${barState.base === b ? "on" : ""}" data-a="barbase" data-b="${esc(b)}">${b || "Alla"}</button>`).join("")}</div>` : ""}
+    ${slides.length && !barState.base ? `<div class="bcar" id="bcar">${slideHtml}</div>${slides.length > 1 ? `<div class="bdots">${slides.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>` : ""}` : ""}
+    ${all.length ? `<div class="bsec"><span>${esc(barState.base || "Alla drinkar")}</span></div>
+      <div class="${rows ? "brows" : "bgrid"}">${list.map(card).join("")}</div>`
+    : `<div class="bempty"><p>Baren är tom än så länge.</p><p>Ge ett recept typen <b>dryck</b> så hamnar det här.</p></div>`}
+    </div></div>`;
+  const car = document.getElementById("bcar");
+  if (car) car.addEventListener("scroll", () => { const w = car.firstElementChild ? car.firstElementChild.offsetWidth + 12 : 1; const i = Math.round(car.scrollLeft / w); document.querySelectorAll(".bdots i").forEach((d, j) => d.classList.toggle("on", j === i)); }, { passive: true });
+}
+// Drinksidan
+function renderDrink(r){
+  const i = barInfo(r);
+  const base = r.servings || 1;
+  const serv = detailState.servings ?? base;
+  const f = serv / base;
+  const opts = [1, 4, 8].includes(base) ? [1, 4, 8] : [1, 4, 8, base].sort((a, b) => a - b);
+  const longest = Math.max(4, ...String(r.title || "").split(/\s+/).map(w => w.length));
+  const kick = [i.base, ...(r.tags || []).filter(t => t !== "dryck" && ["fest", "jul", "vardag"].includes(t)).map(t => t[0].toUpperCase() + t.slice(1))].join(" · ");
+  const spec = [[i.glass, "Glas"], [i.method, "Metod"], [i.garnish, "Garnering"]].filter(x => x[0]);
+  let n = 0;
+  const ings = (r.ingredients || []).map(l => {
+    if (l.startsWith("#")) return `<li class="bh">${esc(l.replace(/^#\s*/, ""))}</li>`;
+    const [amt, name] = barIngSplit(scaleLine(l, f));
+    return `<li><b>${esc(amt)}</b><span>${esc(name)}</span></li>`;
+  }).join("");
+  const steps = (r.steps || []).map(s => s.startsWith("#") ? `<li class="bh">${esc(s.replace(/^#\s*/, ""))}</li>` : `<li data-n="${++n}">${esc(s)}</li>`).join("");
+  $app.innerHTML = `<div class="dk">
+    <div class="dkh" style="${barBg(i)}"><span class="b-rays" aria-hidden="true"></span>
+      <button class="fback" data-a="home" aria-label="Tillbaka"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+      <button class="dk-fav ${isFav(r) ? "on" : ""}" data-a="togglefav" aria-label="Favorit">${isFav(r) ? "♥" : "♡"}</button>
+      <div class="dk-fr">${BAR_ZIG}<div class="dk-in ${r.photo ? "ph" : ""}">${barPic(r, i)}</div></div>
+    </div>
+    <div class="dkb">
+      <div class="dk-t"><div class="dk-k">${esc(kick)}</div><h1 class="bshim" style="--n:${longest}">${esc(String(r.title || "").toUpperCase())}</h1></div>
+      ${spec.length ? `<div class="dk-spec" style="grid-template-columns:repeat(${spec.length},1fr)">${spec.map(([v, l]) => `<div><b>${esc(v)}</b><span class="bsc">${l}</span></div>`).join("")}</div>` : ""}
+      <div class="dk-hd"><span>Ingredienser</span><div class="dk-seg" role="group" aria-label="Antal glas">${opts.map(o => `<button class="${o === serv ? "on" : ""}" data-a="barserv" data-n="${o}">${o === 1 ? "1 glas" : o === 8 ? "Kanna 8" : o}</button>`).join("")}</div></div>
+      <ul class="dk-ing">${ings || `<li><span>Inga ingredienser än.</span></li>`}</ul>
+      ${steps ? `<div class="dk-hd"><span>Så gör du</span></div><ol class="dk-steps">${steps}</ol>` : ""}
+      ${matHtml(r)}
+      <div class="dk-more">${canEdit(r) ? `<button class="linkbtn" data-a="edit">Redigera</button>` : ""}<button class="linkbtn" data-a="barfull">Alla funktioner<small>anteckningar, matlagning, inköpslista</small></button></div>
+    </div></div>`;
+}
+// ---------- Matilda – bartendern ----------
+var MAT_SVG = `<svg class="mat-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9.5" cy="4.6" r="1.7"/><path d="M5.3 11.2c0-2.8 1.9-4.6 4.2-4.6s4.2 1.8 4.2 4.6"/><circle cx="9.5" cy="11.4" r="4"/><path d="M5.3 11.2c-.6 1.8-.4 3.6.6 4.6M13.7 11.2c.6 1.8.4 3.6-.6 4.6"/><path d="M8.3 12.9q1.2.9 2.4 0"/><path d="M3 22c.8-3 3.3-4.6 6.5-4.6"/><g class="mat-shk"><path d="M17 11.5h4l-.5 8.5h-3z"/><path d="M17.4 11.5l.5-2.2h2.2l.5 2.2"/><path d="M19 9.3V8"/></g></svg>`;
+var MAT_PRESETS = {
+  nolo: { label: "Alkoholfri variant?", prompt: "Föreslå en alkoholfri variant av drinken med exakta mängder i cl och kort hur man gör." },
+  snack: { label: "Vad passar som tilltugg?", prompt: "Föreslå 3 tilltugg som passar till drinken, en mening om varje." },
+  swap: { label: "Har inte allt – vad kan jag byta?", prompt: "Vilka ingredienser i drinken kan bytas mot sådant man ofta har hemma? Skriv en lista: ingrediens → ersättning, och kort hur smaken påverkas." },
+  pitcher: { label: "Göra en kanna till fest?", prompt: "Hur gör jag drinken i en kanna till 8 personer? Ge mängder, vad som blandas i förväg och vad som tillsätts precis innan servering." },
+};
+var MAT_LINES = ["Matilda tänker …", "Matilda skakar …", "Matilda letar i barskåpet …", "Matilda krossar is …", "Matilda provsmakar …", "Matilda pressar en lime …"];
+function matLine(t0){ return MAT_LINES[Math.floor((Date.now() - t0) / 3500) % MAT_LINES.length]; }
+setInterval(() => {
+  document.querySelectorAll(".mw-s[data-t0]").forEach(el => {
+    const t = matLine(+el.dataset.t0);
+    if (t === el.textContent || el.classList.contains("swap")) return;
+    el.classList.add("swap"); setTimeout(() => { el.textContent = t; el.classList.remove("swap"); }, 350);
+  });
+}, 500);
+function matOutHtml(id){
+  return (matState[id] || []).map(it => {
+    if (!it._t0) it._t0 = Date.now();
+    if (it.busy) return `<div class="mat-wait">${MAT_SVG}<div><div class="mat-q">${esc(it.q)}</div><div class="mw-s" data-t0="${it._t0}">${matLine(it._t0)}</div></div></div>`;
+    if (it.err) return `<div class="mat-ans"><div class="mat-q">${esc(it.q)}</div><p class="err">${esc(it.err)}</p></div>`;
+    return `<div class="mat-ans"><div class="mat-q">${esc(it.q)}</div><div class="ai-a">${aiMd(it.a)}</div></div>`;
+  }).reverse().join("");
+}
+function matHtml(r){
+  return `<section class="mat"><div class="mat-h">${MAT_SVG}<span>Fråga Matilda bakom baren</span></div>
+    <div class="mat-btns">${Object.entries(MAT_PRESETS).map(([k, p]) => `<button data-a="matq" data-k="${k}">${esc(p.label)}</button>`).join("")}</div>
+    <form id="mat-form" class="mat-form"><input id="mat-input" type="text" placeholder="Fråga Matilda om drinken …" autocomplete="off"><button type="submit">Fråga Matilda</button></form>
+    <div id="mat-out">${matOutHtml(r.id)}</div></section>`;
+}
+function matRefresh(id){ const el = document.getElementById("mat-out"); if (el && view.id === id) el.innerHTML = matOutHtml(id); }
+async function matAsk(r, kind, text){
+  const items = matState[r.id] || (matState[r.id] = []);
+  if (items.some(x => x.busy)) return;
+  const q = kind ? MAT_PRESETS[kind].label : text;
+  const item = { q, a: "", busy: true, err: "" };
+  items.push(item); matRefresh(r.id);
+  const ctx = `Du är Matilda, bartendern i familjen Sivanders hemmabar. Du är varm, lite kaxig och kan dina klassiker. Svara på svenska, konkret och utan inledning eller artighetsfraser. Max 150 ord, gärna korta punktlistor. Mått i cl. Hitta inte på fakta om specifika produkter. Håll dig till drinkar, dryck, servering och tilltugg.
+
+DRINKEN:
+${recipeText(r)}${r.notes ? "\n\nANTECKNINGAR: " + r.notes : ""}`;
+  const convo = [];
+  items.slice(0, -1).filter(x => x.a && !x.err).slice(-3).forEach((h, i) => { convo.push({ role: "user", content: (i === 0 ? ctx + "\n\nFRÅGA: " : "") + h.q }); convo.push({ role: "assistant", content: h.a }); });
+  convo.push({ role: "user", content: (convo.length ? "" : ctx + "\n\nFRÅGA: ") + (kind ? MAT_PRESETS[kind].prompt : text) });
+  try { item.a = await ai(convo, { fast: true }); } catch (e) { item.err = aiErr(e); }
+  item.busy = false; matRefresh(r.id);
+}
+document.addEventListener("submit", e => {
+  if (e.target.id !== "mat-form") return;
+  e.preventDefault();
+  const inp = document.getElementById("mat-input"); const q = inp.value.trim(); if (!q) return;
+  const r = recipes.find(x => x.id === view.id); if (!r) return;
+  inp.value = ""; inp.blur(); matAsk(r, null, q);
+});
+// Barens knappar (fångas före den vanliga klickhanteraren)
+document.addEventListener("click", e => {
+  const el = e.target.closest && e.target.closest("[data-a]"); if (!el) return;
+  const a = el.dataset.a;
+  if (a === "open") { delete drinkFull[el.dataset.id]; return; }
+  if (a === "baropen") { e.stopPropagation(); view = { name: "bar" }; render(); window.scrollTo(0, 0); return; }
+  if (a === "barbase") { e.stopPropagation(); barState.base = el.dataset.b || ""; render(); return; }
+  if (a === "barserv") { e.stopPropagation(); detailState.servings = +el.dataset.n; render(); return; }
+  if (a === "barfull") { e.stopPropagation(); drinkFull[view.id] = true; render(); window.scrollTo(0, 0); return; }
+  if (a === "matq") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) matAsk(r, el.dataset.k); return; }
+  if (a === "barnew") {
+    e.stopPropagation(); menuOpen = false;
+    draft = { title: "", sourceUrl: "", servings: 1, time: "", tags: ["dryck"], ingredients: [], steps: [], myChanges: "", notes: "", photo: null };
+    view = { name: "edit" }; render(); window.scrollTo(0, 0); return;
+  }
+}, true);
