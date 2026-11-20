@@ -132,6 +132,18 @@ module.exports = async (req, res) => {
     try { findRecipes(JSON.parse(m[1].trim()), recipes); } catch {}
   }
   const rec = recipes[0] || null;
+  // bara adressen till sidans huvudbild (bildförslag från recept på nätet)
+  if (body.imageUrl) {
+    const iu = imageOf(rec, html, page.url);
+    if (!iu) return res.status(422).json({ error: "Hittade ingen bild på sidan" });
+    return res.status(200).json({ url: page.url, image: iu, title: rec && rec.name ? strip(rec.name) : "" });
+  }
+  // bara adressen till sidans huvudbild (bildförslag från recept på nätet)
+  if (body.imageUrl) {
+    const iu = imageOf(rec, html, page.url);
+    if (!iu) return res.status(422).json({ error: "Hittade ingen bild på sidan" });
+    return res.status(200).json({ url: page.url, image: iu, title: rec && rec.name ? strip(rec.name) : "" });
+  }
   if (body.imageOnly) {
     const iu = imageOf(rec, html, page.url);
     if (!iu) return res.status(422).json({ error: "Hittade ingen bild på sidan" });

@@ -4049,7 +4049,7 @@ function imgSugInner(r){
   else if (s.state === "error") body = `<p class="is-note">${esc(s.err || "Kunde inte hämta förslag.")} <button class="linkbtn" data-a="sugretry" data-id="${esc(r.id)}">Försök igen</button></p>`;
   else if (!s.photos.length) body = `<p class="is-note">Hittade inga bilder som passar. Prova att söka med egna ord.</p>`;
   else body = `<div class="is-grid">${s.photos.map((p, i) => `<button class="is-pic${s.saving === i ? " saving" : ""}" data-a="sugpick" data-id="${esc(r.id)}" data-i="${i}" title="${esc(p.alt || "")}"><img src="${esc(p.thumb)}" alt="${esc(p.alt || "")}" loading="lazy"><span>${esc(p.photographer)}</span>${s.saving === i ? `<i class="spinner"></i>` : ""}</button>`).join("")}</div>`;
-  return head + body + tools;
+  return head + body + (typeof webImgHtml === "function" && isDrink(r) && s.state !== "idle" && s.state !== "loading" ? webImgHtml(r) : "") + tools;
 }
 function imgSugDraw(id){
   document.querySelectorAll(`.imgsug[data-id="${CSS.escape(id)}"]`).forEach(el => {
@@ -4882,3 +4882,75 @@ document.addEventListener("click", e => {
 // Drinkikoner i flödet (B1 blandade, B2 lade till), grön bricka
 var EV_DRINK_MIX = '<path d="M5 8h14c0 3.6-3 5.6-7 5.6S5 11.6 5 8z"/><path d="M12 13.6v6.4M8.5 20.5h7"/><circle cx="16" cy="7" r="1.5" fill="currentColor" fill-opacity=".35"/><path d="M16 5.5c.2-1 .9-1.7 2-2"/>';
 var EV_DRINK_ADD = '<path d="M4 7.5h12c0 3.2-2.6 5-6 5s-6-1.8-6-5z"/><path d="M10 12.5v7M7 20h6"/><circle cx="13.4" cy="6.6" r="1.3" fill="currentColor" fill-opacity=".35"/><path d="M13.4 5.3c.2-.9.8-1.5 1.7-1.8"/><path d="M18 14v6M15 17h6"/>';
+
+// ---------- Bilder från recept på nätet (baren, förslag A) ----------
+var imgWeb = {};
+function webImgHtml(r){
+  const w = imgWeb[r.id];
+  const nm = esc(r.title || "drinken");
+  if (!w) return `<div class="wb-card"><span class="wb-ic">${MAT_SVG}</span><div><b>Hittar du inte ${nm}?</b><small>Matilda letar i recept på nätet och plockar bilderna därifrån.</small></div><button type="button" class="wb-btn" data-a="webimg" data-id="${esc(r.id)}">Leta på nätet</button></div>`;
+  const h = `<div class="wb-h"><b>Från recept på nätet</b><small>${w.state === "done" && w.items.length ? "Tryck för att välja" : ""}</small></div>`;
+  if (w.state === "loading") return h + `<div class="wb-grid">${Array.from({ length: 6 }, () => `<span class="is-ph wb-ph"></span>`).join("")}</div><p class="is-note"><span class="spinner"></span> Matilda letar efter recept på ${nm} …</p>`;
+  if (w.state === "error") return h + `<p class="is-note">${esc(w.err || "Hittade inga bilder.")} <button class="linkbtn" data-a="webimg" data-id="${esc(r.id)}">Försök igen</button></p>`;
+  if (!w.items.length) return h + `<p class="is-note">Matilda hittade inga recept med bild. Prova att söka med egna ord.</p>`;
+  return h + `<div class="wb-grid">${w.items.map((p, i) => `<button type="button" class="wb-pic${w.saving === i ? " saving" : ""}" data-a="webpick" data-id="${esc(r.id)}" data-i="${i}" title="${esc(p.title || p.site)}"><img src="${esc(p.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.wb-pic').remove()"><span>${esc(p.site)}</span>${w.saving === i ? `<i class="spinner"></i>` : ""}</button>`).join("")}</div><p class="wb-note">Bilderna tillhör sajterna. Källan sparas med bilden.</p>`;
+}
+function webSite(u){ try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } }
+async function webImgPost(body){
+  const { data: { session } } = await sb.auth.getSession();
+  const resp = await fetch("/api/fetch", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + (session && session.access_token) }, body: JSON.stringify(body) });
+  const j = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(j.error || "Kunde inte hämta");
+  return j;
+}
+async function loadWebImgs(r){
+  imgWeb[r.id] = { state: "loading", items: [] }; imgSugDraw(r.id);
+  try {
+    const ck = "drinkimg:" + aiKey(r.title || "");
+    let pages = null;
+    const hit = await aiCacheGet(ck, 30);
+    if (hit && (hit.pages || []).length) pages = hit.pages;
+    else {
+      const ings = (r.ingredients || []).filter(x => x && !String(x).startsWith("#")).slice(0, 10).join(", ");
+      const prompt = `Du hjälper till att hitta foton av drinken "${r.title}"${ings ? ` (ingredienser: ${ings})` : ""}.
+Sök på nätet efter receptsidor för just den här drinken som har ett foto av den färdiga drinken. Bra källor: Difford's Guide, Liquor.com, Punch, Imbibe, The Spruce Eats, Serious Eats, bloggar och svenska sajter.
+Använd BARA sidor du faktiskt hittat i sökningen, med exakt adress till själva receptsidan (inte söksidor eller startsidor). Ge upp till 6 olika sidor, gärna från olika sajter.
+Svara bara med JSON, utan annan text: {"sidor": [{"url": "https://...", "sajt": "sajtens namn"}]}`;
+      const out = parseJson(await ai(prompt, { mode: "json", web: true }));
+      pages = (out.sidor || []).filter(x => x && /^https?:\/\//.test(x.url || "")).slice(0, 6);
+      logEvent("ai_web", r.id, { q: "bilder: " + (r.title || ""), träffar: pages.length });
+    }
+    const got = await Promise.all(pages.map(pg => webImgPost({ url: pg.url, imageUrl: true })
+      .then(j => j.image && /^https?:\/\//.test(j.image) ? { img: j.image, page: j.url || pg.url, site: pg.sajt || webSite(pg.url), title: j.title || "" } : null)
+      .catch(() => null)));
+    const seen = new Set(), items = [];
+    for (const g of got) if (g && !seen.has(g.img)) { seen.add(g.img); items.push(g); }
+    if (!hit && pages.length) aiCacheSet(ck, { pages });
+    imgWeb[r.id] = { state: "done", items };
+  } catch (e) {
+    imgWeb[r.id] = { state: "error", items: [], err: aiErr(e) || "Kunde inte leta på nätet." };
+  }
+  imgSugDraw(r.id);
+}
+async function pickWebImg(r, i){
+  const w = imgWeb[r.id]; const p = w && w.items[i];
+  if (!p || w.saving != null) return;
+  w.saving = i; imgSugDraw(r.id);
+  try {
+    const j = await webImgPost({ url: p.img, imageOnly: true });
+    if (!j.image) throw new Error("Kunde inte hämta bilden");
+    const url = await storePhoto(await compress(await (await fetch(j.image)).blob(), 1600, 600000));
+    if (!url) throw new Error("Kunde inte spara bilden");
+    w.saving = null;
+    if (document.querySelector("#sheet-bg .imgsug")) closeSheet();
+    if (await patch(r.id, { photo: url, photoCredit: { name: p.site, url: p.page, page: p.page, src: "receptsida" } })) toast("Bilden sparad");
+  } catch (e) {
+    w.saving = null; imgSugDraw(r.id); toast(e.message || "Kunde inte spara bilden");
+  }
+}
+document.addEventListener("click", ev => {
+  const b = ev.target.closest && ev.target.closest('[data-a="webimg"],[data-a="webpick"]'); if (!b) return;
+  const r = recipes.find(x => x.id === b.dataset.id); if (!r) return;
+  ev.preventDefault(); ev.stopPropagation();
+  if (b.dataset.a === "webimg") loadWebImgs(r); else pickWebImg(r, +b.dataset.i);
+}, true);

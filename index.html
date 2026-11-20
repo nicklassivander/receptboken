@@ -1592,6 +1592,22 @@ body.barmode{background:var(--bar-bg)}
 @media (prefers-reduced-motion:reduce){.b-rays,.bc-rays,.bshim,.bglass .bub,.dk-in,.bs-pic,.mat-shk{animation:none!important}}
 /* drinkikoner i flödet */
 .evi.evi-drink{background:#123129!important;color:#e2c48a!important;box-shadow:0 0 0 1px #9c7a3c inset}
+/* bilder från recept på nätet (baren) */
+.wb-card{margin-top:16px;padding:14px;border:1px solid #c9a55c;border-radius:12px;background:linear-gradient(180deg,#123129,#0d2620);color:#e9dcc0;display:flex;gap:12px;align-items:center}
+.wb-ic{flex:none;width:36px;height:36px;color:#e2c48a;display:inline-flex}.wb-ic svg{width:100%;height:100%}
+.wb-card b{display:block;font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;color:#f0dcae;line-height:1.15}
+.wb-card small{display:block;font-size:12px;opacity:.8;margin-top:3px;line-height:1.35}
+.wb-btn{margin-left:auto;flex:none;border:1px solid #c9a55c;background:#c9a55c;color:#13261f;border-radius:999px;padding:9px 14px;font:500 13px Jost,sans-serif;white-space:nowrap;cursor:pointer}
+.wb-h{display:flex;justify-content:space-between;align-items:baseline;margin:18px 0 10px;border-top:1px solid #d9cdb4;padding-top:14px}
+.wb-h b{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;color:#1f1712}.wb-h small{font-size:11.5px;color:#8a7a62}
+.wb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+@media(max-width:620px){.wb-grid{grid-template-columns:repeat(3,1fr)}}
+.wb-pic,.wb-ph{position:relative;display:block;aspect-ratio:3/4;border-radius:6px;overflow:hidden;border:0;padding:0}
+.wb-pic{cursor:pointer;background:#1f1712}.wb-pic img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}.wb-pic:hover img{transform:scale(1.04)}
+.wb-pic span{position:absolute;left:0;right:0;bottom:0;padding:16px 7px 4px;font-size:10.5px;color:#fff;text-align:left;background:linear-gradient(transparent,rgba(0,0,0,.6));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wb-pic.saving img{opacity:.45}.wb-pic .spinner{position:absolute;left:50%;top:50%;margin:-9px 0 0 -9px}
+.wb-note{font-size:11.5px;color:#8a7a62;margin-top:8px}
+.imgsug.insheet .is-t{visibility:hidden}
 </style>
 </head>
 <body>
