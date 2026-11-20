@@ -2672,7 +2672,11 @@ function showAlarm(){
 
 // Kommer man tillbaka till appen efter att timern ringt: sluta påminna via notiser
 // Siffran på appikonen kommer bara från timer-notiser – nollställ den varje gång appen öppnas
-const clearBadge = () => { try { navigator.clearAppBadge && navigator.clearAppBadge().catch(() => {}); } catch {} };
+// Android/Samsung räknar aviseringarna som ligger kvar i aviseringslistan – stäng appens egna när den öppnas
+const clearBadge = () => {
+  try { navigator.clearAppBadge && navigator.clearAppBadge().catch(() => {}); } catch {}
+  try { if ("serviceWorker" in navigator) navigator.serviceWorker.getRegistration().then(reg => reg && reg.getNotifications ? reg.getNotifications() : []).then(ns => (ns || []).forEach(n => n.close())).catch(() => {}); } catch {}
+};
 clearBadge();
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") { clearBadge(); if (me) logOpen(); }   // appen återupptas ur bakgrunden räknas också som öppnad
