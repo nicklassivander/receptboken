@@ -1573,6 +1573,17 @@ body.barmode{background:var(--bar-bg)}
 /* Baren: tryck på drinkbilden för att byta bild */
 .dk .dk-fr[data-a]{cursor:pointer}
 .dk .dk-cam{position:absolute;right:-10px;bottom:-10px;z-index:3;width:38px;height:38px;border-radius:50%;background:rgba(10,20,16,.75);border:1px solid var(--bar-g1);color:var(--bar-g2);display:grid;place-items:center;backdrop-filter:blur(6px)}
+/* Startsidan tätare (A, nov 2026): mindre luft mellan rubrik, sök, BAREN-kortet, filter och recepten */
+#app header.top{margin-bottom:16px}
+#app .search{margin-bottom:10px}
+#app .barcard{margin:0 0 10px;padding:10px 14px}
+#app .barcard b{font-size:30px}
+#app .barcard .bc-k{font-size:14px}
+#app .barcard .bc-g{width:34px;height:46px;padding:9px 2px 1px}
+#app .filterbar{margin:0 0 4px}
+#app .act{margin-bottom:10px}
+#app .filters{padding-bottom:12px}
+@media(min-width:760px){#app .barcard{padding:12px 22px}#app .barcard b{font-size:38px}#app .barcard .bc-g{width:44px;height:58px;padding:12px 3px 2px}}
 /* Baren: filtrera på vem som lagt till */
 .bar .bpeople{padding-top:4px;align-items:center}
 .bar .bp-l{flex:none;font:italic 500 16px var(--serif);color:#a8b8a6;margin-right:2px}
