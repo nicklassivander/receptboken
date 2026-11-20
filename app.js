@@ -536,7 +536,7 @@ function renderDetail(){
         <p style="margin:0 0 12px">Ersätt ingredienser och steg i <b>${esc(base.title || "grundreceptet")}</b> med den här varianten.</p>
         <button class="btn accent small" data-a="mergevariant">Uppdatera grundreceptet</button></div>` : ""; })()}
 
-    ${notesPanelHtml(r)}
+    ${isDrink(r) ? notesPanelHtml(r, Object.assign({}, NOTE_BAR_OPTS, { title: "Tips", cls: "" })) : notesPanelHtml(r)}
 
     ${historyHtml(r)}
 
@@ -4346,7 +4346,10 @@ function noteNew(kind, text, q){
 function notesWith(r, add){ const items = noteItemsOf(r).concat(add ? [add] : []); return { noteItems: items, notes: notesText(items) }; }
 function saveNoteItems(r, items){ return patch(r.id, { noteItems: items, notes: notesText(items) }); }
 function addNote(r, n){ return patch(r.id, notesWith(r, n)); }
-function noteTitle(n){ return n.kind === "pappa" ? (n.q || "Pappa") : n.kind === "old" ? "Äldre anteckningar" : n.kind === "log" ? "Ändring i receptet" : (typeof barIsDrinkView === "function" && barIsDrinkView() ? "Tips" : "Egen anteckning"); }
+// i baren (drinkar) heter anteckningar "tips"
+function noteBar(){ if (view.name !== "detail") return false; const r = recipes.find(x => x.id === view.id); return typeof isDrink === "function" && isDrink(r); }
+var NOTE_BAR_OPTS = { title: "Tips från bartendern", add: "+ Nytt tips", first: "+ Lägg till ett tips", ph: "Vilken vermouth, hur mycket is, vad gästerna tyckte …", cls: "dk-notes" };
+function noteTitle(n){ return n.kind === "pappa" ? (n.q || "Pappa") : n.kind === "old" ? (noteBar() ? "Äldre tips" : "Äldre anteckningar") : n.kind === "log" ? (noteBar() ? "Ändring i drinken" : "Ändring i receptet") : (noteBar() ? "Tips" : "Egen anteckning"); }
 function noteShortDate(d){
   if (!d) return "";
   try { const x = new Date(d); const o = { day: "numeric", month: "short" }; if (x.getFullYear() !== new Date().getFullYear()) o.year = "numeric"; return x.toLocaleDateString("sv-SE", o).replace(".", ""); } catch { return d; }
@@ -4382,7 +4385,7 @@ function notesPanelHtml(r, o = {}){
   return `<div class="panel notes-tl ${T.cls}"><h2><span>${T.title}${items.length > 1 ? `<span class="nt-cnt">${items.length}</span>` : ""}</span>${ed && noteUi.edit !== "new" ? `<button class="linkbtn nt-add" data-a="ntnew">${T.add}</button>` : ""}</h2>
     ${noteUi.edit === "new" ? `<div class="nt-new">${editor("new", "")}</div>` : ""}
     ${items.length ? `<div class="nt-scroll${many ? " many" : ""}" id="nt-scroll" data-rid="${esc(r.id)}"><div class="nt-tl">${items.map(card).join("")}</div></div>
-    ${many ? `<div class="nt-hint">Scrolla för äldre anteckningar</div>` : ""}` : ""}
+    ${many ? `<div class="nt-hint">Scrolla för äldre ${noteBar() ? "tips" : "anteckningar"}</div>` : ""}` : ""}
   </div>`;
 }
 function notesScrollRestore(){
@@ -4409,7 +4412,7 @@ document.addEventListener("click", async e => {
   if (a === "ntdel") {
     if (noteUi.armed !== id) { noteUi.armed = id; render(); setTimeout(() => { if (noteUi.armed === id) { noteUi.armed = null; render(); } }, 3500); return; }
     noteUi.armed = null; noteUi.open = null;
-    if (await saveNoteItems(r, noteItemsOf(r).filter(n => n.id !== id))) toast("Anteckningen är borttagen");
+    if (await saveNoteItems(r, noteItemsOf(r).filter(n => n.id !== id))) toast(noteBar() ? "Tipset är borttaget" : "Anteckningen är borttagen");
     return;
   }
   if (a === "ntsave") {
@@ -4418,7 +4421,7 @@ document.addEventListener("click", async e => {
     if (id === "new") { if (!val) { noteUi.edit = null; render(); return; } items = items.concat(noteNew("own", val)); }
     else items = val ? items.map(n => n.id === id ? { ...n, text: val } : n) : items.filter(n => n.id !== id);
     noteUi.edit = null; noteUi.draftFor = null; if (id === "new") { noteUi.open = null; noteUi.scroll[r.id] = 0; }
-    if (await saveNoteItems(r, items)) toast("Anteckningen är sparad");
+    if (await saveNoteItems(r, items)) toast(noteBar() ? "Tipset är sparat" : "Anteckningen är sparad");
   }
 });
 
@@ -4791,9 +4794,9 @@ function renderDrink(r){
       <div class="dk-hd"><span>Ingredienser</span><div class="dk-step" role="group" aria-label="Antal glas"><button data-a="barserv" data-n="${Math.max(1, serv - 1)}" aria-label="Färre glas" ${serv <= 1 ? "disabled" : ""}>−</button><span>${serv} glas</span><button data-a="barserv" data-n="${Math.min(50, serv + 1)}" aria-label="Fler glas">+</button></div></div>
       <ul class="dk-ing">${ings || `<li><span>Inga ingredienser än.</span></li>`}</ul>
       ${steps ? `<div class="dk-hd"><span>Så gör du</span></div><ol class="dk-steps">${steps}</ol>` : ""}
-      ${notesPanelHtml(r, { title: "Tips från bartendern", add: "+ Nytt tips", first: "+ Lägg till ett tips", ph: "Vilken vermouth, hur mycket is, vad gästerna tyckte …", cls: "dk-notes" })}
+      ${notesPanelHtml(r, NOTE_BAR_OPTS)}
       ${matHtml(r)}
-      <div class="dk-more">${canEdit(r) ? `<button class="linkbtn" data-a="edit">Redigera</button>` : ""}<button class="linkbtn" data-a="barfull">Alla funktioner<small>anteckningar, matlagning, inköpslista</small></button></div>
+      <div class="dk-more">${canEdit(r) ? `<button class="linkbtn" data-a="edit">Redigera</button>` : ""}<button class="linkbtn" data-a="barfull">Alla funktioner<small>tips, matlagning, inköpslista</small></button></div>
     </div></div>`;
 }
 // Filtrera på vem som lagt till receptet (överst i Filtrera-panelen)
