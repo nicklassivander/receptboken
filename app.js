@@ -4967,13 +4967,13 @@ document.addEventListener("click", ev => {
 // Husen skalas jämnt (k) och fylls på åt sidorna. Telefon 40 %, dator 50 %.
 var barSkyCache = "";
 function barSkySvg(){
-  if (!barSkyCache) barSkyCache = barSkyOne(.4, "bsky-tel") + barSkyOne(.5, "bsky-dat");
+  if (!barSkyCache) barSkyCache = barSkyOne(.4, "bsky-tel", 140) + barSkyOne(.5, "bsky-dat", 360);
   return barSkyCache;
 }
-function barSkyOne(k, cls){
+function barSkyOne(k, cls, eOff){ // eOff = Empires avstånd från mitten i skärmens enheter
   let s = 11; const R = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
   const f = n => Math.round(n * 10) / 10, base = 300, parts = [], half = 600 / k;
-  const cC = f(600 - 350 / k), cE = f(600 + 360 / k), gaps = [[cC - 23, cC + 23], [cE - 30, cE + 30]];
+  const cC = f(600 - 350 / k), cE = f(600 + eOff / k), gaps = [[cC - 23, cC + 23], [cE - 30, cE + 30]];
   let x = 600 - half - 90;
   while (x < 600 + half) {
     // inga hus där tornen står (annars ritas de ovanpå varandra)
