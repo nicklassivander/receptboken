@@ -181,6 +181,8 @@ async function saveRecipe(r){
   body.updatedAt = new Date().toISOString();
   if (!body.createdAt) body.createdAt = body.updatedAt;
   if (!id && !body.addedBy && me) body.addedBy = me;
+  // nya recept (inte drinkar) visas i sidhuvudet som standard
+  if (!id && body.hdr === undefined && !isDrink(body)) body.hdr = true;
   const data = JSON.parse(JSON.stringify(body));
   const rid = id || newId();
   const { error } = await sb.from("recipes").upsert({ id: rid, data, updated_at: body.updatedAt });
@@ -3964,7 +3966,7 @@ var hdrBad = { has: id => { const r = recipes.find(x => x.id === id); return !!(
 function hdrMarkBad(r){ hdrBadUrls.add(r.photo); try { localStorage.setItem("hdrBad", JSON.stringify([...hdrBadUrls].slice(-300))); } catch {} }
 function hdrPool(){
   const ph = recipes.filter(r => r.photo && !hdrBad.has(r.id));
-  const picked = recipes.filter(r => r.photo && r.hdr && !hdrErrUrls.has(r.photo));
+  const picked = recipes.filter(r => r.photo && r.hdr && !hdrBad.has(r.id));
   return picked.length ? picked : ph;
 }
 function hdrSlides(){
@@ -4023,8 +4025,8 @@ function hdrNext(){
   const skip = (keep) => { if (keep) hdrMarkBad(r); else hdrErrUrls.add(r.photo); if (++hdrTries < 12) hdrNext(); else hdrTries = 0; };
   const show = () => {
     inc.onload = null;
-    // för små eller stående bilder blir suddiga/hårt beskurna i det breda sidhuvudet (gäller inte handplockade)
-    if (!r.hdr && (inc.naturalWidth < 900 || inc.naturalHeight > inc.naturalWidth * 1.05)) { skip(true); return; }
+    // för små eller stående bilder blir suddiga/hårt beskurna i det breda sidhuvudet (gäller alla, nu när alla recept är valda som standard)
+    if ((inc.naturalWidth < 900 || inc.naturalHeight > inc.naturalWidth * 1.05)) { skip(true); return; }
     hdrTries = 0;
     if (inc.decode) inc.decode().then(go, go); else go();
   };
