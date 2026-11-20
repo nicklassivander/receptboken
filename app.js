@@ -874,7 +874,7 @@ document.addEventListener("keydown", e => {
 // ---------- import modal ----------
 function openImport(files, targetId){
   const t = targetId ? recipes.find(x => x.id === targetId) : null;
-  importState = { text: "", url: t ? (t.sourceUrl || "") : "", shots: [], translate: true, busy: false, error: "", targetId: targetId || null };
+  importState = { text: "", url: t ? (t.sourceUrl || "") : "", shots: [], translate: true, busy: false, error: "", targetId: targetId || null, drink: !targetId && view.name === "bar" };
   (files || []).slice(0, 6).forEach(f => importState.shots.push({ blob: f, url: URL.createObjectURL(f) }));
   menuOpen = false; render(); renderImport();
   if (importState.shots.length) runImport();
@@ -907,7 +907,7 @@ function renderImport(){
   document.getElementById("modal-root").innerHTML = `
   <div class="modal-bg" data-a="closeimport-bg">
     <div class="modal form" role="dialog" aria-label="Importera recept">
-      <h2>${s.targetId ? "Komplettera recept" : "Importera recept"}</h2>
+      <h2>${s.targetId ? "Komplettera recept" : s.drink ? "Importera drink" : "Importera recept"}</h2>
       <p class="sub">Klistra in en länk eller text, fota en kokbok eller lägg till skärmdumpar. Claude plockar ut ingredienser och steg.</p>
       <label>Länk till receptet</label>
       <input type="url" id="imp-url" value="${esc(s.url)}" placeholder="https://…">
@@ -999,6 +999,8 @@ async function runImport(){
     draft = {
       ...parsed, sourceUrl: s.url, myChanges: "", photo,
     };
+    // Inläst från baren: alltid typen dryck (och ingen annan typ av rätt)
+    if (s.drink) { draft.tags = ["dryck", ...(draft.tags || []).filter(t => !dishTypes().includes(t))].slice(0, 6); if (!draft.servings) draft.servings = 1; }
     closeImport();
     view = { name: "edit" }; render(); window.scrollTo(0, 0);
   } catch (e) {
@@ -1026,7 +1028,8 @@ Regler:
 - ingredients: en ingrediens per element, mängd och enhet först ("2 dl grädde", "1 gul lök"). Om receptet har delar (t.ex. sås, topping), lägg en rubrik som eget element som börjar med "# ". Behåll ALLA tidsangivelser från källan (koktid, stektid, ugnstid, vila, marinering, jäsning) i det steg där de hör hemma och skriv dem med siffror och enhet, t.ex. "15 min", "1 h", "1,5 h", "10–12 min", "30 sek" – aldrig bara "en stund" om källan anger en tid. Står tiden bara i receptets inledning eller i en totaltid, för in den i rätt steg om det framgår vilket.
 - steps: ett steg per element, utan numrering, korta och tydliga. Om stegen tydligt hör till olika moment (t.ex. dagen innan, förberedelser, tillagning, vid servering) eller olika delar av rätten, lägg en rubrik som eget element som börjar med "# ".
 - tags: 2–4 taggar, ENBART från denna lista (gemener, exakt stavning): ${tagVocab().join(", ")}. Välj det som stämmer – typ av rätt, mattyp, tillfälle och metod. ${TAG_HINTS}${dishTypes().length ? ` Exakt en tagg MÅSTE vara typ av rätt: ${dishTypes().join(", ")}.` : ""}
-- notes: eventuella tips från källan, kort. Annars tom sträng.
+- notes: eventuella tips från källan, kort. Annars tom sträng.${s.drink ? `
+- Det här är en drink (typ av rätt: dryck). Ange mängder i cl där det går, servings = antal glas, och skriv vilket glas och vilken garnering som används i stegen.` : ""}
 - ${s.translate ? "Skriv allt på svenska. Räkna om amerikanska mått (cups, tbsp, tsp, oz, lb, °F) till svenska metriska mått (dl, msk, tsk, g, °C)." : "Behåll originalspråket och måtten."}
 - Hitta inte på något. Saknas receptinnehåll helt, svara {"error": "kort förklaring på svenska"}.
 ${s.url ? "\nKällänk: " + s.url : ""}
@@ -4731,7 +4734,7 @@ function renderBar(){
     : `<div class="bcard" data-a="open" data-id="${esc(r.id)}" style="animation-delay:${Math.min(n, 12) * .06}s"><div class="bc-fr" style="${barBg(i)}">${BAR_ZIG}<div class="bc-in">${barPic(r, i)}</div></div><h4>${esc(r.title)}</h4><span class="bsc">${esc(i.base)}</span></div>`; };
   $app.innerHTML = `<div class="bar">
     <div class="bhero"><span class="b-rays" aria-hidden="true"></span>
-      <div class="btop"><a href="#" class="bback" data-a="home">‹ Recept</a>${can("contributor") ? `<button class="bnew" data-a="barnew">+ Ny drink</button>` : ""}</div>
+      <div class="btop"><a href="#" class="bback" data-a="home">‹ Recept</a>${can("contributor") ? `<button class="bnew" data-a="menu">+ Ny drink</button>` : ""}</div>
       <div class="bkick">Sivander</div><h1 class="bbig bshim">BAREN</h1>
       <div class="brule"><span class="bsc">${all.length} ${all.length === 1 ? "drink" : "drinkar"} · Skål!</span></div>${BAR_FAN}</div>
     <div class="bin">
@@ -4742,7 +4745,14 @@ function renderBar(){
       ${!list.length ? `<div class="bempty"><p>Inga drinkar matchar.</p></div>` : ""}
       <div class="${rows ? "brows" : "bgrid"}">${list.map(card).join("")}</div>`
     : `<div class="bempty"><p>Baren är tom än så länge.</p><p>Ge ett recept typen <b>dryck</b> så hamnar det här.</p></div>`}
-    </div></div>`;
+    </div></div>
+    ${can("contributor") ? `<button class="fab barfab" data-a="menu" aria-label="Lägg till drink">${menuOpen ? "×" : "+"}</button>` : ""}
+    ${menuOpen ? `<div class="menu barmenu">
+      ${sample && sampleImages && HAS_CAMERA ? `<button data-a="camimport">Ta foto<small>Fota en drinkbok eller ett menykort</small></button>` : ""}
+      ${sample && sampleImages ? `<button data-a="pickimport">${HAS_CAMERA ? "Välj bilder" : "Foto eller skärmdump"}<small>Skärmdumpar eller foton av drinken</small></button>` : ""}
+      ${sample ? `<button data-a="import">Länk eller text<small>Från en drinksida, Instagram-bildtext eller liknande</small></button>` : ""}
+      <button data-a="barnew">Skriv egen drink<small>Fyll i själv från början</small></button>
+    </div>` : ""}`;
   const car = document.getElementById("bcar");
   if (car) car.addEventListener("scroll", () => { const w = car.firstElementChild ? car.firstElementChild.offsetWidth + 12 : 1; const i = Math.round(car.scrollLeft / w); document.querySelectorAll(".bdots i").forEach((d, j) => d.classList.toggle("on", j === i)); }, { passive: true });
 }
