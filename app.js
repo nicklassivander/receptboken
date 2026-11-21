@@ -1142,6 +1142,8 @@ document.addEventListener("click", async e => {
     case "cookdone": { const r0 = cur; const note = (cookSession && cookSession.notes || "").trim(); logEvent("cook_done", r0); endCooking(); render(); openHistory(r0, null, note); toast(note ? "Snyggt! Dina anteckningar är med – sätt betyg och spara" : "Snyggt! Sätt betyg och spara tillagningen"); break; }
     case "timer": startTimer(+el.dataset.ms, el.dataset.label, el.dataset.k); break;
     case "timerstop": stopTimer(el.dataset.id); break;
+    case "timerask": TM_ASK = el.dataset.id; if (view.name === "detail") render(); else renderCookBar(); break;
+    case "timerno": TM_ASK = null; if (view.name === "detail") render(); else renderCookBar(); break;
     case "timernew": openTimerSheet(); break;
     case "cookbar": openCookRecipe(); break;
     case "ctab": {
@@ -1150,7 +1152,7 @@ document.addEventListener("click", async e => {
       if (c) { const top = c.getBoundingClientRect().top; if (top < 0 || el.classList.contains("cnext")) window.scrollTo({ top: window.scrollY + top - 4 }); }
       break; }
     case "tick":
-      if (e.target.closest(".timerbtn")) break;
+      if (e.target.closest(".timerbtn, .tb-run, .tb-ask")) break;
       detailState.done[el.dataset.k] = !detailState.done[el.dataset.k];
       if (cookSession && cookSession.recipeId === cur.id) { cookSession.done = detailState.done; saveCook(); }
       secAfterTick(cur.steps || [], el.dataset.k);
@@ -2516,14 +2518,15 @@ function parseDurations(text){
   return out;
 }
 function timerButtons(text, i, n){
-  return parseDurations(text).map(d => `<button class="timerbtn" data-a="timer" data-ms="${d.ms}" data-k="s${i}" data-label="Steg ${n}: ${esc(d.label)}">⏱ ${esc(d.label)}</button>`).join("");
+  return parseDurations(text).map(d => tmStepRun("s" + i, d.ms) || `<button class="timerbtn" data-a="timer" data-ms="${d.ms}" data-k="s${i}" data-label="Steg ${n}: ${esc(d.label)}">⏱ ${esc(d.label)}</button>`).join("");
 }
 function startTimer(ms, label, k){
   if (!cookSession) return;
+  if (k && (cookSession.timers || []).some(t => t.k === k && t.total === ms && !t.rung && t.end > Date.now())) { toast("Den timern går redan"); return; }
   cookSession.timers = (cookSession.timers || []).filter(t => !t.rung);
   const t = { id: "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), label, k, end: Date.now() + ms, total: ms };
   cookSession.timers.push(t);
-  saveCook(); renderCookBar(); toast(`Timer startad: ${label}`);
+  saveCook(); if (view.name === "detail") render(); else renderCookBar(); tmFlash(t);
   const r = recipes.find(x => x.id === cookSession.recipeId);
   pushTimer(t, r);
 }
@@ -2555,7 +2558,8 @@ function openTimerSheet(){
 }
 function stopTimer(id){
   if (!cookSession) return;
-  cookSession.timers = (cookSession.timers || []).filter(t => t.id !== id); saveCook(); renderCookBar();
+  TM_ASK = null;
+  cookSession.timers = (cookSession.timers || []).filter(t => t.id !== id); saveCook(); if (view.name === "detail") render(); else renderCookBar();
   sb.rpc("recipe_timer_cancel", { p_id: id }).then(() => {}, () => {});
 }
 
@@ -2601,6 +2605,7 @@ async function pushTimer(t, r){
 const fmtLeft = ms => { const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}` : `${m}:${String(ss).padStart(2, "0")}`; };
 function renderCookBar(){
   try { renderShopFab(); } catch {}
+  try { tmDockRender(); } catch {}
   let bar = document.getElementById("cookbar");
   if (!cookSession && me) loadCook();
   const appEl = document.getElementById("app");
@@ -5284,6 +5289,67 @@ function barMixStop(r){
   try { logEvent("cook_cancel", r); } catch (e) {}
   endCooking(); render(); toast("Blandningen avbruten");
 }
+// ---------- Timrar (C, nov 2026): nedräkning i steget, startruta, timerlist längst ner, ta bort med fråga ----------
+var TM_ASK = null;
+function tmRing(t){
+  var p = t.total ? Math.max(0, Math.min(1, (t.end - Date.now()) / t.total)) : 0;
+  return '<svg class="tm-ring" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="rgba(20,16,11,.25)" stroke-width="2.4"/><circle class="tm-arc" cx="10" cy="10" r="8" fill="none" stroke="#14100b" stroke-width="2.4" stroke-dasharray="' + (50.3 * p).toFixed(1) + ' 50.3" transform="rotate(-90 10 10)" stroke-linecap="round"/></svg>';
+}
+function tmLeftTxt(t){ var l = t.end - Date.now(); return l <= 0 ? "Klar!" : fmtLeft(l); }
+function tmAskHtml(t){
+  return '<span class="tb-ask">Ta bort timern?<button class="y" data-a="timerstop" data-id="' + t.id + '">Ta bort</button><button class="n" data-a="timerno">Nej</button></span>';
+}
+// Pågående timer för ett steg → lysande nedräkning i stället för ⏱-knappen
+function tmStepRun(k, ms){
+  if (!cookSession) return "";
+  var t = (cookSession.timers || []).find(function(x){ return x.k === k && x.total === ms; });
+  if (!t) return "";
+  if (TM_ASK === t.id) return tmAskHtml(t);
+  return '<span class="tb-run' + (t.end <= Date.now() ? " done" : "") + '" data-tid="' + t.id + '">' + tmRing(t) + '<span class="tm-left">' + tmLeftTxt(t) + '</span><button class="tb-x" data-a="' + (t.end <= Date.now() ? "timerstop" : "timerask") + '" data-id="' + t.id + '" aria-label="Ta bort timern">✕</button></span>';
+}
+function tmShort(t){ return String(t.label || "").replace(/:\s*[^:]*$/, ""); }
+function tmStepText(t){
+  var r = cookSession && recipes.find(function(x){ return x.id === cookSession.recipeId; });
+  var i = t.k && /^s\d+$/.test(t.k) ? +t.k.slice(1) : -1;
+  var s = r && i >= 0 ? (r.steps || [])[i] : "";
+  return s ? tmShort(t) + " · " + s : String(t.label || "Timer");
+}
+function tmDockRender(){
+  var dock = document.getElementById("tmdock");
+  var timers = cookSession && me && view.name !== "edit" ? (cookSession.timers || []).slice().sort(function(a, b){ return a.end - b.end; }) : [];
+  if (!timers.length) { if (dock) dock.remove(); document.body.classList.remove("has-tmdock"); return; }
+  if (!dock) { dock = document.createElement("div"); dock.id = "tmdock"; dock.className = "tmdock"; dock.setAttribute("aria-label", "Timrar"); document.body.appendChild(dock); }
+  document.body.classList.add("has-tmdock");
+  dock.innerHTML = timers.map(function(t){
+    var done = t.end <= Date.now(), pct = t.total ? Math.max(0, Math.min(100, (1 - (t.end - Date.now()) / t.total) * 100)) : 0;
+    if (TM_ASK === t.id) return '<div class="tmd-r ask"><span class="tmd-t">' + esc(tmStepText(t)) + '</span>' + tmAskHtml(t) + '</div>';
+    return '<div class="tmd-r' + (done ? " done" : "") + (Date.now() - (t.end - t.total) < 6000 ? " new" : "") + '" data-tid="' + t.id + '"><b class="tm-left">' + tmLeftTxt(t) + '</b><span class="tmd-t">' + esc(tmStepText(t)) + '</span><button class="tb-x" data-a="' + (done ? "timerstop" : "timerask") + '" data-id="' + t.id + '" aria-label="Ta bort timern">✕</button><i class="tmd-bar" style="width:' + pct.toFixed(1) + '%"></i></div>';
+  }).join("");
+}
+// Stor ruta mitt på skärmen i ett par sekunder när en timer startar
+function tmFlash(t){
+  try {
+    var old = document.getElementById("tmflash"); if (old) old.remove();
+    var f = document.createElement("div"); f.id = "tmflash"; f.className = "tmflash"; f.setAttribute("role", "status");
+    f.innerHTML = '<div class="big">' + fmtLeft(t.total) + '</div><small>Timer startad · ' + esc(tmShort(t)) + '</small>';
+    document.body.appendChild(f);
+    setTimeout(function(){ f.classList.add("out"); }, 1500);
+    setTimeout(function(){ f.remove(); }, 2000);
+  } catch (e) {}
+}
+setInterval(function(){
+  if (!cookSession || !(cookSession.timers || []).length) return;
+  document.querySelectorAll("[data-tid]").forEach(function(el){
+    var t = cookSession.timers.find(function(x){ return x.id === el.dataset.tid; }); if (!t) return;
+    var l = el.querySelector(".tm-left"); if (l) l.textContent = tmLeftTxt(t);
+    var arc = el.querySelector(".tm-arc"); if (arc) arc.setAttribute("stroke-dasharray", (50.3 * Math.max(0, Math.min(1, (t.end - Date.now()) / t.total))).toFixed(1) + " 50.3");
+    var bar = el.querySelector(".tmd-bar"); if (bar) bar.style.width = Math.max(0, Math.min(100, (1 - (t.end - Date.now()) / t.total) * 100)).toFixed(1) + "%";
+    var done = t.end <= Date.now(); el.classList.toggle("done", done);
+    var x = el.querySelector(".tb-x"); if (x && done) x.dataset.a = "timerstop";
+    if (Date.now() - (t.end - t.total) >= 6000) el.classList.remove("new");
+  });
+}, 1000);
+
 // ---------- Sektioner under lagning (B, nov 2026) ----------
 // Recept med rubriker (# Såsen …) visas som kort när man lagar. Sektionerna är parallella: varje har ett eget NU-steg.
 // Ihopfälld visar NU-raden med egen bockruta; klar sektion fälls ihop och får ✓ KLAR. detailState.secOpen[g] = manuellt val.

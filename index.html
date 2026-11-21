@@ -1894,6 +1894,36 @@ body.noir #app .steps:has(li.nextstep) li:not(.nextstep){opacity:.62}
 .sec-now span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .steps .sec-now .sbox{position:static;flex:none;cursor:pointer;padding:0}
 body.noir #app .steps .sec-now .sbox{background-color:transparent;border-color:#c9a55c}
+/* Timrar (C, nov 2026): nedräkning i steget, startruta, timerlist längst ner */
+.tb-run{display:inline-flex;align-items:center;gap:7px;margin:6px 0 0 8px;padding:3px 4px 3px 8px;border-radius:999px;background:linear-gradient(180deg,#e2c48a,#b8913f);color:#14100b;font:600 14px var(--sans);font-variant-numeric:tabular-nums;box-shadow:0 0 0 4px rgba(226,196,138,.18),0 0 20px rgba(226,196,138,.45);vertical-align:1px;cursor:default;white-space:nowrap}
+.tb-run.done{background:#b3261e;color:#fff;animation:tmBlink 1s ease-in-out infinite}
+.tb-run.done .tm-ring{display:none}
+@keyframes tmBlink{50%{box-shadow:0 0 0 6px rgba(179,38,30,.25),0 0 26px rgba(179,38,30,.6)}}
+.tb-x{width:24px;height:24px;flex:none;border-radius:50%;border:0;background:rgba(20,16,11,.18);color:inherit;font:600 13px var(--sans);display:grid;place-items:center;padding:0;cursor:pointer}
+.tb-ask{display:inline-flex;align-items:center;gap:8px;margin:6px 0 0 8px;padding:3px 5px 3px 12px;border-radius:999px;border:1px solid #c9a55c;background:#14100b;color:#efe1c2;font:500 13px var(--sans);vertical-align:1px;white-space:nowrap}
+.tb-ask button{border:0;border-radius:99px;padding:4px 11px;font:600 12px var(--sans);cursor:pointer}
+.tb-ask .y{background:#b3261e;color:#fff}.tb-ask .n{background:transparent;color:#c9b48a}
+.tmflash{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:9999;background:rgba(14,13,12,.94);border:1px solid #e2c48a;border-radius:22px;padding:22px 32px;text-align:center;color:#efe1c2;box-shadow:0 0 60px rgba(226,196,138,.35);pointer-events:none;animation:tmIn .35s cubic-bezier(.2,1.4,.4,1);transition:opacity .45s,transform .45s}
+.tmflash.out{opacity:0;transform:translate(-50%,-50%) scale(.9)}
+.tmflash .big{font:500 48px var(--serif);color:#e2c48a;font-variant-numeric:tabular-nums;line-height:1}
+.tmflash small{display:block;font:500 11px var(--sans);letter-spacing:.2em;text-transform:uppercase;margin-top:10px;color:#c9b48a}
+@keyframes tmIn{from{opacity:0;transform:translate(-50%,-50%) scale(.7)}}
+.tmdock{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:40;display:flex;gap:8px;overflow-x:auto;padding:8px;border-radius:18px;background:rgba(14,13,12,.95);border:1px solid #c9a55c;box-shadow:0 10px 30px rgba(0,0,0,.6);scrollbar-width:none}
+.tmdock::-webkit-scrollbar{display:none}
+.tmd-r{flex:none;max-width:88%;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border:1px solid rgba(201,165,92,.45);border-radius:12px;background:rgba(201,165,92,.07);color:#efe1c2;font:400 13.5px var(--sans);position:relative;overflow:hidden}
+.tmd-r:only-child{flex:1;max-width:none}
+.tmd-r.new{border-color:#e2c48a;box-shadow:0 0 0 3px rgba(226,196,138,.2),0 0 22px rgba(226,196,138,.35)}
+.tmd-r.done{border-color:#b3261e;background:rgba(179,38,30,.18);animation:tmBlink 1s ease-in-out infinite}
+.tmd-r b{font:600 18px var(--sans);font-variant-numeric:tabular-nums;color:#e2c48a;flex:none}
+.tmd-r.done b{color:#ff8a80}
+.tmd-t{flex:1;min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tmd-bar{position:absolute;left:0;bottom:0;height:2px;background:#e2c48a}
+.tmd-r .tb-x{background:rgba(201,165,92,.15);color:#e2c48a}
+.tmd-r.ask .tb-ask{margin:0}
+body.has-tmdock{padding-bottom:84px}
+body.has-tmdock .shopfab,body.has-tmdock .fab{bottom:calc(96px + env(safe-area-inset-bottom))}
+body.has-tmdock .cookbar .tm:not(.tm-add){display:none}
+@media(min-width:900px){.tmdock{left:auto;right:24px;bottom:24px;flex-direction:column;width:330px;overflow:visible}.tmd-r{max-width:none}.tmd-t{max-width:none}body.has-tmdock{padding-bottom:0}body.has-tmdock .shopfab,body.has-tmdock .fab{bottom:calc(24px + env(safe-area-inset-bottom));right:370px}}
 </style>
 </head>
 <body>
