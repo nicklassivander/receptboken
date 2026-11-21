@@ -491,7 +491,7 @@ function renderDetail(){
     </div>
     <div class="meta" style="margin-top:6px">
       ${r.time ? `<span>${esc(r.time)}</span>` : ""}
-      ${r.timesCooked ? `<span>Lagad ${r.timesCooked} gånger, senast ${fmtDate(r.lastCooked)}${(() => { const l = cookLogOf(r); const last = l.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0]; return last && last.date === r.lastCooked ? " av " + esc(nameOf(last.by)) : ""; })()}</span>` : `<span>Inte lagad än</span>`}
+      ${r.timesCooked ? `<span class="cook-link" data-a="cooklist" role="button">Lagad ${r.timesCooked} gånger, senast ${fmtDate(r.lastCooked)}${(() => { const l = cookLogOf(r); const last = l.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0]; return last && last.date === r.lastCooked ? " av " + esc(nameOf(last.by)) : ""; })()} ›</span>` : `<span>Inte lagad än</span>`}
       ${cooksOf(r).length ? `<span>Lagad av ${esc(cooksSummary(r))}</span>` : ""}
       <span>Tillagd av ${esc(nameOf(addedByOf(r)))}</span>
       ${r.sourceUrl ? `<span><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">Öppna källan</a></span>` : ""}
@@ -1215,7 +1215,8 @@ document.addEventListener("click", async e => {
     case "cooked":
       await patch(cur.id, { timesCooked: (cur.timesCooked || 0) + 1, lastCooked: today(), cookLog: cookLogOf(cur).concat({ by: me, date: today(), at: new Date().toISOString() }) });
       notify("cooked", cur);
-      toast("Noterat: lagad idag"); break;
+      { const rid = cur.id, mine = cookLogOf(recipes.find(x => x.id === rid) || cur).slice(-1)[0]; toastActions("Noterat: lagad i dag", [["Ångra", () => cookRemove(rid, mine)]]); }
+      break;
     case "copy":
       try { await navigator.clipboard.writeText(recipeText(cur)); toast("Receptet kopierat"); } catch { toast("Kunde inte kopiera"); }
       break;
@@ -4903,6 +4904,7 @@ document.addEventListener("click", e => {
   if (a === "tagclear" || a === "allrecipes" || a === "clear") { filter.by = ""; return; }
   if (a === "barserv") { e.stopPropagation(); detailState.servings = +el.dataset.n; render(); return; }
   if (a === "barmixed") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) barMarkMixed(r); return; }
+  if (a === "cooklist") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) cookListOpen(r); return; }
   if (a === "barfull") { e.stopPropagation(); drinkFull[view.id] = true; render(); window.scrollTo(0, 0); return; }
   if (a === "matq") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) matAsk(r, el.dataset.k); return; }
   if (a === "barnew") {
@@ -5114,7 +5116,7 @@ function barMixedHtml(r){
     info = `Blandad ${n} ${n === 1 ? "gång" : "gånger"}${when ? " · senast " + when : ""}${who ? " av " + esc(who) : ""}`;
   } else info = "Ingen har blandat den än";
   const btn = can("contributor") ? `<button class="dk-mix ${on ? "on" : ""}" data-a="barmixed">${BAR_FAN}<span>${on ? "Skål! Blandad i kväll" : "Jag har blandat den · Skål!"}</span></button>` : "";
-  return `<div class="dk-mixed">${btn}<small>${info}</small></div>`;
+  return `<div class="dk-mixed">${btn}<small ${n ? `class="cook-link" data-a="cooklist" role="button"` : ""}>${info}${n ? " ›" : ""}</small></div>`;
 }
 function barMixedWhen(c){
   const d = c.at ? new Date(c.at) : new Date((c.date || "") + "T18:00:00");
@@ -5132,7 +5134,44 @@ async function barMarkMixed(r){
   if (!ok) { barMixedNow[r.id] = false; render(); return; }
   try { logEvent("cook_done", r); } catch (e) {}
   try { notify("cooked", r); } catch (e) {}
-  toast("Skål! Noterat att du blandat " + (r.title || "drinken"));
+  const mine = cookLogOf(recipes.find(x => x.id === r.id) || r).slice(-1)[0];
+  toastActions("Skål! Noterat att du blandat " + (r.title || "drinken"), [["Ångra", () => { barMixedNow[r.id] = false; cookRemove(r.id, mine); }]]);
+}
+
+// ---------- Ta bort enstaka tillagningar (nov 2026) ----------
+// Tryck på "Lagad N gånger …" (receptet) eller raden under Skål-knappen (drinken) → lista. Egna kan tas bort, superanvändare kan ta bort allas.
+function cookKey(c){ return (c.at || "") + "|" + (c.date || "") + "|" + (c.by || ""); }
+function cookListOpen(r){
+  const drink = isDrink(r);
+  const log = cookLogOf(r).slice().sort((a, b) => String(b.at || b.date || "").localeCompare(String(a.at || a.date || "")));
+  const extra = Math.max(0, (r.timesCooked || 0) - log.length);
+  const rows = log.map(c => {
+    const d = c.at ? new Date(c.at) : new Date((c.date || "") + "T18:00:00");
+    const when = isNaN(d) ? esc(c.date || "") : d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" }) + (c.at ? " · " + d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) : "");
+    const own = (c.by || "").toLowerCase() === me;
+    const can = own || role === "admin";
+    return `<div class="ck-row"><div><b>${own ? "Du" : esc(nameOf(c.by))}</b><span>${when}</span></div>${can ? `<button class="btn ghost small" data-ckdel="${esc(cookKey(c))}" type="button">Ta bort</button>` : ""}</div>`;
+  }).join("");
+  openSheet(`<div class="sheet-head"><h2>${drink ? "Blandad" : "Lagad"} ${r.timesCooked || log.length} ${(r.timesCooked || log.length) === 1 ? "gång" : "gånger"}</h2><button class="iconbtn fp-x" id="closeSheetBtn" aria-label="Stäng">×</button></div>
+    <p class="sub">${esc(r.title || "")}. Har du tryckt av misstag kan du ta bort din egen ${drink ? "blandning" : "tillagning"} här.</p>
+    <div class="panel ck-list">${rows || `<p class="meta">Inga daterade ${drink ? "blandningar" : "tillagningar"}.</p>`}${extra ? `<div class="ck-row ck-old"><div><b>${extra} äldre</b><span>utan datum</span></div></div>` : ""}</div>`);
+  const x = document.getElementById("closeSheetBtn"); if (x) x.onclick = closeSheet;
+  document.querySelectorAll("[data-ckdel]").forEach(b => { let armed = false; b.onclick = async () => {
+    if (!armed) { armed = true; b.textContent = "Säker?"; b.classList.add("armed"); return; }
+    const c = cookLogOf(r).find(y => cookKey(y) === b.dataset.ckdel);
+    b.disabled = true;
+    if (await cookRemove(r.id, c)) { const r2 = recipes.find(y => y.id === r.id); if (r2 && cookLogOf(r2).length + Math.max(0, (r2.timesCooked || 0) - cookLogOf(r2).length) > 0) cookListOpen(r2); else closeSheet(); }
+  }; });
+}
+async function cookRemove(id, c){
+  const r = recipes.find(x => x.id === id); if (!r || !c) return false;
+  const key = cookKey(c); let gone = false;
+  const log = cookLogOf(r).filter(y => { if (!gone && cookKey(y) === key) { gone = true; return false; } return true; });
+  if (!gone) return false;
+  const last = log.map(y => y.date || "").filter(Boolean).sort().pop() || null;
+  const ok = await patch(id, { cookLog: log, timesCooked: Math.max(log.length, (r.timesCooked || 0) - 1), lastCooked: last });
+  if (ok) { try { logEvent("cook_undo", r); } catch (e) {} toast(isDrink(r) ? "Blandningen är borttagen" : "Tillagningen är borttagen"); }
+  return ok;
 }
 
 // Matildas veckoval (api/week-drink.js via pg_cron, sparas i recipe_ai_cache "weekdrink:current") går först.
