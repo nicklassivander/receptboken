@@ -530,7 +530,7 @@ function renderDetail(){
 
     <div class="panel cpane cp-steps">
       <h2>Gör så här</h2>
-      ${steps.length ? `<ol class="steps">${(() => { let n = 0; return steps.map((s, i) => s.startsWith("#")
+      ${steps.length ? `<ol class="steps${cs && steps.some(x => x.startsWith("#")) ? " secmode" : ""}">${cs && steps.some(x => x.startsWith("#")) ? secStepsHtml(steps) : (() => { let n = 0; return steps.map((s, i) => s.startsWith("#")
           ? (n = 0, `<li class="group">${esc(s.replace(/^#+\s*/, ""))}</li>`)
           : `<li class="${detailState.done["s" + i] ? "done" : ""}${cs && i === nextIdx ? " nextstep" : ""}" data-n="${++n}" data-a="tick" data-k="s${i}"><span class="sbox" role="checkbox" aria-checked="${!!detailState.done["s" + i]}" aria-label="Steg ${n} klart"></span>${esc(s)}${cs ? timerButtons(s, i, n) : ""}</li>`).join(""); })()}</ol>`
         : `<p class="meta">Inga steg ifyllda.</p>`}
@@ -1153,7 +1153,11 @@ document.addEventListener("click", async e => {
       if (e.target.closest(".timerbtn")) break;
       detailState.done[el.dataset.k] = !detailState.done[el.dataset.k];
       if (cookSession && cookSession.recipeId === cur.id) { cookSession.done = detailState.done; saveCook(); }
+      secAfterTick(cur.steps || [], el.dataset.k);
       render(); break;
+    case "secfold": {
+      const so = detailState.secOpen = detailState.secOpen || {};
+      so[el.dataset.g] = el.dataset.open !== "1"; render(); break; }
     case "rate": {
       const n = +el.dataset.n; await patch(cur.id, { rating: cur.rating === n ? 0 : n }); break;
     }
@@ -5279,6 +5283,48 @@ function barMixStep(r, i){
 function barMixStop(r){
   try { logEvent("cook_cancel", r); } catch (e) {}
   endCooking(); render(); toast("Blandningen avbruten");
+}
+// ---------- Sektioner under lagning (B, nov 2026) ----------
+// Recept med rubriker (# Såsen …) visas som kort när man lagar. Sektionerna är parallella: varje har ett eget NU-steg.
+// Ihopfälld visar NU-raden med egen bockruta; klar sektion fälls ihop och får ✓ KLAR. detailState.secOpen[g] = manuellt val.
+function secGroups(steps){
+  var gs = [], cur = null;
+  steps.forEach(function(s, i){
+    if (s.startsWith("#")) { cur = { h: i, name: s.replace(/^#+\s*/, ""), items: [] }; gs.push(cur); }
+    else { if (!cur) { cur = { h: -1, name: "", items: [] }; gs.push(cur); } cur.items.push(i); }
+  });
+  return gs;
+}
+function secStepsHtml(steps){
+  var done = detailState.done || {}, so = detailState.secOpen || {};
+  return secGroups(steps).map(function(g, gi){
+    var nDone = g.items.filter(function(i){ return done["s" + i]; }).length, tot = g.items.length;
+    var all = tot > 0 && nDone === tot;
+    var nx = g.items.find(function(i){ return !done["s" + i]; });
+    var open = so[gi] !== undefined ? so[gi] : !all;
+    var n = 0;
+    var items = g.items.map(function(i){
+      var s = steps[i]; n++;
+      if (!open && g.h >= 0) return "";
+      return '<li class="' + (done["s" + i] ? "done" : "") + (i === nx ? " nextstep" : "") + '" data-n="' + n + '" data-a="tick" data-k="s' + i + '"><span class="sbox" role="checkbox" aria-checked="' + !!done["s" + i] + '" aria-label="Steg ' + n + ' klart"></span>' + esc(s) + timerButtons(s, i, n) + '</li>';
+    }).join("");
+    if (g.h < 0) return items;
+    var pct = tot ? Math.round(nDone / tot * 100) : 0;
+    var nowRow = !open && !all && nx !== undefined
+      ? '<div class="sec-now"><b>NU</b><span>' + esc(steps[nx]) + '</span><button class="sbox" data-a="tick" data-k="s' + nx + '" role="checkbox" aria-checked="false" aria-label="Bocka av: ' + esc(steps[nx]) + '"></button></div>' : "";
+    return '<li class="group sec-card' + (open ? "" : " closed") + (all ? " isdone" : "") + '" data-a="secfold" data-g="' + gi + '" data-open="' + (open ? 1 : 0) + '" role="button" aria-expanded="' + open + '">'
+      + '<div class="sec-row"><span class="sec-chev" aria-hidden="true">▾</span><span class="sec-name">' + esc(g.name) + '</span>' + (all ? '<span class="sec-ok">KLAR</span>' : '<span class="sec-cnt">' + nDone + ' av ' + tot + '</span>') + '</div>'
+      + '<div class="sec-bar"><i style="width:' + pct + '%"></i></div>' + nowRow + '</li>' + items;
+  }).join("");
+}
+// När sista steget i en sektion bockas av fälls den ihop (manuellt val nollställs)
+function secAfterTick(steps, k){
+  if (!detailState.secOpen) return;
+  var i = +String(k).slice(1);
+  var done = detailState.done || {};
+  secGroups(steps).forEach(function(g, gi){
+    if (g.items.indexOf(i) >= 0 && g.items.every(function(x){ return done["s" + x]; })) delete detailState.secOpen[gi];
+  });
 }
 function barMixFinish(r){
   endCooking();
