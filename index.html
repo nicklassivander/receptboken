@@ -1924,6 +1924,8 @@ body.has-tmdock{padding-bottom:84px}
 body.has-tmdock .shopfab,body.has-tmdock .fab{bottom:calc(96px + env(safe-area-inset-bottom))}
 body.has-tmdock .cookbar .tm:not(.tm-add){display:none}
 @media(min-width:900px){.tmdock{left:auto;right:24px;bottom:24px;flex-direction:column;width:330px;overflow:visible}.tmd-r{max-width:none}.tmd-t{max-width:none}body.has-tmdock{padding-bottom:0}body.has-tmdock .shopfab,body.has-tmdock .fab{bottom:calc(24px + env(safe-area-inset-bottom));right:370px}}
+/* Startsidan: rubrikerna bryts bara mellan ord, inte mitt i ett ord (nov 2026) */
+.card h3,.rmain h3{hyphens:manual;-webkit-hyphens:manual;overflow-wrap:break-word;word-break:normal}
 </style>
 </head>
 <body>
