@@ -2620,7 +2620,7 @@ function renderCookBar(){
   const steps = r.steps || [], real = steps.filter(x => !x.startsWith("#"));
   const done = steps.filter((x, i) => !x.startsWith("#") && (cookSession.done || {})["s" + i]).length;
   const timers = (cookSession.timers || []).slice().sort((a, b) => a.end - b.end);
-  bar.innerHTML = `<button class="cb-main" data-a="cookbar"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="t"><span>Lagar nu${real.length ? ` · steg ${Math.min(done + 1, real.length)}/${real.length}` : ""}</span><b>${esc(r.title || "")}</b></span></button>
+  bar.innerHTML = `<button class="cb-main" data-a="cookbar"><span class="pan" aria-hidden="true">${PAN_SVG}</span><span class="t"><span>${isDrink(r) ? "Blandar nu" : "Lagar nu"}${real.length ? ` · steg ${Math.min(done + 1, real.length)}/${real.length}` : ""}</span><b>${esc(r.title || "")}</b></span></button>
     <button class="tm tm-add" data-a="timernew" aria-label="Sätt timer">+ ⏱</button>
     ${timers.map(t => `<button class="tm ${t.end <= Date.now() ? "ring" : ""}" data-a="timerstop" data-id="${t.id}" title="${esc(t.label)} – tryck för att stänga av"><span data-end="${t.end}">${t.end <= Date.now() ? "Klar!" : "⏱ " + fmtLeft(t.end - Date.now())}</span></button>`).join("")}`;
 }
@@ -4812,7 +4812,9 @@ function renderDrink(r){
     const [amt, name] = barIngSplit(scaleLine(l, f));
     return `<li><b>${esc(amt)}</b><span>${esc(name)}</span></li>`;
   }).join("");
-  const steps = (r.steps || []).map(s => s.startsWith("#") ? `<li class="bh">${esc(s.replace(/^#\s*/, ""))}</li>` : `<li data-n="${++n}">${esc(s)}</li>`).join("");
+  const mixing = barMixing(r), mdone = mixing ? (cookSession.done || {}) : {};
+  const nextI = mixing ? (r.steps || []).findIndex((s, k) => !s.startsWith("#") && !mdone["s" + k]) : -1;
+  const steps = (r.steps || []).map((s, k) => s.startsWith("#") ? `<li class="bh">${esc(s.replace(/^#\s*/, ""))}</li>` : `<li data-n="${++n}"${mixing ? ` data-a="barstep" data-i="${k}" role="button" class="${mdone["s" + k] ? "dk-done" : k === nextI ? "dk-next" : ""}"` : ""}>${esc(s)}</li>`).join("");
   $app.innerHTML = `<div class="dk">
     <div class="dkh" style="--dk-c:${barShade(i.color, -.38)}"><span class="dk-drape" aria-hidden="true"></span>
       <button class="fback" data-a="home" aria-label="Tillbaka"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
@@ -4825,8 +4827,8 @@ function renderDrink(r){
       ${spec.length ? `<div class="dk-spec" style="grid-template-columns:repeat(${spec.length},1fr)">${spec.map(([v, l]) => `<div><b>${esc(v)}</b><span class="bsc">${l}</span></div>`).join("")}</div>` : ""}
       <div class="dk-hd"><span>Ingredienser</span><div class="dk-step" role="group" aria-label="Antal glas"><button data-a="barserv" data-n="${Math.max(1, serv - 1)}" aria-label="Färre glas" ${serv <= 1 ? "disabled" : ""}>−</button><span>${serv} glas</span><button data-a="barserv" data-n="${Math.min(50, serv + 1)}" aria-label="Fler glas">+</button></div></div>
       <ul class="dk-ing">${ings || `<li><span>Inga ingredienser än.</span></li>`}</ul>
-      ${steps ? `<div class="dk-hd"><span>Så gör du</span></div><ol class="dk-steps">${steps}</ol>` : ""}
       ${barMixedHtml(r)}
+      ${steps ? `<div class="dk-hd"><span>Så gör du</span></div><ol class="dk-steps${mixing ? " mixing" : ""}">${steps}</ol>` : ""}
       ${notesPanelHtml(r, NOTE_BAR_OPTS)}
       ${matHtml(r)}
       <div class="dk-more">${canEdit(r) ? `<button class="linkbtn" data-a="edit">Redigera</button>` : ""}<button class="linkbtn" data-a="barfull">Alla funktioner<small>tips, matlagning, inköpslista</small></button></div>
@@ -4913,7 +4915,10 @@ document.addEventListener("click", e => {
   if (a === "fby") { e.stopPropagation(); const v = el.dataset.e || ""; filter.by = filter.by === v ? "" : v; render(); return; }
   if (a === "tagclear" || a === "allrecipes" || a === "clear") { filter.by = ""; return; }
   if (a === "barserv") { e.stopPropagation(); detailState.servings = +el.dataset.n; render(); return; }
-  if (a === "barmixed") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) barMarkMixed(r); return; }
+  if (a === "barmixed") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) { if (barMixing(r)) barMixFinish(r); else barMarkMixed(r); } return; }
+  if (a === "barmixstart") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) barMixStart(r); return; }
+  if (a === "barmixstop") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) barMixStop(r); return; }
+  if (a === "barstep") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r && barMixing(r)) barMixStep(r, el.dataset.i); return; }
   if (a === "cooklist") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) cookListOpen(r); return; }
   if (a === "barfull") { e.stopPropagation(); drinkFull[view.id] = true; render(); window.scrollTo(0, 0); return; }
   if (a === "matq") { e.stopPropagation(); const r = recipes.find(x => x.id === view.id); if (r) matAsk(r, el.dataset.k); return; }
@@ -5125,7 +5130,18 @@ function barMixedHtml(r){
     const who = last && last.by ? ((last.by || "").toLowerCase() === me ? "dig" : nameOf(last.by)) : "";
     info = `Blandad ${n} ${n === 1 ? "gång" : "gånger"}${when ? " · senast " + when : ""}${who ? " av " + esc(who) : ""}`;
   } else info = "Ingen har blandat den än";
-  const btn = can("contributor") ? `<button class="dk-mix ${on ? "on" : ""}" data-a="barmixed">${BAR_FAN}<span>${on ? "Skål! Blandad i kväll" : "Jag har blandat den · Skål!"}</span></button>` : "";
+  // C (nov 2026): en knapp genom hela flödet – Börja blanda → Klar · Skål! → Skål! Blandad i kväll
+  const mixing = barMixing(r);
+  if (mixing && can("contributor")) {
+    const st = r.steps || [], real = st.map((s, k) => [s, k]).filter(([s]) => !s.startsWith("#"));
+    const d = real.filter(([, k]) => (cookSession.done || {})["s" + k]).length;
+    const pct = real.length ? Math.round(d / real.length * 100) : 0;
+    return `<div class="dk-mixed mixing"><button class="dk-mix go" data-a="barmixed">${BAR_FAN}<span>Klar · Skål!</span></button>
+      ${real.length ? `<div class="dk-prog" aria-hidden="true"><i style="width:${pct}%"></i></div>` : ""}
+      <small>${real.length ? `Steg ${Math.min(d + 1, real.length)} av ${real.length} · ` : "Blandar nu · "}<button class="dk-stop" data-a="barmixstop">Avbryt</button></small></div>`;
+  }
+  const btn = !can("contributor") ? "" : on ? `<button class="dk-mix on" data-a="barmixed">${BAR_FAN}<span>Skål! Blandad i kväll</span></button>`
+    : `<button class="dk-mix" data-a="barmixstart">${BAR_SHAKER}<span>Börja blanda</span></button>`;
   return `<div class="dk-mixed">${btn}<small ${n ? `class="cook-link" data-a="cooklist" role="button"` : ""}>${info}${n ? " ›" : ""}</small></div>`;
 }
 function barMixedWhen(c){
@@ -5238,6 +5254,37 @@ function cookNowLine(e){
 }
 // "Någon börjar laga" är av tills man slår på den; övriga händelser är på tills man stänger av
 function nfKindOn(prefs, k){ return k === "cooking" ? !!prefs && prefs[k] === true : !prefs || prefs[k] !== false; }
+
+// ---------- Börja blanda i baren (C, nov 2026) ----------
+// Samma cookSession som matlagningen (synkas mellan enheter, syns som "blandar nu" i Senaste i köket). Ingen avisering.
+var BAR_SHAKER = '<svg viewBox="0 0 24 32" width="18" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"><path d="M10 2.5h4l.6 3h-5.2z"/><path d="M8 5.5h8l1 5H7z"/><path d="M7 10.5h10l-1.5 19h-7z"/><path d="M9 15h6"/></svg>';
+function barMixing(r){ return !!(cookSession && r && cookSession.recipeId === r.id); }
+function barMixStart(r){
+  if (cookSession && cookSession.recipeId !== r.id) {
+    var other = recipes.find(function(x){ return x.id === cookSession.recipeId; });
+    if (other && !confirm("Du " + (isDrink(other) ? "blandar" : "lagar") + " redan " + other.title + ". Vill du avsluta den och börja blanda " + r.title + "?")) return;
+  }
+  barMixedNow[r.id] = false;
+  cookSession = { recipeId: r.id, startedAt: Date.now(), servings: detailState.servings ?? 1, done: {}, timers: [] };
+  saveCook(); wakeWanted = true; syncWakeLock();
+  try { logEvent("cook_start", r); } catch (e) {}
+  render();
+  toast("Bocka av stegen när de är klara");
+}
+function barMixStep(r, i){
+  var d = cookSession.done = cookSession.done || {}, k = "s" + i;
+  if (d[k]) delete d[k]; else d[k] = true;
+  saveCook(); render();
+}
+function barMixStop(r){
+  try { logEvent("cook_cancel", r); } catch (e) {}
+  endCooking(); render(); toast("Blandningen avbruten");
+}
+function barMixFinish(r){
+  endCooking();
+  barMarkMixed(r);
+  render();
+}
 
 // Pulserande ikon i Senaste i köket (nov 2026): någon lagar/blandar nu, eller blandade en drink för under 30 minuter sedan
 function evLive(html, e){
