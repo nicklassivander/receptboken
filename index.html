@@ -1841,6 +1841,16 @@ html{background:#0e0d0c}
 .ck-row span{font-size:13px;color:#8a7f70}
 .ck-row span::first-letter{text-transform:uppercase}
 .ck-old b{font-weight:500;color:#8a7f70}
+/* Noir: lagningsläget K2 Spotlight (nov 2026) – mörk ruta "Du lagar det här" och upplyst aktivt steg, tydlig kontrast */
+body.noir #app .cooking-head{background:#16130f;border:1px solid rgba(201,165,92,.45);border-left:3px solid #c9a55c;color:#f3ece0}
+body.noir #app .cooking-head .ct b{color:#f3ece0}
+body.noir #app .cooking-head .ct small{color:#b9ad97}
+body.noir #app .cooking-head textarea{background:#0e0d0c;color:#f3ece0;border:1px solid rgba(201,165,92,.35)}
+body.noir #app .cooking-head textarea::placeholder{color:#8f846f}
+body.noir #app .timerbtn{background:transparent;color:#e2c48a;border:1px solid #c9a55c}
+body.noir #app .steps li.nextstep{background:radial-gradient(120% 140% at 15% 0,#3a2a1c,#16120e 70%);box-shadow:-10px 0 0 #2a1f15,10px 0 0 #16120e,0 8px 26px rgba(0,0,0,.5);outline:1px solid rgba(201,165,92,.55);outline-offset:4px;color:#fff;border-radius:4px}
+body.noir #app .steps li.nextstep::after{color:#14100b;background:#e2c48a;padding:2px 6px;border-radius:99px;font-weight:600;top:auto;bottom:-10px;left:-6px;width:auto;text-align:center}
+body.noir #app .steps:has(li.nextstep) li:not(.nextstep){opacity:.62}
 </style>
 </head>
 <body>
