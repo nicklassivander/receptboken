@@ -2268,7 +2268,7 @@ function activityHtml(){
   const title = e => esc(e.kind === "variant" && e.base ? e.base.title : e.r.title || "Namnlöst recept");
   const latest = ev[0];
   const added = ev.filter(e => e.kind !== "cooked" && e.kind !== "cooking"), cooked = ev.filter(e => e.kind === "cooked" || e.kind === "cooking");
-  if (!activityTab) activityTab = !added.some(isNew) && cooked.some(isNew) ? "cooked" : "added";
+  if (!activityTab) activityTab = added.some(isNew) && !cooked.some(isNew) ? "added" : cooked.length ? "cooked" : "added";   // tillagningarna först (nov 2026)
   const pool = activityTab === "cooked" ? cooked : added;
   const items = pool.slice(0, activityOpen === "all" ? 25 : 6);
   const nAdded = added.filter(isNew).length, nCooked = cooked.filter(isNew).length;
@@ -2277,8 +2277,8 @@ function activityHtml(){
       <span class="kitchen-ico ${newCount ? "has-new" : ""}" aria-hidden="true"><svg viewBox="2.5 2.5 19 19" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16v5a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M2.5 12.5H4M20 12.5h1.5"/><path d="M8.5 9c-.8-1 .8-2 0-3M12 9c-.8-1 .8-2 0-3M15.5 9c-.8-1 .8-2 0-3"/></svg><i></i></span>
       <span class="lab">Senaste i köket</span>
       ${(() => { const now = ev.filter(e => e.kind === "cooking");
-        const ck = ev.filter(e => e.kind === "cooked").slice(0, 3);   // minst tre tillagningar om det finns
-        const top = now.concat(ck.concat(ev.filter(e => !ck.includes(e) && !now.includes(e)).slice(0, 5 - ck.length)).sort((a, b) => b.ts - a.ts)); // Flöde som glider från höger till vänster; gruppen ligger två gånger i rad så att det går runt utan skarv
+        const ck = ev.filter(e => e.kind === "cooked").slice(0, 6);   // mest tillagningar (upp till 6), högst 2 nya recept (nov 2026)
+        const top = now.concat(ck.concat(ev.filter(e => !ck.includes(e) && !now.includes(e)).slice(0, Math.max(1, Math.min(2, 8 - ck.length)))).sort((a, b) => b.ts - a.ts)); // Flöde som glider från höger till vänster; gruppen ligger två gånger i rad så att det går runt utan skarv
         // Kort mening (B, nov 2026): vem + verb + receptnamnet kortat, utan datum – allt står i listan som fälls ut
         const tverb = e => e.kind === "variant" ? "varierade" : verb(e);
         const tname = e => tickShort(e.kind === "variant" && e.base ? e.base.title : e.r.title || "Namnlöst recept");
