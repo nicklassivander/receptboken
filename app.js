@@ -23,6 +23,7 @@ function splitSettings(list){
   if (st && Array.isArray(st.groups)) customTagGroups = st.groups;
   const mine = list.find(r => me && r.id === "_cook_" + String(me).toLowerCase());
   if (mine) pendingRemoteCook = mine;
+  list.forEach(r => { if (String(r.id).startsWith("_cook_")) cookNowRow(r.id, r); });
   return list.filter(r => r.id !== SETTINGS_ID && !String(r.id).startsWith("_cook_"));
 }
 let pendingRemoteCook = null;
@@ -129,9 +130,14 @@ function subscribe(){
   if (subscribed) return; subscribed = true;
   sb.channel("recept")
     .on("postgres_changes", { event: "*", schema: "public", table: "recipes" }, p => {
-      if (p.eventType === "DELETE") { if (String(p.old.id || "").startsWith("_cook_")) return; recipes = recipes.filter(r => r.id !== p.old.id); }
+      if (p.eventType === "DELETE") { if (String(p.old.id || "").startsWith("_cook_")) { cookNowRow(p.old.id, null); if (view.name === "list") render(); return; } recipes = recipes.filter(r => r.id !== p.old.id); }
       else if (p.new.id === SETTINGS_ID) { customTagGroups = (p.new.data || {}).groups || null; }
-      else if (String(p.new.id).startsWith("_cook_")) { if (me && p.new.id === "_cook_" + String(me).toLowerCase()) applyRemoteCook(p.new.data); return; }
+      else if (String(p.new.id).startsWith("_cook_")) {
+        const changed = cookNowRow(p.new.id, p.new.data);
+        if (me && p.new.id === "_cook_" + String(me).toLowerCase()) applyRemoteCook(p.new.data);
+        else if (changed && view.name === "list") render();
+        return;
+      }
       else {
         const r = { ...p.new.data, id: p.new.id };
         const i = recipes.findIndex(x => x.id === r.id);
@@ -2236,7 +2242,8 @@ function activityEvents(){
       ev.push({ ts, by: (c.by || "").toLowerCase(), r, kind: "cooked", rating: h && h.rating, note: h && h.note });
     }
   }
-  return ev.sort((a, b) => b.ts - a.ts);
+  ev.sort((a, b) => b.ts - a.ts);
+  return cookNowEvents().concat(ev);   // "lagar nu" alltid överst
 }
 function activityHtml(){
   if (!me || filter.q || filter.tags.length || filter.fav || filter.mine || filter.cookedMe || filterOpen) return "";
@@ -2246,11 +2253,11 @@ function activityHtml(){
   const isNew = e => e.by !== me && e.ts > seen;
   const newCount = activityOpen ? 0 : ev.filter(isNew).length;
   const who = []; for (const e of ev) { if (!who.includes(e.by)) who.push(e.by); if (who.length === 3) break; }
-  const verb = e => e.kind === "added" ? "lade till" : e.kind === "variant" ? "gjorde en variant av" : (e.r && isDrink(e.r) ? "blandade" : "lagade");
+  const verb = e => e.kind === "cooking" ? "lagar nu" : e.kind === "added" ? "lade till" : e.kind === "variant" ? "gjorde en variant av" : (e.r && isDrink(e.r) ? "blandade" : "lagade");
   const nm = e => e.by === me ? "Du" : esc(nameOf(e.by));
   const title = e => esc(e.kind === "variant" && e.base ? e.base.title : e.r.title || "Namnlöst recept");
   const latest = ev[0];
-  const added = ev.filter(e => e.kind !== "cooked"), cooked = ev.filter(e => e.kind === "cooked");
+  const added = ev.filter(e => e.kind !== "cooked" && e.kind !== "cooking"), cooked = ev.filter(e => e.kind === "cooked" || e.kind === "cooking");
   if (!activityTab) activityTab = !added.some(isNew) && cooked.some(isNew) ? "cooked" : "added";
   const pool = activityTab === "cooked" ? cooked : added;
   const items = pool.slice(0, activityOpen === "all" ? 25 : 6);
@@ -2259,12 +2266,13 @@ function activityHtml(){
     <button class="act-row" data-a="acttoggle" aria-expanded="${!!activityOpen}" title="Senaste i köket">
       <span class="kitchen-ico ${newCount ? "has-new" : ""}" aria-hidden="true"><svg viewBox="2.5 2.5 19 19" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16v5a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M2.5 12.5H4M20 12.5h1.5"/><path d="M8.5 9c-.8-1 .8-2 0-3M12 9c-.8-1 .8-2 0-3M15.5 9c-.8-1 .8-2 0-3"/></svg><i></i></span>
       <span class="lab">Senaste i köket</span>
-      ${(() => { const ck = ev.filter(e => e.kind === "cooked").slice(0, 3);   // minst tre tillagningar om det finns
-        const top = ck.concat(ev.filter(e => !ck.includes(e)).slice(0, 5 - ck.length)).sort((a, b) => b.ts - a.ts); // Flöde som glider från höger till vänster; gruppen ligger två gånger i rad så att det går runt utan skarv
+      ${(() => { const now = ev.filter(e => e.kind === "cooking");
+        const ck = ev.filter(e => e.kind === "cooked").slice(0, 3);   // minst tre tillagningar om det finns
+        const top = now.concat(ck.concat(ev.filter(e => !ck.includes(e) && !now.includes(e)).slice(0, 5 - ck.length)).sort((a, b) => b.ts - a.ts)); // Flöde som glider från höger till vänster; gruppen ligger två gånger i rad så att det går runt utan skarv
         // Kort mening (B, nov 2026): vem + verb + receptnamnet kortat, utan datum – allt står i listan som fälls ut
         const tverb = e => e.kind === "variant" ? "varierade" : verb(e);
         const tname = e => tickShort(e.kind === "variant" && e.base ? e.base.title : e.r.title || "Namnlöst recept");
-        const line = e => `<span class="mq-it" data-a="open" data-id="${esc(e.r.id)}">${evIcon(e.kind, e.r)}<span class="mq-who"><b>${nm(e)}</b>${tverb(e)}&nbsp;</span><span class="t">${esc(tname(e))}</span></span><span class="mq-sep"></span>`;
+        const line = e => `<span class="mq-it" data-a="open" data-id="${esc(e.r.id)}">${evIcon(e.kind, e.r)}<span class="mq-who"><b>${nm(e)}</b>${tverb(e)}&nbsp;</span><span class="t">${esc(tname(e))}</span>${e.kind === "cooking" ? `<span class="nowdot">NU</span>` : ""}</span><span class="mq-sep"></span>`;
         const grp = top.map(line).join("");
         const chars = top.reduce((n, e) => n + (e.by === me ? 2 : nameOf(e.by).length) + tverb(e).length + tname(e).length + 6, 0);
         const dur = Math.max(14, Math.round(chars * 7.5 / 40));   // ca 40 px per sekund
@@ -2277,10 +2285,10 @@ function activityHtml(){
         <button role="tab" class="${activityTab === "cooked" ? "on" : ""}" data-a="acttab" data-t="cooked">Senast lagade${nCooked ? `<span class="tn">${nCooked}</span>` : ""}</button>
       </div>
       <div class="act-list">${items.length ? "" : `<p class="hnote" style="padding:12px 0">${activityTab === "cooked" ? "Inga tillagningar än – tryck Börja laga eller Ny tillagning i ett recept." : "Inga recept än."}</p>`}${items.map(e => `
-      <div class="fitem" data-a="open" data-id="${esc(e.r.id)}">
+      <div class="fitem${e.kind === "cooking" ? " cooking-now" : ""}" data-a="open" data-id="${esc(e.r.id)}">
         <span class="nd ${isNew(e) ? "" : "old"}"></span>${avHtml(e.by)}
-        <span class="tx">${evIcon(e.kind, e.r)}<i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
-        <span class="when">${relDay(e.ts)}</span>
+        <span class="tx">${evIcon(e.kind, e.r)}<i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.kind === "cooking" ? `<span class="nowdot">NU</span><span class="note">${esc(cookNowLine(e))}</span>` : ""}${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
+        <span class="when">${e.kind === "cooking" ? "Nu" : relDay(e.ts)}</span>
         ${e.r.photo ? `<img src="${esc(e.r.photo)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
       </div>`).join("")}
       ${pool.length > items.length ? `<button class="linkbtn act-more" data-a="actmore">Visa fler</button>` : ""}
@@ -2313,7 +2321,7 @@ const EV_ICON = {
   variant: '<path d="M5 3h8l4 4v6"/><path d="M13 3v4h4"/><path d="M5 3v18h6"/><path d="M14.5 20.5l6-6-2-2-6 6-.5 2.5z"/>',
   cooked: '<path d="M4 12h16v5a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path d="M2.5 12.5H4M20 12.5h1.5"/><path d="M8.5 9c-.8-1 .8-2 0-3M12 9c-.8-1 .8-2 0-3M15.5 9c-.8-1 .8-2 0-3"/>',
 };
-const EV_KIND = { add: "added", added: "added", variant: "variant", cook_done: "cooked", cooked: "cooked", cook_start: "cooked" };
+const EV_KIND = { add: "added", added: "added", variant: "variant", cook_done: "cooked", cooked: "cooked", cook_start: "cooked", cooking: "cooked" };
 const EV_LABEL = { added: "Lade till", variant: "Variant", cooked: "Lagade" };
 function evIcon(kind, r){
   const k = EV_KIND[kind] || kind; let d = EV_ICON[k];
@@ -2457,6 +2465,7 @@ function startCooking(r){
   wakeWanted = true;
   detailState.tab = "ing";
   render(); syncWakeLock(); logEvent("cook_start", r);
+  if (!isDrink(r)) notify("cooking", r, cookNowFinish(r, cookSession.startedAt));
   toast("Smaklig tillagning! Skärmen hålls tänd.");
 }
 function endCooking(){
@@ -3392,7 +3401,8 @@ function saveAiNew(){
 // added/cooked → alla andra; liked/variant → receptets skapare. Mottagare och deras val räknas ut i databasen.
 const NOTIFY_KINDS = [
   ["added", "Nya recept", "När någon lägger till ett recept"],
-  ["cooked", "Någon lagar", "När någon lagar ett recept"],
+  ["cooking", "Någon börjar laga", "När någon trycker Börja laga – så vet du vad som är på gång"],
+  ["cooked", "Någon har lagat", "När någon är klar med ett recept"],
   ["liked", "Någon gillar ditt recept", "När någon gör ett av dina recept till favorit"],
   ["variant", "Variant av ditt recept", "När någon gör en egen variant av ett av dina recept"],
 ];
@@ -3422,7 +3432,7 @@ async function openNotifySettings(){
     default: ["Aviseringar är av", "Slå på för att få aviseringar på den här enheten."],
   }[devState] || ["Aviseringar är av", ""];
   // Slå på allt: enheten + alla händelser med ett tryck (visas tills allt är på)
-  const allOn = devState === "granted" && NOTIFY_KINDS.every(([k]) => prefs[k] !== false);
+  const allOn = devState === "granted" && NOTIFY_KINDS.every(([k]) => nfKindOn(prefs, k));
   const showAll = !missing && !allOn && ["default", "granted", "ios"].includes(devState);
   box().innerHTML = `
     ${missing ? `<p class="hnote">Aviseringarna är inte påslagna i databasen än. Kör <b>supabase/notify.sql</b> i Supabase (SQL Editor → Run).</p>` : ""}
@@ -3431,7 +3441,7 @@ async function openNotifySettings(){
       <div class="srow nf-dev"><span class="st"><b>${DEV[0]}</b><small>${DEV[1]}</small></span>
         ${devState === "default" && !showAll ? `<button class="btn accent small" id="nfOn">Slå på</button>` : devState === "granted" && !missing ? `<button class="btn ghost small" id="nfTest">Testa</button>` : ""}</div></div>
     <div class="sgrp"><h3>Meddela mig när</h3>
-      ${NOTIFY_KINDS.map(([k, t, s]) => { const on = prefs[k] !== false; return `<label class="srow nf-row ${on ? "on" : ""}"><span class="st"><b>${t}</b><small>${s}</small></span><span class="nf-state">${on ? "På" : "Av"}</span><span class="sw"><input type="checkbox" data-k="${k}" ${on ? "checked" : ""} ${missing ? "disabled" : ""} aria-label="${t}"><i></i></span></label>`; }).join("")}
+      ${NOTIFY_KINDS.map(([k, t, s]) => { const on = nfKindOn(prefs, k); return `<label class="srow nf-row ${on ? "on" : ""}"><span class="st"><b>${t}</b><small>${s}</small></span><span class="nf-state">${on ? "På" : "Av"}</span><span class="sw"><input type="checkbox" data-k="${k}" ${on ? "checked" : ""} ${missing ? "disabled" : ""} aria-label="${t}"><i></i></span></label>`; }).join("")}
     </div>
     <p class="meta">Timrar under matlagningen ringer alltid. Valen gäller alla dina enheter.</p>`;
   box().querySelectorAll("input[data-k]").forEach(i => i.onchange = async () => {
@@ -4552,7 +4562,7 @@ function nfAskSet(o){ try { localStorage.setItem("nfAsk", JSON.stringify(o)); } 
 // Alla andra: Inte nu döljer i en vecka. Sätt till false när Nicklas är klar med testet.
 var NF_ASK_TEST = false;
 var nfAskHidden = false, nfPrefs = null, nfPrefsBusy = false;
-function nfOffKinds(){ return nfPrefs ? NOTIFY_KINDS.filter(([k]) => nfPrefs[k] === false).length : 0; }
+function nfOffKinds(){ return nfPrefs ? NOTIFY_KINDS.filter(([k]) => k !== "cooking" && nfPrefs[k] === false).length : 0; }   // "Någon börjar laga" är frivillig och tjatas inte om
 function nfLoadPrefs(){
   if (nfPrefs || nfPrefsBusy || !sb || !me) return;
   nfPrefsBusy = true;
@@ -5194,3 +5204,37 @@ function barWeekPick(all, byName, day){
   });
   return best || byName[Math.floor((day + 3) / 7) % byName.length];
 }
+
+// ---------- Någon börjar laga (nov 2026): avisering + "lagar nu" i Senaste i köket ----------
+// Pågående matlagning läses ur allas _cook_<e-post>-rader. Visas tills Klar!/Avbryt eller i högst 6 timmar. Inte drinkar.
+var COOKING_NOW = {};
+function cookNowRow(id, d){
+  var email = String(id).slice(6).toLowerCase(), s = d && d.session, old = COOKING_NOW[email];
+  if (s && s.recipeId && s.startedAt) COOKING_NOW[email] = { by: email, recipeId: s.recipeId, startedAt: +s.startedAt };
+  else delete COOKING_NOW[email];
+  var nw = COOKING_NOW[email];
+  return !old !== !nw || (old && nw && (old.recipeId !== nw.recipeId || old.startedAt !== nw.startedAt));
+}
+function cookNowEvents(){
+  var out = [], lim = Date.now() - 6 * 36e5;
+  Object.keys(COOKING_NOW).forEach(function(k){
+    var c = COOKING_NOW[k], r = recipes.find(function(x){ return x.id === c.recipeId; });
+    if (!r || isDrink(r) || c.startedAt < lim) return;
+    out.push({ ts: c.startedAt, by: c.by, r: r, kind: "cooking" });
+  });
+  return out.sort(function(a, b){ return b.ts - a.ts; });
+}
+// Ungefärlig sluttid ur receptets tid ("1 h 30 min" → +90 min), som "17:00"
+function cookNowFinish(r, start){
+  var ms = r && r.time ? parseDurations(r.time).reduce(function(n, d){ return n + d.ms; }, 0) : 0;
+  if (!ms) return "";
+  var t = new Date((start || Date.now()) + ms);
+  t.setMinutes(Math.ceil(t.getMinutes() / 5) * 5, 0, 0);
+  return t.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+}
+function cookNowLine(e){
+  var st = new Date(e.ts).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }), f = cookNowFinish(e.r, e.ts);
+  return "Började " + st + (f ? " · klar ca " + f : "");
+}
+// "Någon börjar laga" är av tills man slår på den; övriga händelser är på tills man stänger av
+function nfKindOn(prefs, k){ return k === "cooking" ? !!prefs && prefs[k] === true : !prefs || prefs[k] !== false; }

@@ -1851,6 +1851,12 @@ body.noir #app .timerbtn{background:transparent;color:#e2c48a;border:1px solid #
 body.noir #app .steps li.nextstep{background:radial-gradient(120% 140% at 15% 0,#3a2a1c,#16120e 70%);box-shadow:-10px 0 0 #2a1f15,10px 0 0 #16120e,0 8px 26px rgba(0,0,0,.5);outline:1px solid rgba(201,165,92,.55);outline-offset:4px;color:#fff;border-radius:4px}
 body.noir #app .steps li.nextstep::after{color:#14100b;background:#e2c48a;padding:2px 6px;border-radius:99px;font-weight:600;top:auto;bottom:-10px;left:-6px;width:auto;text-align:center}
 body.noir #app .steps:has(li.nextstep) li:not(.nextstep){opacity:.62}
+/* Någon börjar laga (nov 2026): NU-bricka med pulserande prick i Senaste i köket */
+.nowdot{display:inline-flex;align-items:center;gap:5px;margin-left:6px;font:600 9.5px var(--sans);letter-spacing:.16em;color:#14100b;background:#e2c48a;border-radius:99px;padding:2px 7px 2px 6px;vertical-align:middle;white-space:nowrap}
+.nowdot::before{content:"";width:6px;height:6px;border-radius:50%;background:#b3261e;animation:nwp 1.6s ease-in-out infinite}
+@keyframes nwp{50%{opacity:.25}}
+.fitem.cooking-now{background:linear-gradient(90deg,rgba(201,165,92,.12),transparent)}
+@media (prefers-reduced-motion:reduce){.nowdot::before{animation:none}}
 </style>
 </head>
 <body>
