@@ -1794,13 +1794,17 @@ function showWake(){
   const t = on ? "Skärmen hålls tänd – tryck för att stänga av" : "Håll skärmen tänd medan du lagar";
   b.title = t; b.setAttribute("aria-label", t);
 }
-async function syncWakeLock(){
+// Anropen köas: två samtidiga anrop (render + startCooking) gav förut två lås, och det ena släpptes aldrig (skärmen stod på)
+let wakeQueue = Promise.resolve();
+function syncWakeLock(){ wakeQueue = wakeQueue.then(syncWakeLockNow, syncWakeLockNow); return wakeQueue; }
+async function syncWakeLockNow(){
   const want = wakeWanted && view.name === "detail" && document.visibilityState === "visible";
   try {
     if (want && !wakeLock && "wakeLock" in navigator) {
-      wakeLock = await navigator.wakeLock.request("screen");
-      wakeLock.addEventListener("release", () => { wakeLock = null; showWake(); });
-    } else if (!want && wakeLock) { await wakeLock.release(); wakeLock = null; }
+      const s = await navigator.wakeLock.request("screen");
+      if (wakeLock && wakeLock !== s) { try { await s.release(); } catch {} }
+      else { wakeLock = s; s.addEventListener("release", () => { if (wakeLock === s) wakeLock = null; showWake(); }); }
+    } else if (!want && wakeLock) { const s = wakeLock; wakeLock = null; await s.release(); }
   } catch { wakeLock = null; }
   setTimeout(showWake, 0);
 }
