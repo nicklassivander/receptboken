@@ -1857,6 +1857,12 @@ body.noir #app .steps:has(li.nextstep) li:not(.nextstep){opacity:.62}
 @keyframes nwp{50%{opacity:.25}}
 .fitem.cooking-now{background:linear-gradient(90deg,rgba(201,165,92,.12),transparent)}
 @media (prefers-reduced-motion:reduce){.nowdot::before{animation:none}}
+/* Pulserande händelseikon: lagar/blandar nu */
+.evi.evi-live{position:relative;animation:eviP 1.8s ease-in-out infinite}
+.evi.evi-live::after{content:"";position:absolute;inset:-1px;border-radius:50%;animation:eviR 1.8s ease-out infinite;pointer-events:none}
+@keyframes eviP{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@keyframes eviR{0%{box-shadow:0 0 0 0 rgba(226,196,138,.75)}80%,100%{box-shadow:0 0 0 7px rgba(226,196,138,0)}}
+@media (prefers-reduced-motion:reduce){.evi.evi-live,.evi.evi-live::after{animation:none}}
 </style>
 </head>
 <body>

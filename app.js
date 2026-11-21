@@ -2253,7 +2253,7 @@ function activityHtml(){
   const isNew = e => e.by !== me && e.ts > seen;
   const newCount = activityOpen ? 0 : ev.filter(isNew).length;
   const who = []; for (const e of ev) { if (!who.includes(e.by)) who.push(e.by); if (who.length === 3) break; }
-  const verb = e => e.kind === "cooking" ? "lagar nu" : e.kind === "added" ? "lade till" : e.kind === "variant" ? "gjorde en variant av" : (e.r && isDrink(e.r) ? "blandade" : "lagade");
+  const verb = e => e.kind === "cooking" ? (isDrink(e.r) ? "blandar nu" : "lagar nu") : e.kind === "added" ? "lade till" : e.kind === "variant" ? "gjorde en variant av" : (e.r && isDrink(e.r) ? "blandade" : "lagade");
   const nm = e => e.by === me ? "Du" : esc(nameOf(e.by));
   const title = e => esc(e.kind === "variant" && e.base ? e.base.title : e.r.title || "Namnlöst recept");
   const latest = ev[0];
@@ -2272,7 +2272,7 @@ function activityHtml(){
         // Kort mening (B, nov 2026): vem + verb + receptnamnet kortat, utan datum – allt står i listan som fälls ut
         const tverb = e => e.kind === "variant" ? "varierade" : verb(e);
         const tname = e => tickShort(e.kind === "variant" && e.base ? e.base.title : e.r.title || "Namnlöst recept");
-        const line = e => `<span class="mq-it" data-a="open" data-id="${esc(e.r.id)}">${evIcon(e.kind, e.r)}<span class="mq-who"><b>${nm(e)}</b>${tverb(e)}&nbsp;</span><span class="t">${esc(tname(e))}</span>${e.kind === "cooking" ? `<span class="nowdot">NU</span>` : ""}</span><span class="mq-sep"></span>`;
+        const line = e => `<span class="mq-it" data-a="open" data-id="${esc(e.r.id)}">${evLive(evIcon(e.kind, e.r), e)}<span class="mq-who"><b>${nm(e)}</b>${tverb(e)}&nbsp;</span><span class="t">${esc(tname(e))}</span>${e.kind === "cooking" ? `<span class="nowdot">NU</span>` : ""}</span><span class="mq-sep"></span>`;
         const grp = top.map(line).join("");
         const chars = top.reduce((n, e) => n + (e.by === me ? 2 : nameOf(e.by).length) + tverb(e).length + tname(e).length + 6, 0);
         const dur = Math.max(14, Math.round(chars * 7.5 / 40));   // ca 40 px per sekund
@@ -2287,7 +2287,7 @@ function activityHtml(){
       <div class="act-list">${items.length ? "" : `<p class="hnote" style="padding:12px 0">${activityTab === "cooked" ? "Inga tillagningar än – tryck Börja laga eller Ny tillagning i ett recept." : "Inga recept än."}</p>`}${items.map(e => `
       <div class="fitem${e.kind === "cooking" ? " cooking-now" : ""}" data-a="open" data-id="${esc(e.r.id)}">
         <span class="nd ${isNew(e) ? "" : "old"}"></span>${avHtml(e.by)}
-        <span class="tx">${evIcon(e.kind, e.r)}<i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.kind === "cooking" ? `<span class="nowdot">NU</span><span class="note">${esc(cookNowLine(e))}</span>` : ""}${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
+        <span class="tx">${evLive(evIcon(e.kind, e.r), e)}<i>${nm(e)} ${verb(e)}</i> <b>${title(e)}</b>${e.kind === "cooking" ? `<span class="nowdot">NU</span><span class="note">${esc(cookNowLine(e))}</span>` : ""}${e.rating ? ` <span class="st">${"★".repeat(e.rating)}</span>` : ""}${e.note ? `<span class="note">”${esc(e.note)}”</span>` : ""}</span>
         <span class="when">${e.kind === "cooking" ? "Nu" : relDay(e.ts)}</span>
         ${e.r.photo ? `<img src="${esc(e.r.photo)}" alt="" loading="lazy">` : `<span class="noimg"></span>`}
       </div>`).join("")}
@@ -5219,7 +5219,7 @@ function cookNowEvents(){
   var out = [], lim = Date.now() - 6 * 36e5;
   Object.keys(COOKING_NOW).forEach(function(k){
     var c = COOKING_NOW[k], r = recipes.find(function(x){ return x.id === c.recipeId; });
-    if (!r || isDrink(r) || c.startedAt < lim) return;
+    if (!r || c.startedAt < lim) return;
     out.push({ ts: c.startedAt, by: c.by, r: r, kind: "cooking" });
   });
   return out.sort(function(a, b){ return b.ts - a.ts; });
@@ -5238,3 +5238,9 @@ function cookNowLine(e){
 }
 // "Någon börjar laga" är av tills man slår på den; övriga händelser är på tills man stänger av
 function nfKindOn(prefs, k){ return k === "cooking" ? !!prefs && prefs[k] === true : !prefs || prefs[k] !== false; }
+
+// Pulserande ikon i Senaste i köket (nov 2026): någon lagar/blandar nu, eller blandade en drink för under 30 minuter sedan
+function evLive(html, e){
+  var live = e.kind === "cooking" || (e.kind === "cooked" && isDrink(e.r) && Date.now() - e.ts < 30 * 6e4);
+  return live ? html.replace('class="evi ', 'class="evi evi-live ') : html;
+}
