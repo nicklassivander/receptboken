@@ -1926,6 +1926,10 @@ body.has-tmdock .cookbar .tm:not(.tm-add){display:none}
 @media(min-width:900px){.tmdock{left:auto;right:24px;bottom:24px;flex-direction:column;width:330px;overflow:visible}.tmd-r{max-width:none}.tmd-t{max-width:none}body.has-tmdock{padding-bottom:0}body.has-tmdock .shopfab,body.has-tmdock .fab{bottom:calc(24px + env(safe-area-inset-bottom));right:370px}}
 /* Startsidan: rubrikerna bryts bara mellan ord, inte mitt i ett ord (nov 2026) */
 .card h3,.rmain h3{hyphens:manual;-webkit-hyphens:manual;overflow-wrap:break-word;word-break:normal}
+/* Noir: skrivfälten för anteckningar var vita med ljus text – mörk bakgrund som övriga fält (nov 2026) */
+body.noir #app .nt-ed textarea,body.noir #app .cooknote textarea{background:#161412;border-color:var(--nz-line);color:var(--nz-ink)}
+body.noir #app .nt-ed textarea::placeholder,body.noir #app .cooknote textarea::placeholder{color:#7d756b}
+body.noir #app .nt-ed textarea:focus,body.noir #app .cooknote textarea:focus{outline:none;border-color:var(--nz-brass);box-shadow:0 0 0 3px rgba(201,165,92,.15)}
 </style>
 </head>
 <body>
