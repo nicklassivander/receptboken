@@ -1930,6 +1930,15 @@ body.has-tmdock .cookbar .tm:not(.tm-add){display:none}
 body.noir #app .nt-ed textarea,body.noir #app .cooknote textarea{background:#161412;border-color:var(--nz-line);color:var(--nz-ink)}
 body.noir #app .nt-ed textarea::placeholder,body.noir #app .cooknote textarea::placeholder{color:#7d756b}
 body.noir #app .nt-ed textarea:focus,body.noir #app .cooknote textarea:focus{outline:none;border-color:var(--nz-brass);box-shadow:0 0 0 3px rgba(201,165,92,.15)}
+/* Egen rubrik på anteckningar (nov 2026): rubrikfält över texten, egen rubrik visas som Pappas frågor */
+.nt-ed .nt-ti{display:block;width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:0 0 8px;font-family:var(--serif);font-style:italic;font-weight:500;font-size:19px;background:#fffdf8;color:var(--ink)}
+.nt-ed .nt-ti::placeholder{font-family:var(--sans);font-style:normal;font-weight:400;font-size:14px;color:var(--muted)}
+.nt-ed .nt-ti:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(201,165,92,.15)}
+body.noir #app .nt-ed .nt-ti{background:#161412;border-color:var(--nz-line);color:var(--nz-ink)}
+body.noir #app .nt-ed .nt-ti::placeholder{color:#7d756b}
+.dk .dk-notes .nt-ed .nt-ti{background:rgba(255,255,255,.04);border-color:rgba(201,165,92,.35);color:#f0dcae}
+.nt-it.k-own.has-q .nt-q{font-family:var(--serif);font-style:italic;font-weight:500;font-size:19px;letter-spacing:0;text-transform:none;color:var(--ink)}
+.dk .dk-notes .nt-it.k-own.has-q .nt-q{color:#f0dcae}
 </style>
 </head>
 <body>

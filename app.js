@@ -4370,7 +4370,7 @@ var noteUi = { open: null, edit: null, scroll: {}, armed: null };
 var NOTE_HAT = `<svg class="nt-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9.5V7a2 2 0 0 1 .6-3.9 2.8 2.8 0 0 1 5.2-.6 2.6 2.6 0 0 1 4.6 1.4A2 2 0 0 1 17 7.5v2"/><path d="M6 9.5h11"/><path d="M6 9.5a7 7 0 0 0-1 3.7V21"/><path d="M17 9.5c.6.9 1 2 1 3.2l1.5 2.8H18v2.5a1.8 1.8 0 0 1-1.8 1.8H14V21"/><path d="M11.5 11a2.6 2.6 0 0 0-1.5 4.7v1h3v-1A2.6 2.6 0 0 0 11.5 11z" fill="currentColor" fill-opacity=".3"/><path d="M10.4 18h2.2"/></svg>`;
 var NOTE_PEN = `<svg class="nt-ico pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>`;
 function notesText(items){
-  return items.map(n => ((n.kind === "pappa" && n.q ? n.q + "\n" : "") + String(n.text || "").replace(/\*\*/g, "")).trim()).filter(Boolean).join("\n\n");
+  return items.map(n => (((n.kind === "pappa" || n.kind === "own") && n.q ? n.q + "\n" : "") + String(n.text || "").replace(/\*\*/g, "")).trim()).filter(Boolean).join("\n\n");
 }
 function noteItemsOf(r){
   if (!r) return [];
@@ -4390,7 +4390,7 @@ function addNote(r, n){ return patch(r.id, notesWith(r, n)); }
 // i baren (drinkar) heter anteckningar "tips"
 function noteBar(){ if (view.name !== "detail") return false; const r = recipes.find(x => x.id === view.id); return typeof isDrink === "function" && isDrink(r); }
 var NOTE_BAR_OPTS = { title: "Tips från bartendern", add: "+ Nytt tips", first: "+ Lägg till ett tips", ph: "Vilken vermouth, hur mycket is, vad gästerna tyckte …", cls: "dk-notes" };
-function noteTitle(n){ return n.kind === "pappa" ? (n.q || "Pappa") : n.kind === "old" ? (noteBar() ? "Äldre tips" : "Äldre anteckningar") : n.kind === "log" ? (noteBar() ? "Ändring i drinken" : "Ändring i receptet") : (noteBar() ? "Tips" : "Egen anteckning"); }
+function noteTitle(n){ return n.kind === "pappa" ? (n.q || "Pappa") : n.kind === "old" ? (noteBar() ? "Äldre tips" : "Äldre anteckningar") : n.kind === "log" ? (noteBar() ? "Ändring i drinken" : "Ändring i receptet") : n.q ? n.q : (noteBar() ? "Tips" : "Egen anteckning"); }
 function noteShortDate(d){
   if (!d) return "";
   try { const x = new Date(d); const o = { day: "numeric", month: "short" }; if (x.getFullYear() !== new Date().getFullYear()) o.year = "numeric"; return x.toLocaleDateString("sv-SE", o).replace(".", ""); } catch { return d; }
@@ -4402,13 +4402,13 @@ function notesPanelHtml(r, o = {}){
   const items = noteItemsOf(r).slice().reverse();
   if (noteUi.rid !== r.id) { noteUi.rid = r.id; noteUi.open = null; noteUi.edit = null; noteUi.armed = null; }
   if (!items.length && noteUi.edit !== "new") return ed ? `<div class="panel notes-empty ${T.cls}"><button class="linkbtn" data-a="ntnew">${T.first}</button></div>` : "";
-  const editor = (id, val) => `<div class="nt-ed"><textarea id="nt-input" data-n="${esc(id)}" rows="4" placeholder="${esc(T.ph)}">${esc(noteUi.draftFor === id ? noteUi.draft : val)}</textarea>
+  const editor = (id, val, q, own) => `<div class="nt-ed">${own ? `<input id="nt-title" class="nt-ti" data-n="${esc(id)}" maxlength="60" autocomplete="off" placeholder="${noteBar() ? "Rubrik (valfri), t.ex. Med gin i stället" : "Rubrik (valfri), t.ex. Julafton 2026"}" value="${esc(noteUi.draftFor === id && noteUi.draftQ != null ? noteUi.draftQ : q || "")}">` : ""}<textarea id="nt-input" data-n="${esc(id)}" rows="4" placeholder="${esc(T.ph)}">${esc(noteUi.draftFor === id ? noteUi.draft : val)}</textarea>
     <div class="row"><button class="btn accent small" data-a="ntsave" data-n="${esc(id)}">Spara</button><button class="btn ghost small" data-a="ntcancel">Avbryt</button></div></div>`;
   const card = n => {
     const open = noteUi.open === n.id || noteUi.edit === n.id, editing = noteUi.edit === n.id;
     const who = n.kind === "pappa" ? "Pappa" : n.by ? nameOf(n.by) : "";
     const date = noteShortDate(n.date);
-    return `<div class="nt-it k-${n.kind}">
+    return `<div class="nt-it k-${n.kind}${n.kind === "own" && n.q ? " has-q" : ""}">
       <div class="nt-date">${esc(date)}</div>
       <div class="nt-card${open ? " open" : ""}">
         <div class="nt-hd" data-a="ntopen" data-n="${esc(n.id)}" role="button" aria-expanded="${open}">
@@ -4417,14 +4417,14 @@ function notesPanelHtml(r, o = {}){
           <span class="nt-m">${esc([date, open && who && n.kind !== "pappa" ? who : ""].filter(Boolean).join(" · "))}</span>
           <span class="nt-chev" aria-hidden="true"></span>
         </div>
-        ${editing ? editor(n.id, n.text || "")
+        ${editing ? editor(n.id, n.text || "", n.q, n.kind === "own")
           : open ? `<div class="nt-body">${aiMd(n.text || "")}</div>${ed ? `<div class="nt-tools"><button class="linkbtn" data-a="ntedit" data-n="${esc(n.id)}">Redigera</button><button class="linkbtn${noteUi.armed === n.id ? " armed" : ""}" data-a="ntdel" data-n="${esc(n.id)}">${noteUi.armed === n.id ? "Säker? Tryck igen" : "Ta bort"}</button></div>` : ""}`
           : `<div class="nt-pv">${esc(notePreview(n.text))}</div>`}
       </div></div>`;
   };
   const many = items.length > 3;
   return `<div class="panel notes-tl ${T.cls}"><h2><span>${T.title}${items.length > 1 ? `<span class="nt-cnt">${items.length}</span>` : ""}</span>${ed && noteUi.edit !== "new" ? `<button class="linkbtn nt-add" data-a="ntnew">${T.add}</button>` : ""}</h2>
-    ${noteUi.edit === "new" ? `<div class="nt-new">${editor("new", "")}</div>` : ""}
+    ${noteUi.edit === "new" ? `<div class="nt-new">${editor("new", "", "", true)}</div>` : ""}
     ${items.length ? `<div class="nt-scroll${many ? " many" : ""}" id="nt-scroll" data-rid="${esc(r.id)}"><div class="nt-tl">${items.map(card).join("")}</div></div>
     ${many ? `<div class="nt-hint">Scrolla för äldre ${noteBar() ? "tips" : "anteckningar"}</div>` : ""}` : ""}
   </div>`;
@@ -4436,7 +4436,10 @@ function notesScrollRestore(){
   s.classList.toggle("end", s.scrollTop + s.clientHeight >= s.scrollHeight - 4);
 }
 // behåll texten om sidan ritas om medan man skriver
-document.addEventListener("input", e => { if (e.target.id === "nt-input") { noteUi.draftFor = e.target.dataset.n; noteUi.draft = e.target.value; } });
+document.addEventListener("input", e => {
+  if (e.target.id === "nt-input") { noteUi.draftFor = e.target.dataset.n; noteUi.draft = e.target.value; if (noteUi.draftQ == null && $id("nt-title")) noteUi.draftQ = $id("nt-title").value; }
+  if (e.target.id === "nt-title") { if (noteUi.draftFor !== e.target.dataset.n) { noteUi.draftFor = e.target.dataset.n; noteUi.draft = $id("nt-input") ? $id("nt-input").value : ""; } noteUi.draftQ = e.target.value; }
+});
 function noteFocus(){ const t = document.getElementById("nt-input"); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
 document.addEventListener("click", async e => {
   const el = e.target.closest("[data-a^='nt']"); if (!el) return;
@@ -4445,7 +4448,7 @@ document.addEventListener("click", async e => {
   const id = el.dataset.n;
   if (a !== "ntopen" && a !== "ntcancel" && !canEdit(r)) { toast("Det här är " + genitive(nameOf(addedByOf(r))) + " recept – gör din egen variant för att ändra"); return; }
   if (a !== "ntdel") noteUi.armed = null;
-  if (a === "ntnew" || a === "ntedit" || a === "ntcancel" || a === "ntsave") { if (a !== "ntsave") { noteUi.draftFor = null; noteUi.draft = ""; } }
+  if (a === "ntnew" || a === "ntedit" || a === "ntcancel" || a === "ntsave") { if (a !== "ntsave") { noteUi.draftFor = null; noteUi.draft = ""; noteUi.draftQ = null; } }
   if (a === "ntopen") { if (noteUi.edit === id) return; noteUi.open = noteUi.open === id ? null : id; render(); return; }
   if (a === "ntcancel") { noteUi.edit = null; render(); return; }
   if (a === "ntnew") { noteUi.edit = "new"; noteUi.open = null; render(); noteFocus(); return; }
@@ -4458,10 +4461,11 @@ document.addEventListener("click", async e => {
   }
   if (a === "ntsave") {
     const val = ($id("nt-input") ? $id("nt-input").value : "").trim();
+    const tEl = $id("nt-title"), q = tEl ? tEl.value.replace(/\s+/g, " ").trim().slice(0, 60) : null;
     let items = noteItemsOf(r);
-    if (id === "new") { if (!val) { noteUi.edit = null; render(); return; } items = items.concat(noteNew("own", val)); }
-    else items = val ? items.map(n => n.id === id ? { ...n, text: val } : n) : items.filter(n => n.id !== id);
-    noteUi.edit = null; noteUi.draftFor = null; if (id === "new") { noteUi.open = null; noteUi.scroll[r.id] = 0; }
+    if (id === "new") { if (!val) { noteUi.edit = null; render(); return; } items = items.concat(noteNew("own", val, q)); }
+    else items = val ? items.map(n => n.id === id ? (q != null && n.kind === "own" ? { ...n, text: val, q } : { ...n, text: val }) : n) : items.filter(n => n.id !== id);
+    noteUi.edit = null; noteUi.draftFor = null; noteUi.draftQ = null; if (id === "new") { noteUi.open = null; noteUi.scroll[r.id] = 0; }
     if (await saveNoteItems(r, items)) toast(noteBar() ? "Tipset är sparat" : "Anteckningen är sparad");
   }
 });
