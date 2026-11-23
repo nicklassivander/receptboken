@@ -1939,6 +1939,19 @@ body.noir #app .nt-ed .nt-ti::placeholder{color:#7d756b}
 .dk .dk-notes .nt-ed .nt-ti{background:rgba(255,255,255,.04);border-color:rgba(201,165,92,.35);color:#f0dcae}
 .nt-it.k-own.has-q .nt-q{font-family:var(--serif);font-style:italic;font-weight:500;font-size:19px;letter-spacing:0;text-transform:none;color:var(--ink)}
 .dk .dk-notes .nt-it.k-own.has-q .nt-q{color:#f0dcae}
+/* Scrollist på dator (A Mässingslinje, nov 2026): smal mässingslist, spåret i sidans färg (Noir/baren/ljus/rutor) */
+@media (hover:hover) and (pointer:fine){
+html{--sb-tr:#e8e6e1;--sb-th:#9c7a3c;--sb-hi:#7d6130}
+html:has(body.noir){--sb-tr:#0e0d0c;--sb-th:#c9a55c;--sb-hi:#e2c48a}
+html:has(body.barmode){--sb-tr:#06120e;--sb-th:#c9a55c;--sb-hi:#e2c48a}
+.modal,.sh-edit{--sb-tr:#faf6ee;--sb-th:#b8955a;--sb-hi:#9c7a3c}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:var(--sb-tr)}
+::-webkit-scrollbar-thumb{background:var(--sb-th);border:2px solid var(--sb-tr);border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:var(--sb-hi)}
+::-webkit-scrollbar-button{display:none;width:0;height:0}
+@supports (-moz-appearance:none){html{scrollbar-color:var(--sb-th) var(--sb-tr)}}
+}
 </style>
 </head>
 <body>
