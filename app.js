@@ -1404,7 +1404,7 @@ function openSettings(){
   const row = (id, icon, title, desc, extra = "") => `<button class="srow" id="${id}"><span class="si">${ic[icon]}</span><span class="st"><b>${title}${extra}</b>${desc ? `<small>${desc}</small>` : ""}</span><span class="sc" aria-hidden="true">›</span></button>`;
   const nm = nameOf(me) || (me || "").split("@")[0];
   openSheet(`<div class="sheet-head"><h2>Konto</h2><button class="iconbtn fp-x" id="closeSheetBtn" aria-label="Stäng">×</button></div>
-    <div class="sprof"><span class="sav">${esc((nm || "?").slice(0, 1).toUpperCase())}</span><span><b>${esc(nm)} <span class="srole">${esc(ROLE_LABEL[role] || "Ingen behörighet")}</span></b><small>${esc(me || "")}</small></span></div>
+    <div class="sprof"><span class="sav">${esc((nm || "?").slice(0, 1).toUpperCase())}</span><span><b>${esc(nm)} <span class="srole">${esc(ROLE_LABEL[role] || "Ingen behörighet")}</span></b><small>${esc(me || "")}</small></span><button class="btn ghost small pf-ed" id="profBtn" type="button">Redigera</button></div>
     ${can("admin") ? `<div class="sgrp"><h3>Administration</h3>
       ${row("usersBtn", "users", "Användare", "Bjud in, ändra behörighet, förfrågningar", pendingReqs ? `<span class="dotcount">${pendingReqs}</span>` : "")}
       ${row("actBtn", "act", "Aktivitet", "Vem som gjort vad i appen")}</div>
@@ -1424,6 +1424,7 @@ function openSettings(){
   $id("helpBtn").onclick = () => { closeSheet(); view = { name: "help" }; render(); window.scrollTo(0, 0); };
   $id("closeSheetBtn").onclick = closeSheet;
   $id("pwBtn").onclick = () => openPasswordSheet(false);
+  $id("profBtn").onclick = openProfile;
   if ($id("usersBtn")) $id("usersBtn").onclick = openUsers;
   if ($id("timesBtn")) $id("timesBtn").onclick = openTimesTool;
   if ($id("typeBtn")) $id("typeBtn").onclick = openTypeTool;
@@ -1518,6 +1519,8 @@ function openPasswordSheet(first){
     <p class="sub">${first ? "Nästa gång loggar du in med e-post och lösenord. Har du redan ett lösenord för Munkholmsvägen gäller samma här." : "Lösenordet gäller både Receptboken och Munkholmsvägen."}</p>
     <form id="pwf">
       <input type="email" autocomplete="username" value="${esc(me || "")}" style="display:none" readonly>
+      ${pwNeedOld(first) ? `<label>Nuvarande lösenord</label><input type="password" id="pw0" autocomplete="current-password" required style="width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+      <div class="hint"><button type="button" class="pf-forgot" id="pwForgot">Glömt lösenordet?</button></div>` : ""}
       <label>Nytt lösenord</label><input type="password" id="pw1" autocomplete="new-password" required style="width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
       <label>Upprepa lösenordet</label><input type="password" id="pw2" autocomplete="new-password" required style="width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
       <div class="hint">Minst 10 tecken, med stora och små bokstäver och minst en siffra.</div>
@@ -1525,10 +1528,15 @@ function openPasswordSheet(first){
       <div class="row" style="justify-content:flex-end;margin-top:16px"><button type="button" class="btn ghost" id="pwLater">${first ? "Senare" : "Avbryt"}</button><button class="btn accent">Spara lösenord</button></div>
     </form>`);
   $id("pwLater").onclick = closeSheet;
+  if ($id("pwForgot")) $id("pwForgot").onclick = pwForgot;
   $id("pwf").onsubmit = async e => {
     e.preventDefault();
     const pw = $id("pw1").value, pw2 = $id("pw2").value, prob = pwProblem(pw, pw2);
     if (prob) { $id("pwErr").textContent = prob; return; }
+    if ($id("pw0")) {
+      const bad = await pwCheckOld($id("pw0").value);
+      if (bad) { $id("pwErr").textContent = bad; return; }
+    }
     const { error } = await sb.auth.updateUser({ password: pw, data: { has_password: true } });
     if (error) { $id("pwErr").textContent = /different from the old/i.test(error.message) ? "Välj ett annat lösenord än det gamla." : "Kunde inte spara: " + error.message; return; }
     closeSheet(); toast("Lösenordet är sparat");
@@ -1541,6 +1549,7 @@ let started = false;
 async function showApp(session){
   if (started) return; started = true;
   me = (session.user.email || "").toLowerCase();
+  try { PW_TOKEN = session.access_token || null; } catch (e) {}
   $id("loginView").classList.add("hidden"); $id("app").classList.remove("hidden");
   // Vid omladdning: stanna kvar på receptet som var öppet
   if (location.hash === "#hjalp") view = { name: "help" };
@@ -1556,6 +1565,7 @@ async function showApp(session){
   if (roleErr && cache && cache.me === me && (navigator.onLine === false || /fetch|network|load failed/i.test(String(roleErr.message || roleErr)))) { role = cache.role; loadNote = "Du är offline – visar senast sparade recept."; loaded = true; render(); subscribe(); handleShare(); return; }
   if (!role) { storageOk = false; loaded = true; render(); return; }
   try { const { data: lv, error } = await sb.rpc("recipe_my_ai"); if (!error && lv) { MY_AI = lv; try { localStorage.myAi = lv; } catch {} } } catch {}
+  loadPeople();
   await loadAll(); subscribe(); handleShare(); refreshRequests();
   try { loadShop(); subscribeShop(); } catch (e) { console.warn(e); }
   resumeCooking();
@@ -2187,7 +2197,7 @@ function renderHelp(){
         <li><b>Recept utan bild</b> får förslag på bilder från en gratis bildbank. Tryck på den du gillar så sparas den, eller sök med egna ord. Via <b>Byt bild</b> → <b>Förslag från bildbanken</b> kan du byta en befintlig bild.</li>
         <li>Det de andra sparar syns direkt hos dig. Siffran under <b>RECEPT</b> i sidhuvudet visar hur många recept som finns, och <b>+ nya</b> hur många som tillkommit sedan sist.</li>
         <li><b>Tillbaka</b> (knappen i appen, webbläsarens pil, musens bakåtknapp eller svep) tar dig tillbaka dit du var i listan. Är en ruta öppen stängs den först. Alla rutor kan också stängas med <b>×</b> uppe till höger.</li>
-        <li>Under <b>Konto</b> hittar du Aviseringar, Hjälp, Byt lösenord och Logga ut. Superanvändare ser också <b>Användare</b>, <b>Aktivitet</b> (vem som gjort vad, och från vilken enhet) och verktygen för nyckelord och tider.</li>
+        <li>Under <b>Konto</b> hittar du Aviseringar, Hjälp, Byt lösenord och Logga ut. Tryck <b>Redigera</b> vid ditt namn för att ändra hur du syns i appen. Byter du lösenord fyller du i det nuvarande först – har du glömt det får du en inloggningslänk i mejlet. Superanvändare ser också <b>Användare</b>, <b>Aktivitet</b> (vem som gjort vad, och från vilken enhet) och verktygen för nyckelord och tider.</li>
         <li>Länken till ett öppet recept kan delas – mottagaren hamnar på just det receptet.</li>
         <li><b>Behörigheter:</b> Läsa – ser allt. Egna recept – lägger till och ändrar sina egna. Superanvändare – ändrar allt och godkänner nya.</li>
       </ul>`)}
@@ -5410,4 +5420,76 @@ function barMixFinish(r){
 function evLive(html, e){
   var live = e.kind === "cooking" || (e.kind === "cooked" && isDrink(e.r) && Date.now() - e.ts < 30 * 6e4);
   return live ? html.replace('class="evi ', 'class="evi evi-live ') : html;
+}
+
+// ---------- Din profil (A2, nov 2026): eget namn, låst e-post och roll. AI-nivån visas inte här. ----------
+// Namnet sparas med recipe_set_my_name (supabase/profile.sql), som bara ändrar namnet på den egna raden.
+async function loadPeople(){
+  try {
+    const { data, error } = await sb.rpc("recipe_list_people");
+    if (error || !Array.isArray(data)) return;
+    var changed = false;
+    data.forEach(function(p){ var e = (p.email || "").toLowerCase(); if (p.name && userNames[e] !== p.name) { userNames[e] = p.name; changed = true; } });
+    if (changed && view.name !== "edit") render();
+  } catch (e) {}
+}
+function openProfile(){
+  var nm = nameOf(me) || (me || "").split("@")[0];
+  var lock = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9.5" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  var user = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c1-4 4-5.5 7-5.5s6 1.5 7 5.5"/></svg>';
+  var ex = (recipes.find(function(r){ return !r._settings && !r.cook && r.title; }) || {}).title || "Kycklinggryta";
+  openSheet('<div class="sheet-head"><h2>Din profil</h2><button class="iconbtn fp-x" id="pfClose" aria-label="Stäng">×</button></div>'
+    + '<form id="pff"><div class="pf-top"><span class="sav" id="pfAv">' + esc((nm || "?").slice(0, 1).toUpperCase()) + '</span><div><b id="pfNm">' + esc(nm) + '</b><small>' + esc(me || "") + '</small></div></div>'
+    + '<label for="pfName">Namn</label><input type="text" id="pfName" class="pf-in" maxlength="40" autocomplete="name" value="' + esc(nm) + '">'
+    + '<div class="hint">Så syns du i appen: <i><span id="pfPrev">' + esc(nm) + '</span> lagade ' + esc(ex) + '</i>.</div>'
+    + '<label>E-post</label><div class="pf-ro">' + lock + '<span>' + esc(me || "") + '</span></div>'
+    + '<div class="hint">Din e-postadress är också ditt användarnamn och kan inte ändras.</div>'
+    + '<h3 class="pf-h">Behörighet</h3><div class="pf-lock">'
+    + '<div class="pf-lrow"><span class="si">' + user + '</span><span class="st"><small>Roll</small><b>' + esc(ROLE_LABEL[role] || "Ingen behörighet") + '</b></span></div>'
+    + '<div class="pf-lnote">' + lock + '<span>Sätts av superanvändaren.</span></div></div>'
+    + '<div class="err" id="pfErr"></div>'
+    + '<div class="row" style="justify-content:flex-end;margin-top:18px"><button type="button" class="btn ghost" id="pfCancel">Avbryt</button><button class="btn accent" id="pfSave">Spara</button></div></form>');
+  var back = function(){ closeSheet(); openSettings(); };
+  $id("pfClose").onclick = back; $id("pfCancel").onclick = back;
+  $id("pfName").oninput = function(){ var v = this.value.trim() || (me || "").split("@")[0]; $id("pfPrev").textContent = v; $id("pfNm").textContent = v; $id("pfAv").textContent = v.slice(0, 1).toUpperCase(); };
+  $id("pff").onsubmit = async function(e){
+    e.preventDefault();
+    var v = $id("pfName").value.trim().replace(/\s+/g, " ");
+    if (!v) { $id("pfErr").textContent = "Skriv ett namn."; return; }
+    $id("pfSave").disabled = true; $id("pfErr").textContent = "";
+    var res = await sb.rpc("recipe_set_my_name", { p_name: v }).then(function(x){ return x; }, function(err){ return { error: err }; });
+    $id("pfSave").disabled = false;
+    if (res.error) { $id("pfErr").textContent = /recipe_set_my_name|function/i.test(res.error.message || "") ? "Namnbytet är inte påslaget än (supabase/profile.sql)." : "Kunde inte spara: " + (res.error.message || res.error); return; }
+    userNames[(me || "").toLowerCase()] = res.data || v;
+    closeSheet(); toast("Namnet är sparat"); render();
+  };
+}
+// Byt lösenord kräver nuvarande lösenord, utom första gången och strax efter inloggning med länk i mejlet
+var PW_TOKEN = null;
+function pwJwt(){
+  try { var t = PW_TOKEN; return t ? JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))) : null; } catch (e) { return null; }
+}
+function pwNeedOld(first){
+  if (first) return false;
+  var j = pwJwt();
+  var amr = j && Array.isArray(j.amr) ? j.amr : [];
+  var last = amr.slice().sort(function(a, b){ return (b.timestamp || 0) - (a.timestamp || 0); })[0];
+  // Inloggad via länk i mejlet de senaste 15 minuterna: mejlet bevisar vem man är
+  if (last && /otp|magiclink|recovery/.test(last.method || "") && Date.now() / 1000 - (last.timestamp || 0) < 900) return false;
+  return true;
+}
+async function pwCheckOld(pw){
+  if (!pw) return "Fyll i ditt nuvarande lösenord.";
+  try {
+    var r = await sb.auth.signInWithPassword({ email: me, password: pw });
+    if (r.error) return /invalid/i.test(r.error.message || "") ? "Nuvarande lösenord stämmer inte." : errText(r.error);
+    return "";
+  } catch (e) { return "Kunde inte kontrollera lösenordet: " + (e.message || e); }
+}
+async function pwForgot(){
+  var b = $id("pwForgot"); if (b) b.disabled = true;
+  var err = await sendLoginLink(me);
+  if (b) b.disabled = false;
+  if (err) { $id("pwErr").textContent = "Länken gick inte iväg: " + err; return; }
+  closeSheet(); toast("Vi har skickat en inloggningslänk till din e-post. Öppna den och välj nytt lösenord under Konto – då behövs inte det gamla.");
 }
