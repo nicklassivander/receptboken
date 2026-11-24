@@ -4417,19 +4417,19 @@ function notesPanelHtml(r, o = {}){
   const card = n => {
     const open = noteUi.open === n.id || noteUi.edit === n.id, editing = noteUi.edit === n.id;
     const who = n.kind === "pappa" ? "Pappa" : n.by ? nameOf(n.by) : "";
-    const date = noteShortDate(n.date);
-    return `<div class="nt-it k-${n.kind}${n.kind === "own" && n.q ? " has-q" : ""}">
+    const date = noteShortDate(n.date), bare = !String(n.text || "").trim();
+    return `<div class="nt-it k-${n.kind}${n.kind === "own" && n.q ? " has-q" : ""}${bare ? " no-txt" : ""}">
       <div class="nt-date">${esc(date)}</div>
       <div class="nt-card${open ? " open" : ""}">
         <div class="nt-hd" data-a="ntopen" data-n="${esc(n.id)}" role="button" aria-expanded="${open}">
           ${n.kind === "pappa" ? NOTE_HAT : NOTE_PEN}
           <span class="nt-q">${esc(noteTitle(n))}</span>
           <span class="nt-m">${esc([date, open && who && n.kind !== "pappa" ? who : ""].filter(Boolean).join(" · "))}</span>
-          <span class="nt-chev" aria-hidden="true"></span>
+          ${bare && !ed ? "" : `<span class="nt-chev" aria-hidden="true"></span>`}
         </div>
         ${editing ? editor(n.id, n.text || "", n.q, n.kind === "own")
-          : open ? `<div class="nt-body">${aiMd(n.text || "")}</div>${ed ? `<div class="nt-tools"><button class="linkbtn" data-a="ntedit" data-n="${esc(n.id)}">Redigera</button><button class="linkbtn${noteUi.armed === n.id ? " armed" : ""}" data-a="ntdel" data-n="${esc(n.id)}">${noteUi.armed === n.id ? "Säker? Tryck igen" : "Ta bort"}</button></div>` : ""}`
-          : `<div class="nt-pv">${esc(notePreview(n.text))}</div>`}
+          : open ? `${bare ? "" : `<div class="nt-body">${aiMd(n.text || "")}</div>`}${ed ? `<div class="nt-tools"><button class="linkbtn" data-a="ntedit" data-n="${esc(n.id)}">Redigera</button><button class="linkbtn${noteUi.armed === n.id ? " armed" : ""}" data-a="ntdel" data-n="${esc(n.id)}">${noteUi.armed === n.id ? "Säker? Tryck igen" : "Ta bort"}</button></div>` : ""}`
+          : bare ? "" : `<div class="nt-pv">${esc(notePreview(n.text))}</div>`}
       </div></div>`;
   };
   const many = items.length > 3;
@@ -4473,8 +4473,9 @@ document.addEventListener("click", async e => {
     const val = ($id("nt-input") ? $id("nt-input").value : "").trim();
     const tEl = $id("nt-title"), q = tEl ? tEl.value.replace(/\s+/g, " ").trim().slice(0, 60) : null;
     let items = noteItemsOf(r);
-    if (id === "new") { if (!val) { noteUi.edit = null; render(); return; } items = items.concat(noteNew("own", val, q)); }
-    else items = val ? items.map(n => n.id === id ? (q != null && n.kind === "own" ? { ...n, text: val, q } : { ...n, text: val }) : n) : items.filter(n => n.id !== id);
+    // en egen anteckning får ha bara rubrik (tom text); helt tom = ingen anteckning
+    if (id === "new") { if (!val && !q) { noteUi.edit = null; render(); return; } items = items.concat(noteNew("own", val, q)); }
+    else items = items.map(n => n.id === id ? (q != null && n.kind === "own" ? { ...n, text: val, q } : { ...n, text: val }) : n).filter(n => n.id !== id || String(n.text || "").trim() || (n.kind === "own" && n.q));
     noteUi.edit = null; noteUi.draftFor = null; noteUi.draftQ = null; if (id === "new") { noteUi.open = null; noteUi.scroll[r.id] = 0; }
     if (await saveNoteItems(r, items)) toast(noteBar() ? "Tipset är sparat" : "Anteckningen är sparad");
   }
